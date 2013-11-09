@@ -412,7 +412,8 @@ void free_analyze_cache(void)
 			CloseHandle(hEvent_worker_sleep[i]);
 		}
 		_aligned_free(analyze_cachep);
-		_aligned_free(scan_workp);
+		if (scan_workp)
+			_aligned_free(scan_workp);
 		analyze_cachep = NULL;
 		scan_workp = NULL;
 	}
@@ -740,11 +741,13 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
 		if(analyze_cachep == NULL)
 			return FALSE;
 
-		scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64);
-		if(scan_workp == NULL){
-			_aligned_free(analyze_cachep);
-			analyze_cachep = NULL;
-			return FALSE;
+		if (afs_func.analyze.shrink_info) {
+			scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64);
+			if (scan_workp == NULL){
+				_aligned_free(analyze_cachep);
+				analyze_cachep = NULL;
+				return FALSE;
+			}
 		}
 
 		for(i = 0; i < AFS_SCAN_CACHE_NUM; i++){
