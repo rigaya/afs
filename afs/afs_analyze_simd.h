@@ -23,7 +23,13 @@ void __stdcall afs_analyze_2_avx_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_Y
 void __stdcall afs_analyze_2_avx2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
 
 #ifdef ENABLE_FUNC_BASE
-#include <smmintrin.h> //SSE4.1
+#include <emmintrin.h> //イントリンシック命令 SSE2
+#if USE_SSSE3
+#include <tmmintrin.h> //イントリンシック命令 SSSE3
+#endif
+#if USE_SSE41
+#include <smmintrin.h> //イントリンシック命令 SSE4.1
+#endif
 #include "simd_util.h"
 
 static const _declspec(align(16)) BYTE pb_thre_count[16]       = { 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03 };
@@ -91,13 +97,43 @@ static void __forceinline __stdcall afs_analyze_set_threshold_simd(int thre_shif
     pw_thre_motion[2][7] = thre_Cmotion;
 }
 
-static void __forceinline afs_analyze_shrink_info_sub_sse2(BYTE *src, __m128i &x0, __m128i &x1, BOOL aligned) {
+template <BOOL aligned>
+static void __forceinline afs_analyze_shrink_info_sub(BYTE *src, __m128i &x0, __m128i &x1) {
 	__m128i x2, x3, x6, x7;
-	const int MASK_INT = 0x40 + 0x08 + 0x01;
 	x1 = (aligned) ? _mm_load_si128((__m128i *)(src +  0)) : _mm_loadu_si128((__m128i *)(src +  0));
 	x2 = (aligned) ? _mm_load_si128((__m128i *)(src + 16)) : _mm_loadu_si128((__m128i *)(src + 16));
 	x3 = (aligned) ? _mm_load_si128((__m128i *)(src + 32)) : _mm_loadu_si128((__m128i *)(src + 32));
+#if USE_SSSE3
+	__m128i xShuffleArray = _mm_load_si128((__m128i*)Array_SUFFLE_YCP_Y);
+  #if USE_SSE41
+	const int MASK_INT = 0x40 + 0x08 + 0x01;
 
+	x0 = _mm_blend_epi16(x3, x1, MASK_INT);
+	x6 = _mm_blend_epi16(x2, x3, MASK_INT);
+	x7 = _mm_blend_epi16(x1, x2, MASK_INT);
+
+	x0 = _mm_blend_epi16(x0, x2, MASK_INT << 1);
+	x6 = _mm_blend_epi16(x6, x1, MASK_INT << 1);
+	x7 = _mm_blend_epi16(x7, x3, MASK_INT << 1);
+  #else
+	static const _declspec(align(16)) USHORT maskY[8] = { 0xffff, 0x0000, 0x0000, 0xffff, 0x0000, 0x0000, 0xffff, 0x0000 };
+	__m128i xMask = _mm_load_si128((__m128i*)maskY);
+
+	x0 = select_by_mask(x3, x1, xMask);
+	x6 = select_by_mask(x2, x3, xMask);
+	x7 = select_by_mask(x1, x2, xMask);
+
+	xMask = _mm_slli_si128(xMask, 2);
+
+	x0 = select_by_mask(x0, x2, xMask);
+	x6 = select_by_mask(x6, x1, xMask);
+	x7 = select_by_mask(x7, x3, xMask);
+  #endif //USE_SSE41
+
+	x0 = _mm_shuffle_epi8(x0, xShuffleArray); //Y
+	x6 = _mm_shuffle_epi8(x6, _mm_alignr_epi8(xShuffleArray, xShuffleArray, 6)); //Cb
+	x7 = _mm_shuffle_epi8(x7, _mm_alignr_epi8(xShuffleArray, xShuffleArray, 12)); //Cr
+#else
 	//select y
 	static const _declspec(align(16)) USHORT maskY_select[8] = { 0xffff, 0x0000, 0x0000, 0xffff, 0x0000, 0x0000, 0xffff, 0x0000 };
 	__m128i xMask = _mm_load_si128((__m128i*)maskY_select);
@@ -136,49 +172,7 @@ static void __forceinline afs_analyze_shrink_info_sub_sse2(BYTE *src, __m128i &x
 
 	x6 = _mm_unpacklo_epi32(x1, x2); //u7 u6 u5 u4 u3 u2 u1 u0
 	x7 = _mm_unpackhi_epi32(x1, x2); //v7 v6 v5 v4 v3 v2 v1 v0
-
-
-	x1 = _mm_or_si128(x0, x6);
-	x0 = _mm_and_si128(x0, x6);
-	x1 = _mm_or_si128(x1, x7);
-	x0 = _mm_and_si128(x0, x7);
-
-	x1 = _mm_slli_epi16(x1, 8);
-	x0 = _mm_srai_epi16(x0, 8);
-	x1 = _mm_srai_epi16(x1, 8);
-
-	x0 = _mm_packs_epi16(x0, x0);
-	x1 = _mm_packs_epi16(x1, x1);
-
-	x0 = _mm_and_si128(x0, _mm_load_si128((__m128i*)pb_mask_12motion_01));
-	x1 = _mm_and_si128(x1, _mm_load_si128((__m128i*)pb_mask_12stripe_01));
-
-	x0 = _mm_or_si128(x0, x1);
-}
-
-static void __forceinline afs_analyze_shrink_info_sub_ssse3(BYTE *src, __m128i &x0, __m128i &x1, BOOL aligned) {
-	static const _declspec(align(16)) USHORT maskY[8] = { 0xffff, 0x0000, 0x0000, 0xffff, 0x0000, 0x0000, 0xffff, 0x0000 };
-	__m128i x2, x3, x6, x7;
-	__m128i xShuffleArray = _mm_load_si128((__m128i*)Array_SUFFLE_YCP_Y);
-	__m128i xMask = _mm_load_si128((__m128i*)maskY);
-	const int MASK_INT = 0x40 + 0x08 + 0x01;
-	x1 = (aligned) ? _mm_load_si128((__m128i *)(src +  0)) : _mm_loadu_si128((__m128i *)(src +  0));
-	x2 = (aligned) ? _mm_load_si128((__m128i *)(src + 16)) : _mm_loadu_si128((__m128i *)(src + 16));
-	x3 = (aligned) ? _mm_load_si128((__m128i *)(src + 32)) : _mm_loadu_si128((__m128i *)(src + 32));
-
-	x0 = select_by_mask(x3, x1, xMask);
-	x6 = select_by_mask(x2, x3, xMask);
-	x7 = select_by_mask(x1, x2, xMask);
-	
-	xMask = _mm_slli_si128(xMask, 2);
-
-	x0 = select_by_mask(x0, x2, xMask);
-	x6 = select_by_mask(x6, x1, xMask);
-	x7 = select_by_mask(x7, x3, xMask);
-
-	x0 = _mm_shuffle_epi8(x0, xShuffleArray); //Y
-	x6 = _mm_shuffle_epi8(x6, _mm_alignr_epi8(xShuffleArray, xShuffleArray, 6)); //Cb
-	x7 = _mm_shuffle_epi8(x7, _mm_alignr_epi8(xShuffleArray, xShuffleArray, 12)); //Cr
+#endif //USE_SSSE3
 
 	x1 = _mm_or_si128(x0, x6);
 	x0 = _mm_and_si128(x0, x6);
@@ -198,46 +192,6 @@ static void __forceinline afs_analyze_shrink_info_sub_ssse3(BYTE *src, __m128i &
 	x0 = _mm_or_si128(x0, x1);
 }
 
-static void __forceinline afs_analyze_shrink_info_sub_sse4_1(BYTE *src, __m128i &x0, __m128i &x1, BOOL aligned) {
-	__m128i x2, x3, x6, x7;
-	__m128i xShuffleArray = _mm_load_si128((__m128i*)Array_SUFFLE_YCP_Y);
-	const int MASK_INT = 0x40 + 0x08 + 0x01;
-	x1 = (aligned) ? _mm_load_si128((__m128i *)(src +  0)) : _mm_loadu_si128((__m128i *)(src +  0));
-	x2 = (aligned) ? _mm_load_si128((__m128i *)(src + 16)) : _mm_loadu_si128((__m128i *)(src + 16));
-	x3 = (aligned) ? _mm_load_si128((__m128i *)(src + 32)) : _mm_loadu_si128((__m128i *)(src + 32));
-
-	x0 = _mm_blend_epi16(x3, x1, MASK_INT);
-	x6 = _mm_blend_epi16(x2, x3, MASK_INT);
-	x7 = _mm_blend_epi16(x1, x2, MASK_INT);
-
-	x0 = _mm_blend_epi16(x0, x2, MASK_INT<<1);
-	x6 = _mm_blend_epi16(x6, x1, MASK_INT<<1);
-	x7 = _mm_blend_epi16(x7, x3, MASK_INT<<1);
-
-	x0 = _mm_shuffle_epi8(x0, xShuffleArray); //Y
-	x6 = _mm_shuffle_epi8(x6, _mm_alignr_epi8(xShuffleArray, xShuffleArray, 6)); //Cb
-	x7 = _mm_shuffle_epi8(x7, _mm_alignr_epi8(xShuffleArray, xShuffleArray, 12)); //Cr
-
-	x1 = _mm_or_si128(x0, x6);
-	x0 = _mm_and_si128(x0, x6);
-	x1 = _mm_or_si128(x1, x7);
-	x0 = _mm_and_si128(x0, x7);
-
-	x1 = _mm_slli_epi16(x1, 8);
-	x0 = _mm_srai_epi16(x0, 8);
-	x1 = _mm_srai_epi16(x1, 8);
-
-	x0 = _mm_packs_epi16(x0, x0);
-	x1 = _mm_packs_epi16(x1, x1);
-
-	x0 = _mm_and_si128(x0, _mm_load_si128((__m128i*)pb_mask_12motion_01));
-	x1 = _mm_and_si128(x1, _mm_load_si128((__m128i*)pb_mask_12stripe_01));
-
-	x0 = _mm_or_si128(x0, x1);
-}
-
-#define afs_analyze_shrink_info_sub_simd(src,x0,x1) ((simd & SSE41) ? afs_analyze_shrink_info_sub_sse4_1(src,x0,x1,FALSE) : ((simd & SSSE3) ? afs_analyze_shrink_info_sub_ssse3(src,x0,x1,FALSE) : afs_analyze_shrink_info_sub_sse2(src,x0,x1,FALSE)))
-#define afs_analyze_shrink_info_sub_simd_aligned(src,x0,x1) ((simd & SSE41) ? afs_analyze_shrink_info_sub_sse4_1(src,x0,x1,TRUE) : ((simd & SSSE3) ? afs_analyze_shrink_info_sub_ssse3(src,x0,x1,TRUE) : afs_analyze_shrink_info_sub_sse2(src,x0,x1,TRUE)))
 /*
 以下 高速化版+6までの旧コード
 static void __forceinline __stdcall afs_analyze_shrink_info_simd(BYTE *dst, PIXEL_YC *src, int h, int width, int si_pitch, DWORD simd) {
@@ -352,7 +306,7 @@ static void __forceinline __stdcall afs_analyze_shrink_info_simd_plus(BYTE *dst,
 	}
 }
 */
-static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, DWORD simd) {
+static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
 	const int step6 = step * 6;
 	const int width6 = width * 6;
 	const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
@@ -373,14 +327,14 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
 			x0 = _mm_loadu_si128((__m128i *)ptr_p0);
 			x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)ptr_p1));
-			if (simd & SSSE3) {
-				x0 = _mm_abs_epi16(x0);
-			} else {
-				x1 = _mm_setzero_si128();
-				x1 = _mm_cmpgt_epi16(x1, x0);
-				x0 = _mm_xor_si128(x0, x1);
-				x0 = _mm_subs_epi16(x0, x1);
-			}
+#if USE_SSSE3
+			x0 = _mm_abs_epi16(x0);
+#else
+			x1 = _mm_setzero_si128();
+			x1 = _mm_cmpgt_epi16(x1, x0);
+			x0 = _mm_xor_si128(x0, x1);
+			x0 = _mm_subs_epi16(x0, x1);
+#endif
 			x3 = _mm_load_si128((__m128i *)pw_thre_motion[jw]);
 			x2 = _mm_load_si128((__m128i *)pw_thre_shift);
 			x3 = _mm_cmpgt_epi16(x3, x0);
@@ -390,7 +344,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 			x3 = _mm_or_si128(x3, x2);
 			_mm_store_si128((__m128i *)(tmp8pix + jw*16), x3);
 		}
-		afs_analyze_shrink_info_sub_simd_aligned(tmp8pix, x0, x1);
+		afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 		_mm_storel_epi64((__m128i*)(buf2_ptr), x0);
 	}
 
@@ -417,14 +371,14 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 				x0 = _mm_loadu_si128((__m128i *)(ptr_p0 + step6));
 				x1 = x0;
 				x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)(ptr_p1+step6)));
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x0);
-				} else {
-					x2 = _mm_setzero_si128();
-					x2 = _mm_cmpgt_epi16(x2, x0);
-					x0 = _mm_xor_si128(x0, x2);
-					x0 = _mm_subs_epi16(x0, x2);
-				}
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x0);
+#else
+				x2 = _mm_setzero_si128();
+				x2 = _mm_cmpgt_epi16(x2, x0);
+				x0 = _mm_xor_si128(x0, x2);
+				x0 = _mm_subs_epi16(x0, x2);
+#endif
 				x3 = _mm_load_si128((__m128i *)pw_thre_motion[jw]);
 				x2 = _mm_load_si128((__m128i *)pw_thre_shift);
 				x3 = _mm_cmpgt_epi16(x3, x0);
@@ -435,16 +389,16 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 			
 				x2 = _mm_loadu_si128((__m128i *)ptr_p0);
 				x2 = _mm_subs_epi16(x2, x1);
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x2);
-					x2 = _mm_cmpeq_epi16(x2, x0);
-				} else {
-					x0 = x2;
-					x2 = _mm_setzero_si128();
-					x2 = _mm_cmpgt_epi16(x2, x0);
-					x0 = _mm_xor_si128(x0, x2);
-					x0 = _mm_subs_epi16(x0, x2);
-				}
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x2);
+				x2 = _mm_cmpeq_epi16(x2, x0);
+#else
+				x0 = x2;
+				x2 = _mm_setzero_si128();
+				x2 = _mm_cmpgt_epi16(x2, x0);
+				x0 = _mm_xor_si128(x0, x2);
+				x0 = _mm_subs_epi16(x0, x2);
+#endif
 				x1 = x0;
 				x1 = _mm_cmpgt_epi16(x1, _mm_load_si128((__m128i *)pw_thre_deint));
 				x1 = _mm_packs_epi16(x1, x1);
@@ -469,16 +423,16 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 			
 				x2 = _mm_loadu_si128((__m128i *)(ptr[0]));
 				x2 = _mm_subs_epi16(x2, _mm_loadu_si128((__m128i *)(ptr[1]+step6)));
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x2);
-					x2 = _mm_cmpeq_epi16(x2, x0);
-				} else {
-					x0 = x2;
-					x2 = _mm_setzero_si128();
-					x2 = _mm_cmpgt_epi16(x2, x0);
-					x0 = _mm_xor_si128(x0, x2);
-					x0 = _mm_subs_epi16(x0, x2);
-				}
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x2);
+				x2 = _mm_cmpeq_epi16(x2, x0);
+#else
+				x0 = x2;
+				x2 = _mm_setzero_si128();
+				x2 = _mm_cmpgt_epi16(x2, x0);
+				x0 = _mm_xor_si128(x0, x2);
+				x0 = _mm_subs_epi16(x0, x2);
+#endif
 				x1 = x0;
 				x1 = _mm_cmpgt_epi16(x1, _mm_load_si128((__m128i *)pw_thre_deint));
 				x1 = _mm_packs_epi16(x1, x1);
@@ -502,7 +456,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 			
 				_mm_store_si128((__m128i *)(tmp8pix + jw*16), x3);
 			}
-			afs_analyze_shrink_info_sub_simd_aligned(tmp8pix, x0, x1);
+			afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 			_mm_storel_epi64((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), x0);
 			_mm_storel_epi64((__m128i*)(buf2_ptr + (((ih+1) & 7)) * BLOCK_SIZE_YCP), x1);
 		}
@@ -550,7 +504,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 }
 
 
-static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, DWORD simd) {
+static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
 	const int step6 = step * 6;
 	const int width6 = width * 6;
 	const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
@@ -573,22 +527,22 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 			//afs_analyze_1_mmx_sub
 			x0 = _mm_loadu_si128((__m128i *)ptr_p0);
 			x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)ptr_p1)); //x0 = *p0 - *p1
-			if (simd & SSSE3) {
-				x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
-			} else {
-				x1 = _mm_setzero_si128();
-				x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)ptr_p1)); //x0 = *p0 - *p1
-				x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
-				x0 = _mm_xor_si128(x0, x1);
-				x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
-			}
+#if USE_SSSE3
+			x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
+#else
+			x1 = _mm_setzero_si128();
+			x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)ptr_p1)); //x0 = *p0 - *p1
+			x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
+			x0 = _mm_xor_si128(x0, x1);
+			x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
+#endif
 			x2 = x3;
 			x2 = _mm_cmpgt_epi16(x2, x0); //x2 = (thre_motion > abs(*p0 - *p1))
 			x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pw_mask_1motion_0)); //x2 &= 4000h
 			
 			_mm_store_si128((__m128i *)(tmp8pix + jw*16), x2);
 		}
-		afs_analyze_shrink_info_sub_simd_aligned(tmp8pix, x0, x1);
+		afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 		_mm_storel_epi64((__m128i*)(buf2_ptr), x0);
 	}
 
@@ -626,31 +580,31 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 				//analyze motion
 				x0 = _mm_loadu_si128((__m128i *)(ptr_p0+step6));
 				x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)(ptr_p1+step6))); //x0 = *p0 - *p1
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
-				} else {
-					x1 = _mm_setzero_si128();
-					x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
-					x0 = _mm_xor_si128(x0, x1);
-					x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
-				}
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
+#else
+				x1 = _mm_setzero_si128();
+				x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
+				x0 = _mm_xor_si128(x0, x1);
+				x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
+#endif
 				x2 = x3;
 				x2 = _mm_cmpgt_epi16(x2, x0); //x2 = (thre_shift > abs(*p0 - *p1))
 				x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pw_mask_1motion_0)); //x2 &= 4000h
 				
 				//analyze non-shift
 				x1 = _mm_loadu_si128((__m128i *)ptr_p0);
-				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr_p0+step6)));
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x1);
-					x1 = _mm_cmpeq_epi16(x1, x0);
-				} else {
-					x0 = x1;
-					x1 = _mm_setzero_si128();
-					x1 = _mm_cmpgt_epi16(x1, x0);
-					x0 = _mm_xor_si128(x0, x1);
-					x0 = _mm_subs_epi16(x0, x1);
-				}
+				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr_p0 + step6)));
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x1);
+				x1 = _mm_cmpeq_epi16(x1, x0);
+#else
+				x0 = x1;
+				x1 = _mm_setzero_si128();
+				x1 = _mm_cmpgt_epi16(x1, x0);
+				x0 = _mm_xor_si128(x0, x1);
+				x0 = _mm_subs_epi16(x0, x1);
+#endif
 				x0 = _mm_cmpgt_epi16(x0, x3);
 				x7 = _mm_load_si128((__m128i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6));
 				x6 = _mm_load_si128((__m128i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
@@ -671,17 +625,17 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 				
 				//analyze shift
 				x1 = _mm_loadu_si128((__m128i *)(ptr[0]));
-				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr[1]+step6)));
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x1);
-					x1 = _mm_cmpeq_epi16(x1, x0);
-				} else {
-					x0 = x1;
-					x1 = _mm_setzero_si128();
-					x1 = _mm_cmpgt_epi16(x1, x0);
-					x0 = _mm_xor_si128(x0, x1);
-					x0 = _mm_subs_epi16(x0, x1);
-				}
+				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr[1] + step6)));
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x1);
+				x1 = _mm_cmpeq_epi16(x1, x0);
+#else
+				x0 = x1;
+				x1 = _mm_setzero_si128();
+				x1 = _mm_cmpgt_epi16(x1, x0);
+				x0 = _mm_xor_si128(x0, x1);
+				x0 = _mm_subs_epi16(x0, x1);
+#endif
 				x0 = _mm_cmpgt_epi16(x0, x3);
 				x5 = _mm_load_si128((__m128i *)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6));
 				x4 = _mm_load_si128((__m128i *)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6));
@@ -700,7 +654,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 				
 				_mm_store_si128((__m128i *)(tmp8pix + jw*16), x2);
 			}
-			afs_analyze_shrink_info_sub_simd_aligned(tmp8pix, x0, x1);
+			afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 			_mm_storel_epi64((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), x0);
 			_mm_storel_epi64((__m128i*)(buf2_ptr + (((ih+1) & 7)) * BLOCK_SIZE_YCP), x1);
 		}
@@ -747,7 +701,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 	}
 }
 
-static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, DWORD simd) {
+static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
 	const int step6 = step * 6;
 	const int width6 = width * 6;
 	const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
@@ -770,21 +724,21 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 			//afs_analyze_2_mmx_sub
 			x0 = _mm_loadu_si128((__m128i *)ptr_p0);
 			x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)ptr_p1)); //x0 = *p0 - *p1
-			if (simd & SSSE3) {
-				x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
-			} else {
-				x1 = _mm_setzero_si128();
-				x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
-				x0 = _mm_xor_si128(x0, x1);
-				x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
-			}
+#if USE_SSSE3
+			x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
+#else
+			x1 = _mm_setzero_si128();
+			x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
+			x0 = _mm_xor_si128(x0, x1);
+			x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
+#endif
 			x2 = x3;
 			x2 = _mm_cmpgt_epi16(x2, x0); //x2 = (thre_motion > abs(*p0 - *p1))
 			x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pw_mask_2motion_0)); //x2 &= 4000h
 			
 			_mm_store_si128((__m128i *)(tmp8pix + jw*16), x2);
 		}
-		afs_analyze_shrink_info_sub_simd_aligned(tmp8pix, x0, x1);
+		afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 		_mm_storel_epi64((__m128i*)(buf2_ptr), x0);
 	}
 
@@ -824,31 +778,31 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 				//analyze motion
 				x0 = _mm_loadu_si128((__m128i *)(ptr_p0+step6));
 				x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)(ptr_p1+step6))); //x0 = *p0 - *p1
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
-				} else {
-					x1 = _mm_setzero_si128();
-					x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
-					x0 = _mm_xor_si128(x0, x1);
-					x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
-				}
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x0); //x0 = abs(*p0 - *p1)
+#else
+				x1 = _mm_setzero_si128();
+				x1 = _mm_cmpgt_epi16(x1, x0); //x1 = sign(*p0 - *p1) = (0 > mm0)
+				x0 = _mm_xor_si128(x0, x1);
+				x0 = _mm_subs_epi16(x0, x1); //x0 = abs(*p0 - *p1)
+#endif
 				x2 = x3;
 				x2 = _mm_cmpgt_epi16(x2, x0); //x2 = (thre_shift > abs(*p0 - *p1))
 				x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pw_mask_2motion_0)); //x2 &= 4000h
 				
 				//analyze non-shift
 				x1 = _mm_loadu_si128((__m128i *)ptr_p0);
-				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr_p0+step6)));
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x1);
-					x1 = _mm_cmpeq_epi16(x1, x0);
-				} else {
-					x0 = x1;
-					x1 = _mm_setzero_si128();
-					x1 = _mm_cmpgt_epi16(x1, x0);
-					x0 = _mm_xor_si128(x0, x1);
-					x0 = _mm_subs_epi16(x0, x1);
-				}
+				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr_p0 + step6)));
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x1);
+				x1 = _mm_cmpeq_epi16(x1, x0);
+#else
+				x0 = x1;
+				x1 = _mm_setzero_si128();
+				x1 = _mm_cmpgt_epi16(x1, x0);
+				x0 = _mm_xor_si128(x0, x1);
+				x0 = _mm_subs_epi16(x0, x1);
+#endif
 				x0 = _mm_cmpgt_epi16(x0, _mm_load_si128((__m128i *)pw_thre_deint));
 				x7 = _mm_load_si128((__m128i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6));
 				x6 = _mm_load_si128((__m128i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
@@ -866,17 +820,17 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 				
 				//analyze shift
 				x1 = _mm_loadu_si128((__m128i *)(ptr[0]));
-				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr[1]+step6)));
-				if (simd & SSSE3) {
-					x0 = _mm_abs_epi16(x1);
-					x1 = _mm_cmpeq_epi16(x1, x0);
-				} else {
-					x0 = x1;
-					x1 = _mm_setzero_si128();
-					x1 = _mm_cmpgt_epi16(x1, x0);
-					x0 = _mm_xor_si128(x0, x1);
-					x0 = _mm_subs_epi16(x0, x1);
-				}
+				x1 = _mm_subs_epi16(x1, _mm_loadu_si128((__m128i *)(ptr[1] + step6)));
+#if USE_SSSE3
+				x0 = _mm_abs_epi16(x1);
+				x1 = _mm_cmpeq_epi16(x1, x0);
+#else
+				x0 = x1;
+				x1 = _mm_setzero_si128();
+				x1 = _mm_cmpgt_epi16(x1, x0);
+				x0 = _mm_xor_si128(x0, x1);
+				x0 = _mm_subs_epi16(x0, x1);
+#endif
 				x0 = _mm_cmpgt_epi16(x0, _mm_load_si128((__m128i *)pw_thre_deint));
 				x5 = _mm_load_si128((__m128i *)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6));
 				x4 = _mm_load_si128((__m128i *)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6));
@@ -894,7 +848,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 				
 				_mm_store_si128((__m128i *)(tmp8pix + jw*16), x2);
 			}
-			afs_analyze_shrink_info_sub_simd_aligned(tmp8pix, x0, x1);
+			afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 			_mm_storel_epi64((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), x0);
 			_mm_storel_epi64((__m128i*)(buf2_ptr + (((ih+1) & 7)) * BLOCK_SIZE_YCP), x1);
 		}

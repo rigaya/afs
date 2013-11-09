@@ -5,40 +5,6 @@
 #define ENABLE_FUNC_BASE
 #include "afs_analyze_simd.h"
 
-void __stdcall afs_analyze_set_threshold_sse2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
-	afs_analyze_set_threshold_simd(thre_shift, thre_deint, thre_Ymotion, thre_Cmotion);
-}
-//+8高速化第2弾
-void __stdcall afs_analyze_12_sse2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_12_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSE2);
-}
-void __stdcall afs_analyze_12_ssse3_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_12_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSSE3|SSE2);
-}
-void __stdcall afs_analyze_12_sse4_1_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_12_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSE41|SSE3|SSE2);
-}
-
-void __stdcall afs_analyze_1_sse2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_1_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSE2);
-}
-void __stdcall afs_analyze_1_ssse3_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_1_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSSE3|SSE2);
-}
-void __stdcall afs_analyze_1_sse4_1_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_1_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSE41|SSE3|SSE2);
-}
-
-void __stdcall afs_analyze_2_sse2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_2_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSE2);
-}
-void __stdcall afs_analyze_2_ssse3_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_2_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSSE3|SSE2);
-}
-void __stdcall afs_analyze_2_sse4_1_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
-	afs_analyze_2_simd_plus2(dst, p0, p1, tb_order, width, step, si_pitch, h, SSE41|SSE3|SSE2);
-}
-
 //以下 高速化版+6までの旧コードと+7での高速化第1弾
 /*
 void __stdcall afs_analyze_12_sse2(PIXEL_YC *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int h) {

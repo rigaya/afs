@@ -35,6 +35,19 @@ static inline __m128i select_by_mask(__m128i a, __m128i b, __m128i mask) {
 
 #define palignr_simd(a,b,i) ((simd & SSSE3) ? _mm_alignr_epi8((a),(b),(i)) : palignr_sse2((a),(b),(i)))
 
+static inline __m128i _mm_abs_epi16_simd(__m128i x0) {
+#if USE_SSSE3
+	x0 = _mm_abs_epi16(x0);
+#else
+	__m128i x1;
+	x1 = _mm_setzero_si128();
+	x1 = _mm_cmpgt_epi16(x1, x0);
+	x0 = _mm_xor_si128(x0, x1);
+	x0 = _mm_subs_epi16(x0, x1);
+#endif
+	return x0;
+}
+
 #ifdef _INCLUDED_IMM
 //本来の256bit alignr
 #define MM_ABS(x) (((x) < 0) ? -(x) : (x))
