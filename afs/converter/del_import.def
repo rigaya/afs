@@ -1,0 +1,5 @@
+LIBRARY del_import
+
+EXPORTS
+	GetFilterTable @1
+

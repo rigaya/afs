@@ -1,0 +1,5 @@
+LIBRARY nullout
+
+EXPORTS
+	GetOutputPluginTable @1
+
