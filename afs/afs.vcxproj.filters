@@ -23,13 +23,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="afs_yuy2up_simd.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="afs_simd.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="afs_filter_simd.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="afs_analyze_simd.cpp">
@@ -41,16 +35,7 @@
     <ClCompile Include="afs_func.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_yuy2up_avx.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="afs_analyze_avx.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="afs_avx.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="afs_filter_avx.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="afs_analyze_avx2.cpp">
@@ -68,13 +53,16 @@
     <ClCompile Include="afs_debug.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_analyze_sse2.cpp">
+    <ClCompile Include="afs_simd_sse2.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_analyze_sse41.cpp">
+    <ClCompile Include="afs_simd_sse41.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_analyze_ssse3.cpp">
+    <ClCompile Include="afs_simd_ssse3.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="afs_simd_avx.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>

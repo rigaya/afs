@@ -305,7 +305,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="afs_analyze_avx.cpp">
+    <ClCompile Include="afs_simd_avx.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
@@ -320,9 +320,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="afs_analyze_simd.cpp" />
-    <ClCompile Include="afs_analyze_sse2.cpp" />
-    <ClCompile Include="afs_analyze_sse41.cpp" />
-    <ClCompile Include="afs_analyze_ssse3.cpp" />
+    <ClCompile Include="afs_simd_sse2.cpp" />
+    <ClCompile Include="afs_simd_sse41.cpp" />
+    <ClCompile Include="afs_simd_ssse3.cpp" />
     <ClCompile Include="afs_avx.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
@@ -341,10 +341,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="afs_filter_avx.cpp">
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-    </ClCompile>
     <ClCompile Include="afs_filter_avx2.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
@@ -352,17 +348,12 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">false</ExcludedFromBuild>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
-    <ClCompile Include="afs_filter_simd.cpp" />
     <ClCompile Include="afs_func.cpp" />
     <ClCompile Include="afs_simd.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">false</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="afs_yuy2up_avx.cpp">
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <ClCompile Include="afs_yuy2up_avx2.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">false</ExcludedFromBuild>
@@ -372,7 +363,6 @@
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
-    <ClCompile Include="afs_yuy2up_simd.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="afs.h" />

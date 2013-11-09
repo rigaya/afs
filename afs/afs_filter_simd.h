@@ -275,7 +275,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 		x5 = x1;
 		x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + 1*16)));
 		x3 = _mm_or_si128(x3, x5);
-		x4 = palignr_simd(x2, x1, 1);
+		x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 		
 		x5 = x3;
 		x3 = _mm_or_si128(x3, x4);
@@ -293,8 +293,8 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 			x1 = x2;
 			x2 = _mm_loadu_si128((__m128i*)(ptr_sip_in+1*16));
 			
-			x3 = palignr_simd(x1, x0, 15);
-			x4 = palignr_simd(x2, x1, 1);
+			x3 = _mm_alignr_epi8_simd(x1, x0, 15);
+			x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 			
 			x5 = x3;
 			x3 = _mm_or_si128(x3, x4);
@@ -312,7 +312,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 		x4 = x2;
 		x4 = _mm_and_si128(x4, x0);
 		x4 = _mm_srli_si128(x4, 1);
-		x3 = palignr_simd(x2, x1, 15);
+		x3 = _mm_alignr_epi8_simd(x2, x1, 15);
 		x5 = x2;
 		x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + iw*16)));
 		x4 = _mm_or_si128(x4, x5);
@@ -379,7 +379,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 		x5 = x1;
 		x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + 1*16)));
 		x3 = _mm_or_si128(x3, x5);
-		x4 = palignr_simd(x2, x1, 1);
+		x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 		
 		x3 = _mm_and_si128(x3, x4);
 		x3 = _mm_or_si128(x3, x6);
@@ -392,8 +392,8 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 			x1 = x2;
 			x2 = _mm_loadu_si128((__m128i*)(ptr_sip_in+16));
 			
-			x3 = palignr_simd(x1, x0, 15);
-			x4 = palignr_simd(x2, x1, 1);
+			x3 = _mm_alignr_epi8_simd(x1, x0, 15);
+			x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 			
 			x3 = _mm_and_si128(x3, x4);
 			x3 = _mm_or_si128(x3, x6);
@@ -408,7 +408,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 		x4 = x2;
 		x4 = _mm_and_si128(x4, x0);
 		x4 = _mm_srli_si128(x4, 1);
-		x3 = palignr_simd(x2, x1, 15);
+		x3 = _mm_alignr_epi8_simd(x2, x1, 15);
 		x5 = x2;
 		x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + iw*16)));
 		x4 = _mm_or_si128(x4, x5);
@@ -482,8 +482,8 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 		x1 = x2;
 		x2 = _mm_load_si128((__m128i*)(ptr_sip+16));
 			
-		x3 = palignr_simd(x1, x0, 15);
-		x4 = palignr_simd(x2, x1, 1);
+		x3 = _mm_alignr_epi8_simd(x1, x0, 15);
+		x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 			
 		x5 = x3;
 		x3 = _mm_or_si128(x3, x4);
@@ -500,7 +500,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 	x4 = x2;
 	x4 = _mm_and_si128(x4, x0);
 	x4 = _mm_srli_si128(x4, 1);
-	x3 = palignr_simd(x2, x1, 15);
+	x3 = _mm_alignr_epi8_simd(x2, x1, 15);
 	x5 = x2;
 	x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + iw*16)));
 	x4 = _mm_or_si128(x4, x5);
@@ -530,8 +530,8 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 			x1 = x2;
 			x2 = _mm_load_si128((__m128i*)(ptr_sip+si_w+16));
 			
-			x3 = palignr_simd(x1, x0, 15);
-			x4 = palignr_simd(x2, x1, 1);
+			x3 = _mm_alignr_epi8_simd(x1, x0, 15);
+			x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 			
 			x5 = x3;
 			x3 = _mm_or_si128(x3, x4);
@@ -558,7 +558,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 		x4 = x2;
 		x4 = _mm_and_si128(x4, x0);
 		x4 = _mm_srli_si128(x4, 1);
-		x3 = palignr_simd(x2, x1, 15);
+		x3 = _mm_alignr_epi8_simd(x2, x1, 15);
 		x5 = x2;
 		x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + iw*16)));
 		x4 = _mm_or_si128(x4, x5);
@@ -618,8 +618,8 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 		x1 = x2;
 		x2 = _mm_load_si128((__m128i*)(ptr_sip+16));
 			
-		x3 = palignr_simd(x1, x0, 15);
-		x4 = palignr_simd(x2, x1, 1);
+		x3 = _mm_alignr_epi8_simd(x1, x0, 15);
+		x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 			
 		x3 = _mm_and_si128(x3, x4);
 		x3 = _mm_or_si128(x3, x6);
@@ -633,7 +633,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 	x4 = x2;
 	x4 = _mm_and_si128(x4, x0);
 	x4 = _mm_srli_si128(x4, 1);
-	x3 = palignr_simd(x2, x1, 15);
+	x3 = _mm_alignr_epi8_simd(x2, x1, 15);
 	x5 = x2;
 	x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + iw*16)));
 	x4 = _mm_or_si128(x4, x5);
@@ -659,8 +659,8 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 			x1 = x2;
 			x2 = _mm_load_si128((__m128i*)(ptr_sip+si_w+16));
 			
-			x3 = palignr_simd(x1, x0, 15);
-			x4 = palignr_simd(x2, x1, 1);
+			x3 = _mm_alignr_epi8_simd(x1, x0, 15);
+			x4 = _mm_alignr_epi8_simd(x2, x1, 1);
 			
 			x3 = _mm_and_si128(x3, x4);
 			x3 = _mm_or_si128(x3, x6);
@@ -684,7 +684,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 		x4 = x2;
 		x4 = _mm_and_si128(x4, x0);
 		x4 = _mm_srli_si128(x4, 1);
-		x3 = palignr_simd(x2, x1, 15);
+		x3 = _mm_alignr_epi8_simd(x2, x1, 15);
 		x5 = x2;
 		x5 = _mm_and_si128(x5, _mm_load_si128((__m128i*)(pqb_mask_s + iw*16)));
 		x4 = _mm_or_si128(x4, x5);

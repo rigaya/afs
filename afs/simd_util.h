@@ -33,7 +33,11 @@ static inline __m128i select_by_mask(__m128i a, __m128i b, __m128i mask) {
 //SSSE3のpalignrもどき
 #define palignr_sse2(a,b,i) _mm_or_si128( _mm_slli_si128(a, 16-i), _mm_srli_si128(b, i) )
 
-#define palignr_simd(a,b,i) ((simd & SSSE3) ? _mm_alignr_epi8((a),(b),(i)) : palignr_sse2((a),(b),(i)))
+#if USE_SSSE3
+#define _mm_alignr_epi8_simd _mm_alignr_epi8
+#else
+#define _mm_alignr_epi8_simd palignr_sse2
+#endif
 
 static inline __m128i _mm_abs_epi16_simd(__m128i x0) {
 #if USE_SSSE3
