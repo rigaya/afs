@@ -2,6 +2,17 @@
 #ifndef _SIMD_UTIL_H_
 #define _SIMD_UTIL_H_
 
+#include <emmintrin.h> //イントリンシック命令 SSE2
+#if USE_SSSE3
+#include <tmmintrin.h> //イントリンシック命令 SSSE3
+#endif
+#if USE_SSE41
+#include <smmintrin.h> //イントリンシック命令 SSE4.1
+#endif
+#if USE_POPCNT
+#include <nmmintrin.h> //イントリンシック命令 SSE4.2
+#endif
+
 enum {
     NONE   = 0x0000,
     SSE2   = 0x0001,
@@ -16,7 +27,7 @@ enum {
 
 #define SWAP(type,x,y) { type temp = x; x = y; y = temp; }
 
-static inline int popcnt32(DWORD bits) {
+static inline int popcnt32_c(DWORD bits) {
     bits = (bits & 0x55555555) + (bits >> 1 & 0x55555555);
     bits = (bits & 0x33333333) + (bits >> 2 & 0x33333333);
     bits = (bits & 0x0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f);
@@ -24,6 +35,11 @@ static inline int popcnt32(DWORD bits) {
     bits = (bits & 0x0000ffff) + (bits >>16 & 0x0000ffff);
 	return bits;
 }
+#if USE_POPCNT
+#define popcnt32(x) _mm_popcnt_u32(x)
+#else
+#define popcnt32(x) popcnt32_c(x)
+#endif
 
 //r0 := (mask0 & 0x80) ? b0 : a0
 //SSE4.1の_mm_blendv_epi8(__m128i a, __m128i b, __m128i mask) のSSE2版のようなもの

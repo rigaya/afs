@@ -17,7 +17,6 @@ void __stdcall afs_merge_scan_avx2(unsigned char* dst, unsigned char* src0, unsi
 void __stdcall afs_merge_scan_avx2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
 
 #ifdef ENABLE_FUNC_BASE
-#include <tmmintrin.h> //SSSE3
 #include "simd_util.h"
 
 static const _declspec(align(16)) BYTE pqb_mask_a[] = {
@@ -256,7 +255,7 @@ static const _declspec(align(16)) BYTE pb_mask_44[] = {
 	}
  }
 
-static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si_w, int w, int h, DWORD simd) {
+static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si_w, int w, int h) {
 	__m128i x0, x1, x2, x3, x4, x5;
 	__m128i x6 = _mm_load_si128((__m128i*)(pb_mask_03));
 	__m128i x7 = _mm_load_si128((__m128i*)(pb_mask_04));
@@ -456,7 +455,7 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd(BYTE* sip, int si
 	}
 }
 
-static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, int si_w, int w, int h, DWORD simd) {
+static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, int si_w, int w, int h) {
 	__m128i x0, x1, x2, x3, x4, x5;
 	__m128i x6 = _mm_load_si128((__m128i*)(pb_mask_03));
 	__m128i x7 = _mm_load_si128((__m128i*)(pb_mask_04));
@@ -467,7 +466,11 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 	BYTE __declspec(align(16)) buffer[BLOCK_SIZE];
 	//この関数ではsi_wがBLOCK_SIZEまでしか処理できないので、それ以上なら旧関数を使う
 	if (si_w > BLOCK_SIZE)
-		return (simd & SSSE3) ? afs_analyzemap_filter_ssse3(sip, si_w, w, h) : afs_analyzemap_filter_sse2(sip, si_w, w, h);
+#if USE_SSSE3
+		return afs_analyzemap_filter_ssse3(sip, si_w, w, h);
+#else
+		return afs_analyzemap_filter_sse2(sip, si_w, w, h);
+#endif
 
 	////// loop_1 ////////////////////////////////////////////////////////////////////
 	ptr_sip_line = sip;

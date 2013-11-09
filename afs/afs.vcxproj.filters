@@ -23,9 +23,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="afs_simd.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="afs_analyze_simd.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -33,9 +30,6 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="afs_func.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="afs_avx.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="afs_analyze_avx2.cpp">
@@ -63,6 +57,9 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="afs_simd_avx.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="afs_simd_popcnt.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>

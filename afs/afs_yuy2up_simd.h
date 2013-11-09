@@ -8,8 +8,6 @@ void __stdcall afs_yuy2up_frame_avx(PIXEL_YC *dst, PIXEL_YC *src, int width, int
 void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, int pitch, int height);
 
 #ifdef ENABLE_FUNC_BASE
-#include <smmintrin.h> //SSE4.1
-#include "simd_util.h"
 
 static __forceinline __m128i get_even_uv(BYTE *ptr) {
 	__m128i x0, x1, x2;

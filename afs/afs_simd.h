@@ -35,7 +35,6 @@ void __stdcall afs_get_motion_count_avx(int *motion_count, AFS_SCAN_DATA *sp, in
 void __stdcall afs_get_motion_count_avx2(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
 
 #ifdef ENABLE_FUNC_BASE
-#include <nmmintrin.h> //SSE4.2
 #include "simd_util.h"
 #include "afs.h"
 
@@ -51,20 +50,24 @@ static const _declspec(align(16)) USHORT dq_mask_select_sip[24] = {
     0xffff, 0xffff, 0xffff, 0xffff, 0x0000, 0xffff, 0x0000, 0x0000,
 };
 //r0 := (mask0 == 0) ? a0 : b0
+
+#if USE_SSE41
 static const int dq_mask_select_sip_int_0 = 0x80 + 0x40 + 0x20 + 0x10 + 0x00 + 0x04 + 0x00 + 0x00;
 static const int dq_mask_select_sip_int_1 = 0x00 + 0x40 + 0x00 + 0x00 + 0x00 + 0x00 + 0x02 + 0x00;
 static const int dq_mask_select_sip_int_2 = 0x00 + 0x00 + 0x20 + 0x00 + 0x08 + 0x04 + 0x02 + 0x01;
 #define dq_mask_select_sip_int(i) (((i)==0) ? dq_mask_select_sip_int_0 : (((i)==1) ? dq_mask_select_sip_int_1 : dq_mask_select_sip_int_2))
-
-
-#define dq_mask_select_sip_simd(x2,x3,i) ((simd & SSE41) ? _mm_blend_epi16((x2),(x3),dq_mask_select_sip_int(i)) : select_by_mask((x2),(x3),_mm_load_si128((__m128i*)&dq_mask_select_sip[(i)*8])))
+#define dq_mask_select_sip_simd(x2,x3,i) _mm_blend_epi16((x2),(x3),dq_mask_select_sip_int(i))
+#define _mm_blendv_epi8_simd _mm_blendv_epi8
+#else
+#define dq_mask_select_sip_simd(x2,x3,i) select_by_mask((x2),(x3),_mm_load_si128((__m128i*)&dq_mask_select_sip[(i)*8]))
+#define _mm_blendv_epi8_simd select_by_mask
+#endif
 
 static const _declspec(align(16)) USHORT pw_mask_0c[8] = {
     0x000c, 0x000c, 0x000c, 0x000c, 0x000c, 0x000c, 0x000c, 0x000c,
 };
-#define select_by_mask_simd(x0,x1,xMask) ((simd & SSE41) ? _mm_blendv_epi8((x0),(x1),(xMask)) : select_by_mask((x0),(x1),(xMask)))
 
-static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w, DWORD simd) {
+static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
 	BYTE *ptr_dst  = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -95,7 +98,7 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 		x3 = _mm_adds_epi16(x3, x4);
 		x3 = _mm_adds_epi16(x3, xPwRoundFix2);
 		x3 = _mm_srai_epi16(x3, 2);
-		x1 = select_by_mask_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
+		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
 		_mm_storeu_si128((__m128i*)ptr_dst, x1);
 
 		x1 = x0;
@@ -112,7 +115,7 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 		x3 = _mm_adds_epi16(x3, x4);
 		x3 = _mm_adds_epi16(x3, xPwRoundFix2);
 		x3 = _mm_srai_epi16(x3, 2);
-		x1 = select_by_mask_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
+		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
 		_mm_storeu_si128((__m128i*)(ptr_dst+16), x1);
 
 		x2 = x0;
@@ -128,7 +131,7 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 		x3 = _mm_adds_epi16(x3, x4);
 		x3 = _mm_adds_epi16(x3, xPwRoundFix2);
 		x3 = _mm_srai_epi16(x3, 2);
-		x1 = select_by_mask_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
+		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
 		_mm_storeu_si128((__m128i*)(ptr_dst+32), x1);
 
 		step = limit_1_to_8(iw);
@@ -241,7 +244,7 @@ static void __forceinline __stdcall afs_mie_inter_simd(PIXEL_YC *dst, PIXEL_YC *
 	}
 }
 
-static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w, DWORD simd) {
+static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
 	BYTE *ptr_dst = (BYTE *)dst;
 	BYTE *ptr_sip = (BYTE *)sip;
 	BYTE *ptr_src1 = (BYTE *)src1;
@@ -276,7 +279,7 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 		x3 = _mm_adds_epi16(x3, xPwRoundFix1);
 		x3 = _mm_srai_epi16(x3, 1);
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src4));
-		x1 = select_by_mask_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
+		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
 		_mm_storeu_si128((__m128i*)(ptr_dst), x1);
 
 		x1 = x0;
@@ -295,7 +298,7 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 		x3 = _mm_adds_epi16(x3, xPwRoundFix1);
 		x3 = _mm_srai_epi16(x3, 1);
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src4+16));
-		x1 = select_by_mask_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
+		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
 		_mm_storeu_si128((__m128i*)(ptr_dst+16), x1);
 
 		x2 = x0;
@@ -313,21 +316,19 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 		x3 = _mm_adds_epi16(x3, xPwRoundFix1);
 		x3 = _mm_srai_epi16(x3, 1);
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src4+32));
-		x1 = select_by_mask_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
+		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
 		_mm_storeu_si128((__m128i*)(ptr_dst+32), x1);
 
 		step = limit_1_to_8(iw);
 	}
 }
 
-#define popcnt32_simd(x) ((simd & POPCNT) ? _mm_popcnt_u32(x) : popcnt32(x))
-
 static const _declspec(align(16)) BYTE STRIPE_COUNT_CHECK_MASK[][16] = {
 	{ 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50 }, 
 	{ 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60 }, 
 };
 
-static void __forceinline __stdcall afs_get_stripe_count_simd(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h, DWORD simd) {
+static void __forceinline __stdcall afs_get_stripe_count_simd(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
 	const int y_fin = scan_h - sp0->bottom - ((scan_h - sp0->top - sp0->bottom) & 1);
 	const DWORD check_mask[2] = { 0x50, 0x60 };
 	__m128i xZero = _mm_setzero_si128();
@@ -347,14 +348,14 @@ static void __forceinline __stdcall afs_get_stripe_count_simd(int *count, AFS_SC
 			x1 = _mm_cmpeq_epi8(x1, xZero);
 			DWORD count0 = _mm_movemask_epi8(x0);
 			DWORD count1 = _mm_movemask_epi8(x1);
-			count[first_field_flag] += popcnt32_simd(((count1 << 16) | count0));
+			count[first_field_flag] += popcnt32(((count1 << 16) | count0));
 		}
 		if (x_count & 16) {
 			x0 = _mm_loadu_si128((__m128i*)sip);
 			x0 = _mm_and_si128(x0, xMask);
 			x0 = _mm_cmpeq_epi8(x0, xZero);
 			DWORD count0 = _mm_movemask_epi8(x0);
-			count[first_field_flag] += popcnt32_simd(count0);
+			count[first_field_flag] += popcnt32(count0);
 			sip += 16;
 		}
 		sip_fin = sip + (x_count & 15);
@@ -367,7 +368,7 @@ static const _declspec(align(16)) BYTE MOTION_COUNT_CHECK[16] = {
 	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
 };
 
-static void __forceinline __stdcall afs_get_motion_count_simd(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h, DWORD simd) {
+static void __forceinline __stdcall afs_get_motion_count_simd(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h) {
 	const int y_fin = scan_h - sp->bottom - ((scan_h - sp->top - sp->bottom) & 1);
 	__m128i xMotion = _mm_load_si128((__m128i *)MOTION_COUNT_CHECK);
 	__m128i x0, x1;
@@ -385,14 +386,14 @@ static void __forceinline __stdcall afs_get_motion_count_simd(int *motion_count,
 			x1 = _mm_cmpeq_epi8(x1, xMotion);
 			DWORD count0 = _mm_movemask_epi8(x0);
 			DWORD count1 = _mm_movemask_epi8(x1);
-			motion_count[is_latter_feild] += popcnt32_simd(((count1 << 16) | count0));
+			motion_count[is_latter_feild] += popcnt32(((count1 << 16) | count0));
 		}
 		if (x_count & 16) {
 			x0 = _mm_loadu_si128((__m128i*)sip);
 			x0 = _mm_andnot_si128(x0, xMotion);
 			x0 = _mm_cmpeq_epi8(x0, xMotion);
 			DWORD count0 = _mm_movemask_epi8(x0);
-			motion_count[is_latter_feild] += popcnt32_simd(count0);
+			motion_count[is_latter_feild] += popcnt32(count0);
 			sip += 16;
 		}
 		sip_fin = sip + (x_count & 15);

@@ -1,6 +1,4 @@
-﻿#include <emmintrin.h>
-#include <smmintrin.h>
-#include <Windows.h>
+﻿#include <Windows.h>
 #include "filter.h"
 #define ENABLE_FUNC_BASE
 #define USE_SSSE3 0
@@ -39,9 +37,35 @@ void __stdcall afs_merge_scan_sse2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int s
 }
 
 void __stdcall afs_analyzemap_filter_sse2(BYTE* sip, int si_w, int w, int h) {
-	afs_analyzemap_filter_simd(sip, si_w, w, h, AVX | SSE41 | SSSE3 | SSE2);
+	afs_analyzemap_filter_simd(sip, si_w, w, h);
 }
 
 void __stdcall afs_analyzemap_filter_sse2_plus(BYTE* sip, int si_w, int w, int h) {
-	afs_analyzemap_filter_simd_plus(sip, si_w, w, h, AVX | SSE41 | SSSE3 | SSE2);
+	afs_analyzemap_filter_simd_plus(sip, si_w, w, h);
+}
+
+#include "afs_simd.h"
+
+void __stdcall afs_blend_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
+	afs_blend_simd(dst, src1, src2, src3, sip, mask, w);
+}
+
+void __stdcall afs_mie_spot_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot, int w) {
+	afs_mie_spot_simd(dst, src1, src2, src3, src4, src_spot, w);
+}
+
+void __stdcall afs_mie_inter_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
+	afs_mie_inter_simd(dst, src1, src2, src3, src4, w);
+}
+
+void __stdcall afs_deint4_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
+	afs_deint4_simd(dst, src1, src3, src4, src5, src7, sip, mask, w);
+}
+
+void __stdcall afs_get_stripe_count_sse2(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
+	afs_get_stripe_count_simd(count, sp0, sp1, sp, si_w, scan_w, scan_h);
+}
+
+void __stdcall afs_get_motion_count_sse2(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h) {
+	afs_get_motion_count_simd(motion_count, sp, si_w, scan_w, scan_h);
 }

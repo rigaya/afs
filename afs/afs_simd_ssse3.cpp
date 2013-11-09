@@ -1,6 +1,4 @@
-﻿#include <emmintrin.h>
-#include <smmintrin.h>
-#include <Windows.h>
+﻿#include <Windows.h>
 #include "filter.h"
 #define ENABLE_FUNC_BASE
 #define USE_SSSE3 1
@@ -27,10 +25,9 @@ void __stdcall afs_yuy2up_frame_ssse3(PIXEL_YC *dst, PIXEL_YC *src, int width, i
 #include "afs_filter_simd.h"
 
 void __stdcall afs_analyzemap_filter_ssse3(BYTE* sip, int si_w, int w, int h) {
-	afs_analyzemap_filter_simd(sip, si_w, w, h, AVX | SSE41 | SSSE3 | SSE2);
+	afs_analyzemap_filter_simd(sip, si_w, w, h);
 }
 
 void __stdcall afs_analyzemap_filter_ssse3_plus(BYTE* sip, int si_w, int w, int h) {
-	afs_analyzemap_filter_simd_plus(sip, si_w, w, h, AVX | SSE41 | SSSE3 | SSE2);
+	afs_analyzemap_filter_simd_plus(sip, si_w, w, h);
 }
-

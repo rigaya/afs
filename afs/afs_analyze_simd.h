@@ -23,13 +23,6 @@ void __stdcall afs_analyze_2_avx_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_Y
 void __stdcall afs_analyze_2_avx2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
 
 #ifdef ENABLE_FUNC_BASE
-#include <emmintrin.h> //イントリンシック命令 SSE2
-#if USE_SSSE3
-#include <tmmintrin.h> //イントリンシック命令 SSSE3
-#endif
-#if USE_SSE41
-#include <smmintrin.h> //イントリンシック命令 SSE4.1
-#endif
 #include "simd_util.h"
 
 static const _declspec(align(16)) BYTE pb_thre_count[16]       = { 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03 };
