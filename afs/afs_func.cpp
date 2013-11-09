@@ -170,11 +170,11 @@ static const struct {
 	DWORD simd;
 	AFS_FUNC_GET_COUNT get_count;
 } FUNC_GET_COUNT_LIST[] = {
-	{ AVX2|AVX|POPCNT, { afs_get_stripe_count_avx2,        afs_get_motion_count_avx2   } },
-	{ AVX|POPCNT|SSE2, { afs_get_stripe_count_avx,         afs_get_motion_count_avx    } },
+	{ AVX2|AVX|POPCNT, { afs_get_stripe_count_avx2,        afs_get_motion_count_avx2        } },
+	{ AVX|POPCNT|SSE2, { afs_get_stripe_count_avx,         afs_get_motion_count_avx         } },
 	{ POPCNT|SSE2,     { afs_get_stripe_count_sse2_popcnt, afs_get_motion_count_sse2_popcnt } },
-	{ SSE2,            { afs_get_stripe_count_sse2,        afs_get_motion_count_sse2   } },
-	{ NONE,            { afs_get_stripe_count,             afs_get_motion_count        } },
+	{ SSE2,            { afs_get_stripe_count_sse2,        afs_get_motion_count_sse2        } },
+	{ NONE,            { afs_get_stripe_count,             afs_get_motion_count             } },
 };
 
 void get_afs_func_list(AFS_FUNC *func_list) {
