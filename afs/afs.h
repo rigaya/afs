@@ -27,7 +27,7 @@ static inline BOOL is_latter_field(int pos_y, int tb_order) {
 	return ((pos_y & 1) == tb_order);
 }
 
-#define CHECK_PERFORMANCE 1
+#define CHECK_PERFORMANCE 0
 
 typedef struct {
 	__int64 qpc_tmp[16];
