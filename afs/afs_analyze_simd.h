@@ -316,6 +316,13 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
 
+	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 64) {
+		_mm_store_si128((__m128i*)(buf_ptr +  0), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 16), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 32), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 48), _mm_setzero_si128());
+	}
+
 	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
 			x0 = _mm_loadu_si128((__m128i *)ptr_p0);
@@ -339,17 +346,6 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 		}
 		afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 		_mm_storel_epi64((__m128i*)(buf2_ptr), x0);
-	}
-
-	for (BYTE *buf_fin = buffer + width6; buf_ptr < buf_fin; buf_ptr += 32) {
-		_mm_store_si128((__m128i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
 	}
 	
 	for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
@@ -513,6 +509,13 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 	BYTE __declspec(align(16)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
+
+	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 64) {
+		_mm_store_si128((__m128i*)(buf_ptr +  0), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 16), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 32), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 48), _mm_setzero_si128());
+	}
 	
 	x3 = _mm_load_si128((__m128i *)pw_thre_shift);
 	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
@@ -537,17 +540,6 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 		}
 		afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 		_mm_storel_epi64((__m128i*)(buf2_ptr), x0);
-	}
-
-	for (BYTE *buf_fin = buffer + width6; buf_ptr < buf_fin; buf_ptr += 32) {
-		_mm_store_si128((__m128i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
 	}
 		
  // if(abs_01diff < thre_motion) flag |= motion;
@@ -711,6 +703,13 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
 
+	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 64) {
+		_mm_store_si128((__m128i*)(buf_ptr +  0), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 16), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 32), _mm_setzero_si128());
+		_mm_store_si128((__m128i*)(buf_ptr + 48), _mm_setzero_si128());
+	}
+
 	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
 			x3 = _mm_load_si128((__m128i *)(pw_thre_motion[jw]));
@@ -733,17 +732,6 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 		}
 		afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
 		_mm_storel_epi64((__m128i*)(buf2_ptr), x0);
-	}
-
-	for (BYTE *buf_fin = buffer + width6; buf_ptr < buf_fin; buf_ptr += 32) {
-		_mm_store_si128((__m128i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6 +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6 + 16), _mm_setzero_si128());
 	}
 		
  // if(abs_01diff < thre_motion) flag |= motion;

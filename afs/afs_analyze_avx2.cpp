@@ -196,6 +196,13 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
 
+	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 128) {
+		_mm256_store_si256((__m256i*)(buf_ptr +  0), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 32), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 64), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 96), _mm256_setzero_si256());
+	}
+
 	for (int kw = 0; kw < width6; kw += 96, buf2_ptr += 16) {
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
 			y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
@@ -212,13 +219,6 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
 		}
 		y0 = afs_analyze_shrink_info_sub_avx2(tmp16pix, TRUE);
 		_mm_storeu_si128((__m128i*)(buf2_ptr), _mm256_castsi256_si128(y0));
-	}
-
-	for (BYTE *buf_fin = buffer + width6; buf_ptr < buf_fin; buf_ptr += 32) {
-		_mm256_store_si256((__m256i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
 	}
 	
 	for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
@@ -374,6 +374,13 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 	
 	y3 = _mm256_load_si256((__m256i *)pw_thre_shift);
 
+	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 128) {
+		_mm256_store_si256((__m256i*)(buf_ptr +  0), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 32), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 64), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 96), _mm256_setzero_si256());
+	}
+
 	for (int kw = 0; kw < width6; kw += 96, buf2_ptr += 16) {
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
 			//afs_analyze_1_mmx_sub
@@ -388,13 +395,6 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 		}
 		y0 = afs_analyze_shrink_info_sub_avx2(tmp16pix, TRUE);
 		_mm_storeu_si128((__m128i*)(buf2_ptr), _mm256_castsi256_si128(y0));
-	}
-
-	for (BYTE *buf_fin = buffer + width6; buf_ptr < buf_fin; buf_ptr += 32) {
-		_mm256_store_si256((__m256i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
 	}
 		
  // if(abs_01diff < thre_motion) flag |= motion;
@@ -535,6 +535,13 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
 
+	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 128) {
+		_mm256_store_si256((__m256i*)(buf_ptr +  0), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 32), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 64), _mm256_setzero_si256());
+		_mm256_store_si256((__m256i*)(buf_ptr + 96), _mm256_setzero_si256());
+	}
+
 	for (int kw = 0; kw < width6; kw += 96, buf2_ptr += 16) {
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
 			y3 = _mm256_load_si256((__m256i *)(pw_thre_motion[jw]));
@@ -550,13 +557,6 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 		}
 		y0 = afs_analyze_shrink_info_sub_avx2(tmp16pix, TRUE);
 		_mm_storeu_si128((__m128i*)(buf2_ptr), _mm256_castsi256_si128(y0));
-	}
-
-	for (BYTE *buf_fin = buffer + width6; buf_ptr < buf_fin; buf_ptr += 32) {
-		_mm256_store_si256((__m256i*)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
-		_mm256_store_si256((__m256i*)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6), _mm256_setzero_si256());
 	}
 		
  // if(abs_01diff < thre_motion) flag |= motion;
