@@ -41,6 +41,9 @@ static inline int popcnt32_c(DWORD bits) {
 #define popcnt32(x) popcnt32_c(x)
 #endif
 
+#define _mm_store_switch_si128(ptr, xmm)  ((aligned_store) ? _mm_store_si128(ptr, xmm)  : _mm_storeu_si128(ptr, xmm))
+#define _mm_stream_switch_si128(ptr, xmm) ((aligned_store) ? _mm_stream_si128(ptr, xmm) : _mm_storeu_si128(ptr, xmm))
+
 //r0 := (mask0 & 0x80) ? b0 : a0
 //SSE4.1の_mm_blendv_epi8(__m128i a, __m128i b, __m128i mask) のSSE2版のようなもの
 static inline __m128i select_by_mask(__m128i a, __m128i b, __m128i mask) {
@@ -69,6 +72,8 @@ static inline __m128i _mm_abs_epi16_simd(__m128i x0) {
 }
 
 #ifdef _INCLUDED_IMM
+#define _mm256_store_switch_si256(ptr, ymm)  ((aligned_store) ? _mm256_store_si256(ptr, ymm)  : _mm256_storeu_si256(ptr, ymm))
+#define _mm256_stream_switch_si256(ptr, ymm) ((aligned_store) ? _mm256_stream_si256(ptr, ymm) : _mm256_storeu_si256(ptr, ymm))
 //本来の256bit alignr
 #define MM_ABS(x) (((x) < 0) ? -(x) : (x))
 #define _mm256_alignr256_epi8(a, b, i) ((i<=16) ? _mm256_alignr_epi8(_mm256_permute2x128_si256(a, b, (0x00<<4) + 0x03), b, i) : _mm256_alignr_epi8(a, _mm256_permute2x128_si256(a, b, (0x00<<4) + 0x03), MM_ABS(i-16)))
@@ -82,15 +87,13 @@ static inline __m128i _mm_abs_epi16_simd(__m128i x0) {
 #define _mm256_slli256_si256(a, i) ((i<=16) ? _mm256_alignr_epi8(a, _mm256_permute2x128_si256(a, a, (0x00<<4) + 0x08), MM_ABS(16-i)) : _mm256_bslli_epi128(_mm256_permute2x128_si256(a, a, (0x00<<4) + 0x08), MM_ABS(i-16)))
 
 static inline int limit_1_to_16(int value) {
-	static const DWORD MASK_LIMIT_TO_16[2] = { 0x0F, 0x00 };
 	int cmp_ret = (value>=16);
-	return (cmp_ret<<4) + (value & MASK_LIMIT_TO_16[cmp_ret]) + (value == 0);
+	return (cmp_ret<<4) + ((value & 0x0f) & (cmp_ret-1)) + (value == 0);
 }
 #else
 static inline int limit_1_to_8(int value) {
-	static const DWORD MASK_LIMIT_TO_8[2] = { 0x07, 0x00 };
 	int cmp_ret = (value>=8);
-	return (cmp_ret<<3) + (value & MASK_LIMIT_TO_8[cmp_ret]) + (value == 0);
+	return (cmp_ret<<3) + ((value & 0x07) & (cmp_ret-1)) + (value == 0);
 }
 #endif //_INCLUDED_IMM
 

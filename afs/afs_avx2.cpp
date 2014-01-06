@@ -150,7 +150,8 @@ static const _declspec(align(32)) USHORT SIP_BLEND_MASK[][32] = {
 };
 #define ySIPMASK(x)  (_mm256_load_si256((__m256i*)SIP_BLEND_MASK[x]))
 
-void __stdcall afs_blend_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
+template <bool aligned_store>
+void __forceinline __stdcall afs_blend_avx2_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
 	BYTE *ptr_dst  = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -160,7 +161,7 @@ void __stdcall afs_blend_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIX
 	const __m256i yMask = _mm256_unpacklo_epi8(_mm256_set1_epi32(mask), _mm256_setzero_si256());
 	const __m256i yPwRoundFix2 = _mm256_load_si256((__m256i*)pw_round_fix2);
 
-	for (int step = 0, iw = w - 16; iw >= 0; ptr_src2 += step*6, ptr_dst += step*6, ptr_src1 += step*6, ptr_src3 += step*6, ptr_esi += step, iw -= step) {
+	for (int iw = w - 16; iw >= 0; ptr_src2 += 96, ptr_dst += 96, ptr_src1 += 96, ptr_src3 += 96, ptr_esi += 16, iw -= 16) {
 		y0 = _mm256_loadu_si256((__m256i*)(ptr_esi));
 		y4 = _mm256_setzero_si256();
 		y0 = _mm256_permute4x64_epi64(y0, _MM_SHUFFLE(1,1,0,0));
@@ -199,7 +200,7 @@ sip(5544444433333322 2222111111000000) _mm256_blendv_epi8
 		y3 = _mm256_adds_epi16(y3, yPwRoundFix2);
 		y3 = _mm256_srai_epi16(y3, 2);
 		y1 = _mm256_blendv_epi8(y2, y3, y1); //y1 = sip ? y3 : y2;
-		_mm256_storeu_si256((__m256i*)ptr_dst, y1);
+		_mm256_stream_switch_si256((__m256i*)ptr_dst, y1);
 
 
 /*
@@ -232,7 +233,7 @@ sip(aaaa999999888888 7777776666665555) _mm256_blendv_epi8
 		y3 = _mm256_adds_epi16(y3, yPwRoundFix2);
 		y3 = _mm256_srai_epi16(y3, 2);
 		y1 = _mm256_blendv_epi8(y2, y3, y1); //y1 = sip ? y3 : y2;
-		_mm256_storeu_si256((__m256i*)(ptr_dst+32), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst+32), y1);
 
 /*
 blendや_mm256_permute2x128_si256では、上に出てきたものがa
@@ -264,15 +265,28 @@ sip(ffffffeeeeeedddd ddccccccbbbbbbaa) _mm256_blendv_epi8
 		y3 = _mm256_adds_epi16(y3, yPwRoundFix2);
 		y3 = _mm256_srai_epi16(y3, 2);
 		y1 = _mm256_blendv_epi8(y2, y3, y1); //y1 = sip ? y3 : y2;
-		_mm256_storeu_si256((__m256i*)(ptr_dst+64), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst+64), y1);
+	}
+}
 
-		step = limit_1_to_16(iw);
+void __stdcall afs_blend_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
+	const int dst_mod32 = (size_t)dst & 0x1f;
+	if (dst_mod32) {
+		int mod6 = dst_mod32 % 6;
+		int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+		afs_blend_avx2_base<false>(dst, src1, src2, src3, sip, mask, 16);
+		dst += dw; src1 += dw; src2 += dw; src3 += dw; sip += dw; w -= dw;
+	}
+	afs_blend_avx2_base<true>(dst, src1, src2, src3, sip, mask, w & (~0x0f));
+	if (w & 0x0f) {
+		dst += w-16; src1 += w-16; src2 += w-16; src3 += w-16; sip += w-16;
+		afs_blend_avx2_base<false>(dst, src1, src2, src3, sip, mask, 16);
 	}
     _mm256_zeroupper();
 }
 
-
-void __stdcall afs_mie_spot_avx2( PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w) {
+template <bool aligned_store>
+void __forceinline __stdcall afs_mie_spot_avx2_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w) {
 	BYTE *ptr_dst  = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -283,7 +297,7 @@ void __stdcall afs_mie_spot_avx2( PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,
 	const __m256i yPwRoundFix1 = _mm256_load_si256((__m256i*)pw_round_fix1);
 	const __m256i yPwRoundFix2 = _mm256_load_si256((__m256i*)pw_round_fix2);
 
-	for (int step = 0, iw = w - 16; iw >= 0; ptr_src1 += step*6, ptr_src2 += step*6, ptr_src3 += step*6, ptr_src4 += step*6, ptr_src_spot += step*6, ptr_dst += step*6, iw -= step) {
+	for (int iw = w - 16; iw >= 0; ptr_src1 += 96, ptr_src2 += 96, ptr_src3 += 96, ptr_src4 += 96, ptr_src_spot += 96, ptr_dst += 96, iw -= 16) {
 		y0 = _mm256_loadu_si256((__m256i*)(ptr_src1 +  0));
 		y1 = _mm256_loadu_si256((__m256i*)(ptr_src1 + 32));
 		y2 = _mm256_loadu_si256((__m256i*)(ptr_src1 + 64));
@@ -317,15 +331,30 @@ void __stdcall afs_mie_spot_avx2( PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,
 		y0 = _mm256_srai_epi16(y0, 1);
 		y1 = _mm256_srai_epi16(y1, 1);
 		y2 = _mm256_srai_epi16(y2, 1);
-		_mm256_storeu_si256((__m256i*)(ptr_dst +  0), y0);
-		_mm256_storeu_si256((__m256i*)(ptr_dst + 32), y1);
-		_mm256_storeu_si256((__m256i*)(ptr_dst + 64), y2);
-		step = limit_1_to_16(iw);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst +  0), y0);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst + 32), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst + 64), y2);
+	}
+}
+
+void __stdcall afs_mie_spot_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w) {
+	const int dst_mod32 = (size_t)dst & 0x1f;
+	if (dst_mod32) {
+		int mod6 = dst_mod32 % 6;
+		int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+		afs_mie_spot_avx2_base<false>(dst, src1, src2, src3, src4, src_spot, 16);
+		dst += dw; src1 += dw; src2 += dw; src3 += dw; src4 += dw; src_spot += dw; w -= dw;
+	}
+	afs_mie_spot_avx2_base<true>(dst, src1, src2, src3, src4, src_spot, w & (~0x0f));
+	if (w & 0x0f) {
+		dst += w-16; src1 += w-16; src2 += w-16; src3 += w-16; src4 += w-16; src_spot += w-16;
+		afs_mie_spot_avx2_base<false>(dst, src1, src2, src3, src4, src_spot, 16);
 	}
     _mm256_zeroupper();
 }
 
-void __stdcall afs_mie_inter_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
+template <bool aligned_store>
+void __forceinline __stdcall afs_mie_inter_avx2_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
 	BYTE *ptr_dst = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -334,7 +363,7 @@ void __stdcall afs_mie_inter_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,
 	__m256i y0, y1, y2, y3, y4, y5;
 	const __m256i yPwRoundFix2 = _mm256_load_si256((__m256i*)pw_round_fix2);
 
-	for (int step = 0, iw = w - 16; iw >= 0; ptr_src1 += step*6, ptr_src2 += step*6, ptr_src3 += step*6, ptr_src4 += step*6, ptr_dst += step*6, iw -= step) {
+	for (int iw = w - 16; iw >= 0; ptr_src1 += 96, ptr_src2 += 96, ptr_src3 += 96, ptr_src4 += 96, ptr_dst += 96, iw -= 16) {
 		y0 = _mm256_loadu_si256((__m256i*)(ptr_src1 +  0));
 		y1 = _mm256_loadu_si256((__m256i*)(ptr_src1 + 32));
 		y2 = _mm256_loadu_si256((__m256i*)(ptr_src1 + 64));
@@ -358,15 +387,31 @@ void __stdcall afs_mie_inter_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,
 		y0 = _mm256_srai_epi16(y0, 2);
 		y1 = _mm256_srai_epi16(y1, 2);
 		y2 = _mm256_srai_epi16(y2, 2);
-		_mm256_storeu_si256((__m256i*)(ptr_dst +  0), y0);
-		_mm256_storeu_si256((__m256i*)(ptr_dst + 32), y1);
-		_mm256_storeu_si256((__m256i*)(ptr_dst + 64), y2);
-		step = limit_1_to_16(iw);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst +  0), y0);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst + 32), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst + 64), y2);
 	}
     _mm256_zeroupper();
 }
 
-void __stdcall afs_deint4_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
+void __stdcall afs_mie_inter_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
+	const int dst_mod32 = (size_t)dst & 0x1f;
+	if (dst_mod32) {
+		int mod6 = dst_mod32 % 6;
+		int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+		afs_mie_inter_avx2_base<false>(dst, src1, src2, src3, src4, 16);
+		dst += dw; src1 += dw; src2 += dw; src3 += dw; src4 += dw; w -= dw;
+	}
+	afs_mie_inter_avx2_base<true>(dst, src1, src2, src3, src4, w & (~0x0f));
+	if (w & 0x0f) {
+		dst += w-16; src1 += w-16; src2 += w-16; src3 += w-16; src4 += w-16;
+		afs_mie_inter_avx2_base<false>(dst, src1, src2, src3, src4, 16);
+	}
+    _mm256_zeroupper();
+}
+
+template <bool aligned_store>
+void __forceinline __stdcall afs_deint4_avx2_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
 	BYTE *ptr_dst = (BYTE *)dst;
 	BYTE *ptr_sip = (BYTE *)sip;
 	BYTE *ptr_src1 = (BYTE *)src1;
@@ -378,7 +423,7 @@ void __stdcall afs_deint4_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PI
 	const __m256i yMask = _mm256_unpacklo_epi8(_mm256_set1_epi32(mask), _mm256_setzero_si256());
 	const __m256i yPwRoundFix1 = _mm256_load_si256((__m256i*)pw_round_fix1);
 
-	for (int step = 0, iw = w - 16; iw >= 0; ptr_src4 += step*6, ptr_dst += step*6, ptr_src3 += step*6, ptr_src5 += step*6, ptr_src1 += step*6, ptr_src7 += step*6, ptr_sip += step, iw -= step) {
+	for (int iw = w - 16; iw >= 0; ptr_src4 += 96, ptr_dst += 96, ptr_src3 += 96, ptr_src5 += 96, ptr_src1 += 96, ptr_src7 += 96, ptr_sip += 16, iw -= 16) {
 		y0 = _mm256_loadu_si256((__m256i*)(ptr_sip));
 		y4 = _mm256_setzero_si256();
 		y0 = _mm256_permute4x64_epi64(y0, _MM_SHUFFLE(1,1,0,0));
@@ -419,7 +464,7 @@ sip(5544444433333322 2222111111000000) _mm256_blendv_epi8
 		y3 = _mm256_srai_epi16(y3, 1);
 		y2 = _mm256_loadu_si256((__m256i*)(ptr_src4));
 		y1 = _mm256_blendv_epi8(y2, y3, y1); //y1 = sip ? y3 : y2;
-		_mm256_storeu_si256((__m256i*)(ptr_dst), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst), y1);
 
 /*
 blendや_mm256_permute2x128_si256では、上に出てきたものがa
@@ -453,7 +498,7 @@ sip(aaaa999999888888 7777776666665555) _mm256_blendv_epi8
 		y3 = _mm256_srai_epi16(y3, 1);
 		y2 = _mm256_loadu_si256((__m256i*)(ptr_src4+32));
 		y1 = _mm256_blendv_epi8(y2, y3, y1); //y1 = sip ? y3 : y2;
-		_mm256_storeu_si256((__m256i*)(ptr_dst+32), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst+32), y1);
 
 /*
 blendや_mm256_permute2x128_si256では、上に出てきたものがa
@@ -487,9 +532,22 @@ sip(ffffffeeeeeedddd ddccccccbbbbbbaa) _mm256_blendv_epi8
 		y3 = _mm256_srai_epi16(y3, 1);
 		y2 = _mm256_loadu_si256((__m256i*)(ptr_src4+64));
 		y1 = _mm256_blendv_epi8(y2, y3, y1); //y1 = sip ? y3 : y2;
-		_mm256_storeu_si256((__m256i*)(ptr_dst+64), y1);
+		_mm256_stream_switch_si256((__m256i*)(ptr_dst+64), y1);
+	}
+}
 
-		step = limit_1_to_16(iw);
+void __stdcall afs_deint4_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
+	const int dst_mod32 = (size_t)dst & 0x1f;
+	if (dst_mod32) {
+		int mod6 = dst_mod32 % 6;
+		int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+		afs_deint4_avx2_base<false>(dst, src1, src3, src4, src5, src7, sip, mask, 16);
+		dst += dw; src1 += dw; src3 += dw; src4 += dw; src5 += dw; src7 += dw; sip += dw; w -= dw;
+	}
+	afs_deint4_avx2_base<true>(dst, src1, src3, src4, src5, src7, sip, mask, w & (~0x0f));
+	if (w & 0x0f) {
+		dst += w-16; src1 += w-16; src3 += w-16; src4 += w-16; src5 += w-16; src7 += w-16; sip += w-16;
+		afs_deint4_avx2_base<false>(dst, src1, src3, src4, src5, src7, sip, mask, 16);
 	}
     _mm256_zeroupper();
 }

@@ -67,7 +67,8 @@ static const _declspec(align(16)) USHORT pw_mask_0c[8] = {
     0x000c, 0x000c, 0x000c, 0x000c, 0x000c, 0x000c, 0x000c, 0x000c,
 };
 
-static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
+template <bool aligned_store>
+static void __forceinline __stdcall afs_blend_simd_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
 	BYTE *ptr_dst  = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -77,7 +78,7 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 	const __m128i xMask = _mm_unpacklo_epi8(_mm_set1_epi32(mask), _mm_setzero_si128());
 	const __m128i xPwRoundFix2 = _mm_load_si128((__m128i*)pw_round_fix2);
 
-	for (int step = 0, iw = w - 8; iw >= 0; ptr_src2 += step*6, ptr_dst += step*6, ptr_src1 += step*6, ptr_src3 += step*6, ptr_esi += step, iw -= step) {
+	for (int iw = w - 8; iw >= 0; ptr_src2 += 48, ptr_dst += 48, ptr_src1 += 48, ptr_src3 += 48, ptr_esi += 8, iw -= 8) {
 		x0 = _mm_loadu_si128((__m128i*)(ptr_esi));
 		x4 = _mm_setzero_si128();
 		x0 = _mm_unpacklo_epi8(x0, x4);
@@ -99,7 +100,7 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 		x3 = _mm_adds_epi16(x3, xPwRoundFix2);
 		x3 = _mm_srai_epi16(x3, 2);
 		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
-		_mm_storeu_si128((__m128i*)ptr_dst, x1);
+		_mm_stream_switch_si128((__m128i*)ptr_dst, x1);
 
 		x1 = x0;
 		x1 = _mm_srli_si128(x1, 4);                       //x1 = sip(xxxx776655443322)
@@ -116,7 +117,7 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 		x3 = _mm_adds_epi16(x3, xPwRoundFix2);
 		x3 = _mm_srai_epi16(x3, 2);
 		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
-		_mm_storeu_si128((__m128i*)(ptr_dst+16), x1);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst+16), x1);
 
 		x2 = x0;
 		x2 = _mm_unpackhi_epi16(x2, x2); //x2 = sip(7777666655554444)
@@ -132,13 +133,26 @@ static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1
 		x3 = _mm_adds_epi16(x3, xPwRoundFix2);
 		x3 = _mm_srai_epi16(x3, 2);
 		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
-		_mm_storeu_si128((__m128i*)(ptr_dst+32), x1);
-
-		step = limit_1_to_8(iw);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst+32), x1);
 	}
 }
 
-static void __forceinline __stdcall afs_mie_spot_simd( PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w) {
+static void __forceinline __stdcall afs_blend_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
+	const int dst_mod16 = (size_t)dst & 0x0f;
+	if (dst_mod16) {
+		int dw = (dst_mod16) ? (16 * (3-((dst_mod16 % 6)>>1))-dst_mod16) / 6 : 0;
+		afs_blend_simd_base<false>(dst, src1, src2, src3, sip, mask, 8);
+		dst += dw; src1 += dw; src2 += dw; src3 += dw; sip += dw; w -= dw;
+	}
+	afs_blend_simd_base<true>(dst, src1, src2, src3, sip, mask, w & (~0x07));
+	if (w & 0x07) {
+		dst += w-8; src1 += w-8; src2 += w-8; src3 += w-8; sip += w-8;
+		afs_blend_simd_base<false>(dst, src1, src2, src3, sip, mask, 8);
+	}
+}
+
+template <bool aligned_store>
+static void __forceinline __stdcall afs_mie_spot_simd_base( PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w) {
 	BYTE *ptr_dst  = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -149,7 +163,7 @@ static void __forceinline __stdcall afs_mie_spot_simd( PIXEL_YC *dst, PIXEL_YC *
 	const __m128i xPwRoundFix1 = _mm_load_si128((__m128i*)pw_round_fix1);
 	const __m128i xPwRoundFix2 = _mm_load_si128((__m128i*)pw_round_fix2);
 
-	for (int step = 0, iw = w - 8; iw >= 0; ptr_src1 += step*6, ptr_src2 += step*6, ptr_src3 += step*6, ptr_src4 += step*6, ptr_src_spot += step*6, ptr_dst += step*6, iw -= step) {
+	for (int iw = w - 8; iw >= 0; ptr_src1 += 48, ptr_src2 += 48, ptr_src3 += 48, ptr_src4 += 48, ptr_src_spot += 48, ptr_dst += 48, iw -= 8) {
 		x0 = _mm_loadu_si128((__m128i*)(ptr_src1 +  0));
 		x1 = _mm_loadu_si128((__m128i*)(ptr_src1 + 16));
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src1 + 32));
@@ -183,14 +197,28 @@ static void __forceinline __stdcall afs_mie_spot_simd( PIXEL_YC *dst, PIXEL_YC *
 		x0 = _mm_srai_epi16(x0, 1);
 		x1 = _mm_srai_epi16(x1, 1);
 		x2 = _mm_srai_epi16(x2, 1);
-		_mm_storeu_si128((__m128i*)(ptr_dst +  0), x0);
-		_mm_storeu_si128((__m128i*)(ptr_dst + 16), x1);
-		_mm_storeu_si128((__m128i*)(ptr_dst + 32), x2);
-		step = limit_1_to_8(iw);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst +  0), x0);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst + 16), x1);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst + 32), x2);
 	}
 }
 
-static void __forceinline __stdcall afs_mie_inter_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
+static void __forceinline __stdcall afs_mie_spot_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot, int w) {
+	const int dst_mod16 = (size_t)dst & 0x0f;
+	if (dst_mod16) {
+		int dw = (dst_mod16) ? (16 * (3-((dst_mod16 % 6)>>1))-dst_mod16) / 6 : 0;
+		afs_mie_spot_simd_base<false>(dst, src1, src2, src3, src4, src_spot, 8);
+		dst += dw; src1 += dw; src2 += dw; src3 += dw; src4 += dw; src_spot += dw; w -= dw;
+	}
+	afs_mie_spot_simd_base<true>(dst, src1, src2, src3, src4, src_spot, w & (~0x07));
+	if (w & 0x07) {
+		dst += w-8; src1 += w-8; src2 += w-8; src3 += w-8; src4 += w-8; src_spot += w-8;
+		afs_mie_spot_simd_base<false>(dst, src1, src2, src3, src4, src_spot, 8);
+	}
+}
+
+template <bool aligned_store>
+static void __forceinline __stdcall afs_mie_inter_simd_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
 	BYTE *ptr_dst = (BYTE *)dst;
 	BYTE *ptr_src1 = (BYTE *)src1;
 	BYTE *ptr_src2 = (BYTE *)src2;
@@ -199,7 +227,7 @@ static void __forceinline __stdcall afs_mie_inter_simd(PIXEL_YC *dst, PIXEL_YC *
 	__m128i x0, x1, x2, x3, x4, x5;
 	const __m128i xPwRoundFix2 = _mm_load_si128((__m128i*)pw_round_fix2);
 
-	for (int step = 0, iw = w - 8; iw >= 0; ptr_src1 += step*6, ptr_src2 += step*6, ptr_src3 += step*6, ptr_src4 += step*6, ptr_dst += step*6, iw -= step) {
+	for (int iw = w - 8; iw >= 0; ptr_src1 += 48, ptr_src2 += 48, ptr_src3 += 48, ptr_src4 += 48, ptr_dst += 48, iw -= 8) {
 		x0 = _mm_loadu_si128((__m128i*)(ptr_src1 +  0));
 		x1 = _mm_loadu_si128((__m128i*)(ptr_src1 + 16));
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src1 + 32));
@@ -237,14 +265,28 @@ static void __forceinline __stdcall afs_mie_inter_simd(PIXEL_YC *dst, PIXEL_YC *
 		x0 = _mm_srai_epi16(x0, 2);
 		x1 = _mm_srai_epi16(x1, 2);
 		x2 = _mm_srai_epi16(x2, 2);
-		_mm_storeu_si128((__m128i*)(ptr_dst +  0), x0);
-		_mm_storeu_si128((__m128i*)(ptr_dst + 16), x1);
-		_mm_storeu_si128((__m128i*)(ptr_dst + 32), x2);
-		step = limit_1_to_8(iw);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst +  0), x0);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst + 16), x1);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst + 32), x2);
 	}
 }
 
-static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
+static void __forceinline __stdcall afs_mie_inter_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
+	const int dst_mod16 = (size_t)dst & 0x0f;
+	if (dst_mod16) {
+		int dw = (dst_mod16) ? (16 * (3-((dst_mod16 % 6)>>1))-dst_mod16) / 6 : 0;
+		afs_mie_inter_simd_base<false>(dst, src1, src2, src3, src4, 8);
+		dst += dw; src1 += dw; src2 += dw; src3 += dw; src4 += dw; w -= dw;
+	}
+	afs_mie_inter_simd_base<true>(dst, src1, src2, src3, src4, w & (~0x07));
+	if (w & 0x07) {
+		dst += w-8; src1 += w-8; src2 += w-8; src3 += w-8; src4 += w-8;
+		afs_mie_inter_simd_base<false>(dst, src1, src2, src3, src4, 8);
+	}
+}
+
+template <bool aligned_store>
+static void __forceinline __stdcall afs_deint4_simd_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
 	BYTE *ptr_dst = (BYTE *)dst;
 	BYTE *ptr_sip = (BYTE *)sip;
 	BYTE *ptr_src1 = (BYTE *)src1;
@@ -256,7 +298,7 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 	const __m128i xMask = _mm_unpacklo_epi8(_mm_set1_epi32(mask), _mm_setzero_si128());
 	const __m128i xPwRoundFix1 = _mm_load_si128((__m128i*)pw_round_fix1);
 
-	for (int step = 0, iw = w; iw >= 0; ptr_src4 += step*6, ptr_dst += step*6, ptr_src3 += step*6, ptr_src5 += step*6, ptr_src1 += step*6, ptr_src7 += step*6, ptr_sip += step, iw -= step) {
+	for (int iw = w - 8; iw >= 0; ptr_src4 += 48, ptr_dst += 48, ptr_src3 += 48, ptr_src5 += 48, ptr_src1 += 48, ptr_src7 += 48, ptr_sip += 8, iw -= 8) {
 		x0 = _mm_loadu_si128((__m128i*)(ptr_sip));
 		x4 = _mm_setzero_si128();
 		x0 = _mm_unpacklo_epi8(x0, x4);
@@ -280,7 +322,7 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 		x3 = _mm_srai_epi16(x3, 1);
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src4));
 		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
-		_mm_storeu_si128((__m128i*)(ptr_dst), x1);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst), x1);
 
 		x1 = x0;
 		x1 = _mm_srli_si128(x1, 4);                       //x1 = sip(xxxx776655443322)
@@ -299,7 +341,7 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 		x3 = _mm_srai_epi16(x3, 1);
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src4+16));
 		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
-		_mm_storeu_si128((__m128i*)(ptr_dst+16), x1);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst+16), x1);
 
 		x2 = x0;
 		x2 = _mm_unpackhi_epi16(x2, x2); //x2 = sip(7777666655554444)
@@ -317,9 +359,21 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 		x3 = _mm_srai_epi16(x3, 1);
 		x2 = _mm_loadu_si128((__m128i*)(ptr_src4+32));
 		x1 = _mm_blendv_epi8_simd(x2, x3, x1); //x1 = sip ? x3 : x2;
-		_mm_storeu_si128((__m128i*)(ptr_dst+32), x1);
+		_mm_stream_switch_si128((__m128i*)(ptr_dst+32), x1);
+	}
+}
 
-		step = limit_1_to_8(iw);
+static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
+	const int dst_mod16 = (size_t)dst & 0x0f;
+	if (dst_mod16) {
+		int dw = (dst_mod16) ? (16 * (3-((dst_mod16 % 6)>>1))-dst_mod16) / 6 : 0;
+		afs_deint4_simd_base<false>(dst, src1, src3, src4, src5, src7, sip, mask, 8);
+		dst += dw; src1 += dw; src3 += dw; src4 += dw; src5 += dw; src7 += dw; sip += dw; w -= dw;
+	}
+	afs_deint4_simd_base<true>(dst, src1, src3, src4, src5, src7, sip, mask, w & (~0x07));
+	if (w & 0x07) {
+		dst += w-8; src1 += w-8; src3 += w-8; src4 += w-8; src5 += w-8; src7 += w-8; sip += w-8;
+		afs_deint4_simd_base<false>(dst, src1, src3, src4, src5, src7, sip, mask, 8);
 	}
 }
 
