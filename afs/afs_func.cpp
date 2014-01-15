@@ -84,11 +84,11 @@ static const struct {
 	AFS_FUNC_ANALYZE analyze;
 } FUNC_ANALYZE_LIST[] = {
 	//set_thresholdで変数を渡しているため、これら5つの関数は必ずセットで
-	{ AVX2|AVX,             { 31, 32, BLOCK_SIZE_YCP, afs_analyze_set_threshold_avx2, NULL,                             { afs_analyze_12_avx2_plus2,   afs_analyze_1_avx2_plus2,   afs_analyze_2_avx2_plus2   } } },
-	{ AVX|SSE41|SSSE3|SSE2, { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_avx,  NULL,                             { afs_analyze_12_avx_plus2,    afs_analyze_1_avx_plus2,    afs_analyze_2_avx_plus2    } } },
-	{ SSE41|SSSE3|SSE2,     { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse2, NULL,                             { afs_analyze_12_sse4_1_plus2, afs_analyze_1_sse4_1_plus2, afs_analyze_2_sse4_1_plus2 } } },
-	{ SSSE3|SSE2,           { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse2, NULL,                             { afs_analyze_12_ssse3_plus2,  afs_analyze_1_ssse3_plus2,  afs_analyze_2_ssse3_plus2  } } },
-	{ SSE2,                 { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse2, NULL,                             { afs_analyze_12_sse2_plus2,   afs_analyze_1_sse2_plus2,   afs_analyze_2_sse2_plus2   } } },
+	{ AVX2|AVX,             { 31, 32, BLOCK_SIZE_YCP, afs_analyze_set_threshold_avx2,   NULL,                           { afs_analyze_12_avx2_plus2,   afs_analyze_1_avx2_plus2,   afs_analyze_2_avx2_plus2   } } },
+	{ AVX|SSE41|SSSE3|SSE2, { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_avx,    NULL,                           { afs_analyze_12_avx_plus2,    afs_analyze_1_avx_plus2,    afs_analyze_2_avx_plus2    } } },
+	{ SSE41|SSSE3|SSE2,     { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse4_1, NULL,                           { afs_analyze_12_sse4_1_plus2, afs_analyze_1_sse4_1_plus2, afs_analyze_2_sse4_1_plus2 } } },
+	{ SSSE3|SSE2,           { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_ssse3,  NULL,                           { afs_analyze_12_ssse3_plus2,  afs_analyze_1_ssse3_plus2,  afs_analyze_2_ssse3_plus2  } } },
+	{ SSE2,                 { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse2,   NULL,                           { afs_analyze_12_sse2_plus2,   afs_analyze_1_sse2_plus2,   afs_analyze_2_sse2_plus2   } } },
 	{ NONE,                 {  7,  4,              4, afs_analyze_set_threshold_mmx,  afs_analyze_shrink_info_mmx_plus, { afs_analyze_12_mmx_plus2,    afs_analyze_1_mmx_plus2,    afs_analyze_2_mmx_plus2    } } },
 };
 
