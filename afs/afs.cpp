@@ -1718,17 +1718,18 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	//適当に速度を計測して時たま吐く
 	if ((fpip->frame & 1023) == 0) {
 		FILE *fp = NULL;
-		if (0 == fopen_s(&fp, "afs_log.txt", "ab")) {
-			fprintf(fp, "total                : %12.3f ms\r\n", afs_qpc.qpc_value[9] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  init               : %12.3f ms\r\n", afs_qpc.qpc_value[0] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  get_ycp_cache      : %12.3f ms\r\n", afs_qpc.qpc_value[1] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  scan_frame         : %12.3f ms\r\n", afs_qpc.qpc_value[2] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  count_motion       : %12.3f ms\r\n", afs_qpc.qpc_value[3] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  analyze_frame      : %12.3f ms\r\n", afs_qpc.qpc_value[4] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  get_strip_count    : %12.3f ms\r\n", afs_qpc.qpc_value[5] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  analyze_map_filter : %12.3f ms\r\n", afs_qpc.qpc_value[6] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  get_ycp_cache      : %12.3f ms\r\n", afs_qpc.qpc_value[7] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "  blend              : %12.3f ms\r\n", afs_qpc.qpc_value[8] * 1000.0 / (double)afs_qpc.qpc_freq);
+		if (0 == fopen_s(&fp, "afs_log.csv", "ab")) {
+			fprintf(fp, "frame count        ,     %d\n", fpip->frame);
+			fprintf(fp, "total              , %12.3f, ms\r\n", afs_qpc.qpc_value[9] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "init               , %12.3f, ms\r\n", afs_qpc.qpc_value[0] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "get_ycp_cache      , %12.3f, ms\r\n", afs_qpc.qpc_value[1] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "scan_frame         , %12.3f, ms\r\n", afs_qpc.qpc_value[2] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "count_motion       , %12.3f, ms\r\n", afs_qpc.qpc_value[3] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "analyze_frame      , %12.3f, ms\r\n", afs_qpc.qpc_value[4] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "get_strip_count    , %12.3f, ms\r\n", afs_qpc.qpc_value[5] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "analyze_map_filter , %12.3f, ms\r\n", afs_qpc.qpc_value[6] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "get_ycp_cache      , %12.3f, ms\r\n", afs_qpc.qpc_value[7] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "blend              , %12.3f, ms\r\n", afs_qpc.qpc_value[8] * 1000.0 / (double)afs_qpc.qpc_freq);
 			fprintf(fp, "\r\n\r\n");
 			fclose(fp);
 		}
