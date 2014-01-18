@@ -326,6 +326,8 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 	}
 
 	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+		_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+		_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
 			x0 = _mm_loadu_si128((__m128i *)ptr_p0);
 			x0 = _mm_subs_epi16(x0, _mm_loadu_si128((__m128i *)ptr_p1));
@@ -356,6 +358,8 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 		buf_ptr = buffer;
 		buf2_ptr = buffer + BUFFER_SIZE;
 		for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+			_mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
+			_mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
 			for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 16) {
 				ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
 				ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
@@ -521,6 +525,8 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 	
 	x3 = _mm_load_si128((__m128i *)pw_thre_shift);
 	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+		_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+		_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
 			//afs_analyze_1_mmx_sub
 			x0 = _mm_loadu_si128((__m128i *)ptr_p0);
@@ -559,6 +565,8 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 		buf_ptr = buffer;
 		buf2_ptr = buffer + BUFFER_SIZE;
 		for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+			_mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
+			_mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
 			for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 16) {
 				ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
 				ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
@@ -713,6 +721,8 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 	}
 
 	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+		_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+		_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
 			x3 = _mm_load_si128((__m128i *)(pw_thre_motion[jw]));
 			//afs_analyze_2_mmx_sub
@@ -752,6 +762,8 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 		buf_ptr = buffer;
 		buf2_ptr = buffer + BUFFER_SIZE;
 		for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+			_mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
+			_mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
 			for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 16) {
 				x3 = _mm_load_si128((__m128i *)(pw_thre_motion[jw]));
 				ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;

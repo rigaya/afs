@@ -207,6 +207,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
 			y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
 			y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1));
+			_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+			_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 			y0 = _mm256_abs_epi16(y0);
 			y3 = _mm256_load_si256((__m256i *)pw_thre_motion[jw]);
 			y2 = _mm256_load_si256((__m256i *)pw_thre_shift);
@@ -241,6 +243,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
 				y3 = _mm256_and_si256(y3, _mm256_load_si256((__m256i *)pw_mask_2motion_0));
 				y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0));
 				y3 = _mm256_or_si256(y3, y2);
+
+				_mm_prefetch((char *)ptr_p0 + (step6<<1), _MM_HINT_T0);
+				_mm_prefetch((char *)ptr_p1 + (step6<<1), _MM_HINT_T0);
 			
 				y2 = _mm256_loadu_si256((__m256i *)ptr_p0);
 				y2 = _mm256_subs_epi16(y2, y1);
@@ -386,6 +391,8 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 			//afs_analyze_1_mmx_sub
 			y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
 			y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1)); //y0 = *p0 - *p1
+			_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+			_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 			y0 = _mm256_abs_epi16(y0); //y0 = abs(*p0 - *p1)
 			y2 = y3;
 			y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_motion > abs(*p0 - *p1))
@@ -425,6 +432,9 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 				y2 = y3;
 				y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_shift > abs(*p0 - *p1))
 				y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0)); //y2 &= 4000h
+
+				_mm_prefetch((char *)ptr_p0 + (step6<<1), _MM_HINT_T0);
+				_mm_prefetch((char *)ptr_p1 + (step6<<1), _MM_HINT_T0);
 				
 				//analyze non-shift
 				y1 = _mm256_loadu_si256((__m256i *)ptr_p0);
@@ -548,6 +558,8 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 			//afs_analyze_2_mmx_sub
 			y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
 			y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1)); //y0 = *p0 - *p1
+			_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+			_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 			y0 = _mm256_abs_epi16(y0); //y0 = abs(*p0 - *p1)
 			y2 = y3;
 			y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_motion > abs(*p0 - *p1))
@@ -588,6 +600,9 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
 				y2 = y3;
 				y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_shift > abs(*p0 - *p1))
 				y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_2motion_0)); //y2 &= 4000h
+
+				_mm_prefetch((char *)ptr_p0 + (step6<<1), _MM_HINT_T0);
+				_mm_prefetch((char *)ptr_p1 + (step6<<1), _MM_HINT_T0);
 				
 				//analyze non-shift
 				y1 = _mm256_loadu_si256((__m256i *)ptr_p0);
