@@ -136,10 +136,10 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h)
 
 		if(source_cachep == NULL){
 			source_cachep = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * size * AFS_SOURCE_CACHE_NUM, 32);
-			ZeroMemory(source_cachep, sizeof(PIXEL_YC) * size * AFS_SOURCE_CACHE_NUM);
 			if(source_cachep == NULL)
 				return FALSE;
 
+			ZeroMemory(source_cachep, sizeof(PIXEL_YC) * size * AFS_SOURCE_CACHE_NUM);
 			for(i = 0; i < AFS_SOURCE_CACHE_NUM; i++){
 				source_array[i].map = source_cachep + size * i;
 				source_array[i].status = 0;
@@ -737,9 +737,10 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
 
 	if(analyze_cachep == NULL){
 		analyze_cachep = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size * (AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM), 64);
-		ZeroMemory(analyze_cachep, sizeof(unsigned char) * size * (AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM));
 		if(analyze_cachep == NULL)
 			return FALSE;
+
+		ZeroMemory(analyze_cachep, sizeof(unsigned char) * size * (AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM));
 
 		if (afs_func.analyze.shrink_info) {
 			scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64);
