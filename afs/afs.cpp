@@ -356,6 +356,31 @@ log_err:
 	return FALSE;
 }
 
+//解析スレッド管理 scan_frame スレッド用 --------------------------------------------------------
+
+#define AFS_MAX_SCAN_TASK AFS_SOURCE_CACHE_NUM
+
+typedef struct SCAN_TASK {
+	HANDLE hEvent_start; //タスク開始
+	HANDLE hEvent_fin;  //タスクの終了
+	int i_frame, force, max_w;
+	PIXEL_YC *p1, *p0;
+	int mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion;
+	int clip_t, clip_b, clip_l, clip_r;
+} SCAN_TASK;
+
+typedef struct SCAN_THREAD {
+	HANDLE hThread;     //スレッドのハンドル
+	DWORD work_task_id; //現在処理中のタスクID
+	DWORD set_task_id;  //追加するタスクのID
+	BOOL abort;         //スレッド中断(終了)指示用
+	SCAN_TASK task_array[AFS_MAX_SCAN_TASK]; //タスクを格納する配列
+} SCAN_THREAD;
+
+static SCAN_THREAD scan_thread = { 0 };
+#define scantask_workp (scan_thread.task_array + ((scan_thread.work_task_id)&(AFS_MAX_SCAN_TASK-1))) //次に処理するタスクへのポインタ
+#define scantask_setp  (scan_thread.task_array + ((scan_thread.set_task_id) &(AFS_MAX_SCAN_TASK-1))) //次に指示を格納する空きタスクへのポインタ
+
 // 縞、動きスキャン＋合成縞情報キャッシュ
 
 static unsigned char* analyze_cachep = NULL;
@@ -389,6 +414,21 @@ void stripe_info_expire(int frame)
 	stp = stripep(frame);
 	if(stp->frame == frame && stp->status > 0)
 		stp->status = 0;
+}
+
+void free_scan_thread() {
+	if (scan_thread.hThread) {
+		scan_thread.abort = TRUE;
+		for (int i = 0; i < AFS_MAX_SCAN_TASK; i++)
+			SetEvent(scan_thread.task_array[i].hEvent_start);
+		WaitForSingleObject(scan_thread.hThread, INFINITE);
+		for (int i = 0; i < AFS_MAX_SCAN_TASK; i++) {
+			CloseHandle(scan_thread.task_array[i].hEvent_start);
+			CloseHandle(scan_thread.task_array[i].hEvent_fin);
+		}
+		CloseHandle(scan_thread.hThread);
+	}
+	ZeroMemory(&scan_thread, sizeof(scan_thread));
 }
 
 void free_analyze_cache(void)
@@ -505,6 +545,7 @@ BOOL func_init(FILTER*)
 
 BOOL func_exit(FILTER*)
 {
+	free_scan_thread();
 #ifndef AFSVF
 	free_source_cache();
 #endif
@@ -610,6 +651,7 @@ BOOL func_save_end(FILTER *fp, void *editp)
 
 // 解析関数ワーカースレッド
 
+unsigned int __stdcall scan_frame_thread(void *prm);
 
 unsigned __stdcall thread_func(LPVOID worker_id)
 {
@@ -731,9 +773,20 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
 	si_w = si_pitch(w);
 	size = si_w * (h + 2);
 
-	if(analyze_cachep != NULL)
-		if(scan_frame_n != frame_n || scan_w != w || scan_h != h || scan_worker_n != worker_n)
+	if (analyze_cachep != NULL) {
+		if (scan_frame_n != frame_n || scan_w != w || scan_h != h || scan_worker_n != worker_n) {
+			free_scan_thread();
 			free_analyze_cache();
+		}
+	}
+
+	if (NULL == scan_thread.hThread) {
+		for (i = 0; i < AFS_MAX_SCAN_TASK; i++) {
+			scan_thread.task_array[i].hEvent_start = CreateEvent(NULL, FALSE, FALSE, NULL);
+			scan_thread.task_array[i].hEvent_fin   = CreateEvent(NULL, TRUE, FALSE, NULL); //hEvent_finはマニュアルリセット
+		}
+		scan_thread.hThread = (HANDLE)_beginthreadex(NULL, 0, scan_frame_thread, NULL, 0, NULL);
+	}
 
 	if(analyze_cachep == NULL){
 		analyze_cachep = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size * (AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM), 64);
@@ -767,13 +820,13 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
 			hThread_worker[i]      = (HANDLE)_beginthreadex(NULL, 0, thread_func, (LPVOID)i, 0, NULL);
 			worker_thread_priority[i] = THREAD_PRIORITY_NORMAL;
 		}
+		scan_arg.type = -1;
 	}
 
 	scan_frame_n = frame_n;
 	scan_w = w;
 	scan_h = h;
 	scan_worker_n = worker_n;
-	scan_arg.type = -1;
 
 	priority = GetThreadPriority(GetCurrentThread());
 	for(i = 0; i < scan_worker_n; i++)
@@ -1234,6 +1287,21 @@ void disp_status(PIXEL_YC *ycp, int *result_stat, int *assume_shift, int *revers
 // フィルタ処理関数
 //
 
+unsigned int __stdcall scan_frame_thread(void *prm) {
+	SCAN_TASK *task = scantask_workp;
+	WaitForSingleObject(task->hEvent_start, INFINITE);
+	while (!scan_thread.abort) {
+		scan_frame(task->i_frame, task->force, task->max_w, task->p1, task->p0,
+			task->mode, task->tb_order, task->thre_shift, task->thre_deint, task->thre_Ymotion, task->thre_Cmotion);
+		count_motion(task->i_frame, task->clip_t, task->clip_b, task->clip_l, task->clip_r);
+		SetEvent(task->hEvent_fin);
+		scan_thread.work_task_id++;
+		task = scantask_workp;
+		WaitForSingleObject(task->hEvent_start, INFINITE);
+	}
+	return 0;
+}
+
 BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 {
 	//
@@ -1394,6 +1462,61 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	get_qp_counter(&afs_qpc.qpc_tmp[2]);
 	add_qpctime(&afs_qpc.qpc_value[0], afs_qpc.qpc_tmp[1] - afs_qpc.qpc_tmp[0]);
 	add_qpctime(&afs_qpc.qpc_value[1], afs_qpc.qpc_tmp[2] - afs_qpc.qpc_tmp[1]);
+
+#if 1
+	//複数のフレームのtask->hEvent_finを格納する
+	HANDLE scan_task_hevent_fin[10] = { 0 };
+	//本来は7までだが、1フレーム分多く先読みして、
+	//先読みしたぶんのscan_frameをその後の処理と平行して実行させる
+	for (i = -1; i <= (7+1); i++) {
+		get_qp_counter(&afs_qpc.qpc_tmp[1]);
+
+		ycp1 = ycp0;
+		prev_hit = hit;
+		ycp0 = get_ycp_cache(fp, fpip, fpip->frame + i, &hit);
+		if(ycp0 == NULL){
+			error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
+			return TRUE;
+		}
+		
+		get_qp_counter(&afs_qpc.qpc_tmp[2]);
+
+		//渡すべき引数を与える
+		SCAN_TASK *task = scantask_setp;
+		task->i_frame = fpip->frame + i;
+		task->force = (!prev_hit || !hit);
+		task->max_w = fpip->max_w;
+		task->p1 = ycp1;
+		task->p0 = ycp0;
+		task->mode = (analyze == 0 ? 0 : 1);
+		task->tb_order = tb_order;
+		task->thre_shift = thre_shift;
+		task->thre_deint = thre_deint;
+		task->thre_Ymotion = thre_Ymotion;
+		task->thre_Cmotion = thre_Cmotion;
+		task->clip_t = clip_t;
+		task->clip_b = clip_b;
+		task->clip_l = clip_l;
+		task->clip_r = clip_r;
+		ResetEvent(task->hEvent_fin); //マニュアルリセット
+		scan_task_hevent_fin[i+1] = task->hEvent_fin;
+		SetEvent(task->hEvent_start);
+		scan_thread.set_task_id++;
+
+		get_qp_counter(&afs_qpc.qpc_tmp[3]);
+
+		add_qpctime(&afs_qpc.qpc_value[1], afs_qpc.qpc_tmp[2] - afs_qpc.qpc_tmp[1]);
+		add_qpctime(&afs_qpc.qpc_value[2], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
+	}
+	
+	get_qp_counter(&afs_qpc.qpc_tmp[2]);
+	//必要なデータが揃っているか同期をとる
+	//先読みのぶん1フレームを除いて同期
+	//先読みの最後のフレームは平行して実行させる
+	WaitForMultipleObjects(9, scan_task_hevent_fin, TRUE, INFINITE);
+	get_qp_counter(&afs_qpc.qpc_tmp[3]);
+	add_qpctime(&afs_qpc.qpc_value[2], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
+#else
 	for(i = -1; i <= 7; i++){
 		get_qp_counter(&afs_qpc.qpc_tmp[1]);
 		ycp1 = ycp0;
@@ -1413,7 +1536,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		add_qpctime(&afs_qpc.qpc_value[2], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
 		add_qpctime(&afs_qpc.qpc_value[3], afs_qpc.qpc_tmp[4] - afs_qpc.qpc_tmp[3]);
 	}
-
+#endif
 	// 共有メモリ、解析情報キャッシュ読み出し
 	get_qp_counter(&afs_qpc.qpc_tmp[1]);
 	if(fpip->frame + 2 < fpip->frame_n){
@@ -1819,6 +1942,7 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
 	case WM_FILTER_FILE_CLOSE:
 		if(!afs_check_share()) break;
 		afs_free_cache();
+		free_scan_thread();
 #ifndef AFSVF
 		free_source_cache();
 #endif
