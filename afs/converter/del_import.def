@@ -1,4 +1,4 @@
-LIBRARY del_import
+﻿LIBRARY del_import
 
 EXPORTS
 	GetFilterTable @1

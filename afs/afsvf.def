@@ -1,4 +1,4 @@
-LIBRARY afsvf.auf
+﻿LIBRARY afsvf.auf
 
 EXPORTS
 	GetFilterTable @1
