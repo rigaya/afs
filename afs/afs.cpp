@@ -49,7 +49,6 @@ static TCHAR filter_name_ex[] = "自動フィールドシフト ビデオフィ�
 #define absdiff(x,y) (((x)>=(y))?(x)-(y):(y)-(x))
 
 static AFS_FUNC afs_func = { 0 };
-static PERFORMANCE_CHECKER afs_qpc = { 0 };
 
 static inline int si_pitch(int x) {
 	int align_minus_one = afs_func.analyze.align_minus_one;
@@ -536,9 +535,7 @@ EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTable( void )
 BOOL func_init(FILTER*)
 {
 	get_afs_func_list(&afs_func);
-#if CHECK_PERFORMANCE
-	QueryPerformanceFrequency((LARGE_INTEGER *)&afs_qpc.qpc_freq);
-#endif
+	QPC_FREQ;
 	afs_check_share();
 	return TRUE;
 }
@@ -1344,7 +1341,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		return FALSE;
 	};
 #endif
-	get_qp_counter(&afs_qpc.qpc_tmp[0]);
+	QPC_GET_COUNTER(QPC_START);
 
 	// 設定値読み出し
 	clip_t = fp->track[0];
@@ -1452,16 +1449,16 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		return TRUE;
 	}
 	
-	get_qp_counter(&afs_qpc.qpc_tmp[1]);
+	QPC_GET_COUNTER(QPC_INIT);
 	// 不足解析補充
 	ycp0 = get_ycp_cache(fp, fpip, fpip->frame - 2, &hit);
 	if(ycp0 == NULL){
 		error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
 		return TRUE;
 	}
-	get_qp_counter(&afs_qpc.qpc_tmp[2]);
-	add_qpctime(&afs_qpc.qpc_value[0], afs_qpc.qpc_tmp[1] - afs_qpc.qpc_tmp[0]);
-	add_qpctime(&afs_qpc.qpc_value[1], afs_qpc.qpc_tmp[2] - afs_qpc.qpc_tmp[1]);
+	QPC_GET_COUNTER(QPC_YCP_CACHE);
+	QPC_ADD(QPC_INIT, QPC_INIT, QPC_START);
+	QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_INIT);
 
 #if 1
 	//複数のフレームのtask->hEvent_finを格納する
@@ -1469,7 +1466,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	//本来は7までだが、1フレーム分多く先読みして、
 	//先読みしたぶんのscan_frameをその後の処理と平行して実行させる
 	for (i = -1; i <= (7+1); i++) {
-		get_qp_counter(&afs_qpc.qpc_tmp[1]);
+		QPC_GET_COUNTER(QPC_INIT);
 
 		ycp1 = ycp0;
 		prev_hit = hit;
@@ -1479,7 +1476,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 			return TRUE;
 		}
 		
-		get_qp_counter(&afs_qpc.qpc_tmp[2]);
+		QPC_GET_COUNTER(QPC_YCP_CACHE);
 
 		//渡すべき引数を与える
 		SCAN_TASK *task = scantask_setp;
@@ -1502,23 +1499,23 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		scan_task_hevent_fin[i+1] = task->hEvent_fin;
 		SetEvent(task->hEvent_start);
 		scan_thread.set_task_id++;
-
-		get_qp_counter(&afs_qpc.qpc_tmp[3]);
-
-		add_qpctime(&afs_qpc.qpc_value[1], afs_qpc.qpc_tmp[2] - afs_qpc.qpc_tmp[1]);
-		add_qpctime(&afs_qpc.qpc_value[2], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
+		
+		QPC_GET_COUNTER(QPC_SCAN_FRAME);
+		
+		QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_INIT);
+		QPC_ADD(QPC_SCAN_FRAME, QPC_SCAN_FRAME, QPC_YCP_CACHE);
 	}
 	
-	get_qp_counter(&afs_qpc.qpc_tmp[2]);
+	QPC_GET_COUNTER(QPC_YCP_CACHE);
 	//必要なデータが揃っているか同期をとる
 	//先読みのぶん1フレームを除いて同期
 	//先読みの最後のフレームは平行して実行させる
 	WaitForMultipleObjects(9, scan_task_hevent_fin, TRUE, INFINITE);
-	get_qp_counter(&afs_qpc.qpc_tmp[3]);
-	add_qpctime(&afs_qpc.qpc_value[2], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
+	QPC_GET_COUNTER(QPC_SCAN_FRAME);
+	QPC_ADD(QPC_SCAN_FRAME, QPC_SCAN_FRAME, QPC_YCP_CACHE);
 #else
 	for(i = -1; i <= 7; i++){
-		get_qp_counter(&afs_qpc.qpc_tmp[1]);
+		QPC_GET_COUNTER(QPC_INIT);
 		ycp1 = ycp0;
 		prev_hit = hit;
 		ycp0 = get_ycp_cache(fp, fpip, fpip->frame + i, &hit);
@@ -1526,19 +1523,20 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 			error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
 			return TRUE;
 		}
-		get_qp_counter(&afs_qpc.qpc_tmp[2]);
+		QPC_GET_COUNTER(QPC_YCP_CACHE);
 		scan_frame(fpip->frame + i, (!prev_hit || !hit), fpip->max_w, ycp1, ycp0,
 			(analyze == 0 ? 0 : 1), tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion);
-		get_qp_counter(&afs_qpc.qpc_tmp[3]);
+		QPC_GET_COUNTER(QPC_SCAN_FRAME);
 		count_motion(fpip->frame + i, clip_t, clip_b, clip_l, clip_r);
-		get_qp_counter(&afs_qpc.qpc_tmp[4]);
-		add_qpctime(&afs_qpc.qpc_value[1], afs_qpc.qpc_tmp[2] - afs_qpc.qpc_tmp[1]);
-		add_qpctime(&afs_qpc.qpc_value[2], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
-		add_qpctime(&afs_qpc.qpc_value[3], afs_qpc.qpc_tmp[4] - afs_qpc.qpc_tmp[3]);
+		QPC_GET_COUNTER(QPC_COUNT_MOTION);
+		
+		QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_INIT);
+		QPC_ADD(QPC_SCAN_FRAME, QPC_SCAN_FRAME, QPC_YCP_CACHE);
+		QPC_ADD(QPC_COUNT_MOTION, QPC_COUNT_MOTION, QPC_SCAN_FRAME);
 	}
 #endif
 	// 共有メモリ、解析情報キャッシュ読み出し
-	get_qp_counter(&afs_qpc.qpc_tmp[1]);
+	QPC_GET_COUNTER(QPC_INIT);
 	if(fpip->frame + 2 < fpip->frame_n){
 		status = analyze_frame(fpip->frame + 2, drop, smooth, force24, coeff_shift, method_watershed, reverse, assume_shift, result_stat);
 		if(!replay_mode) afs_set(fpip->frame_n, fpip->frame + 2, status);
@@ -1560,21 +1558,21 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	}
 	afs_set(fpip->frame_n, fpip->frame, status);
 	log_save_check = 1;
-	get_qp_counter(&afs_qpc.qpc_tmp[2]);
-	add_qpctime(&afs_qpc.qpc_value[4], afs_qpc.qpc_tmp[2] - afs_qpc.qpc_tmp[1]);
+	QPC_GET_COUNTER(QPC_ANALYZE_FRAME);
 
 	sip = get_stripe_info(fpip->frame, 1);
 	si_w = si_pitch(fpip->w);
-	get_qp_counter(&afs_qpc.qpc_tmp[3]);
+	QPC_GET_COUNTER(QPC_STRIP_COUNT);
 
 	// 解析マップをフィルタ
 	if(analyze > 1){
 		afs_func.analyzemap_filter(sip, si_w, fpip->w, fpip->h);
 		stripe_info_dirty(fpip->frame);
 	}
-	get_qp_counter(&afs_qpc.qpc_tmp[4]);
-	add_qpctime(&afs_qpc.qpc_value[5], afs_qpc.qpc_tmp[3] - afs_qpc.qpc_tmp[2]);
-	add_qpctime(&afs_qpc.qpc_value[6], afs_qpc.qpc_tmp[4] - afs_qpc.qpc_tmp[3]);
+	QPC_GET_COUNTER(QPC_MAP_FILTER);
+	QPC_ADD(QPC_ANALYZE_FRAME, QPC_ANALYZE_FRAME, QPC_INIT);
+	QPC_ADD(QPC_STRIP_COUNT, QPC_STRIP_COUNT, QPC_ANALYZE_FRAME);
+	QPC_ADD(QPC_MAP_FILTER, QPC_MAP_FILTER, QPC_STRIP_COUNT);
 
 	// 解除済み画面合成
 	p0 = get_ycp_cache(fp, fpip, fpip->frame, NULL);
@@ -1588,8 +1586,8 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
 		return TRUE;
 	}
-	get_qp_counter(&afs_qpc.qpc_tmp[5]);
-	add_qpctime(&afs_qpc.qpc_value[7], &afs_qpc.qpc_tmp[5] - &afs_qpc.qpc_tmp[4]);
+	QPC_GET_COUNTER(QPC_YCP_CACHE);
+	QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_MAP_FILTER);
 
 	if(tune_mode){
 		for(pos_y = 0; pos_y <= fpip->h - 1; pos_y++){
@@ -1833,10 +1831,10 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		if(edit_mode)
 			disp_status(fpip->ycp_edit, result_stat, assume_shift, reverse,
 			fpip->max_w, fpip->w, fpip->h, clip_t, clip_b, clip_l, clip_r);
-
-	get_qp_counter(&afs_qpc.qpc_tmp[6]);
-	add_qpctime(&afs_qpc.qpc_value[8], afs_qpc.qpc_tmp[6] - afs_qpc.qpc_tmp[5]);
-	add_qpctime(&afs_qpc.qpc_value[9], afs_qpc.qpc_tmp[6] - afs_qpc.qpc_tmp[0]);
+	
+	QPC_GET_COUNTER(QPC_BLEND);
+	QPC_ADD(QPC_BLEND, QPC_BLEND, QPC_START);
+	QPC_ADD(QPC_START, QPC_BLEND, QPC_BLEND);
 
 #if CHECK_PERFORMANCE
 	//適当に速度を計測して時たま吐く
@@ -1844,16 +1842,15 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 		FILE *fp = NULL;
 		if (0 == fopen_s(&fp, "afs_log.csv", "ab")) {
 			fprintf(fp, "frame count        ,     %d\n", fpip->frame);
-			fprintf(fp, "total              , %12.3f, ms\r\n", afs_qpc.qpc_value[9] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "init               , %12.3f, ms\r\n", afs_qpc.qpc_value[0] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "get_ycp_cache      , %12.3f, ms\r\n", afs_qpc.qpc_value[1] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "scan_frame         , %12.3f, ms\r\n", afs_qpc.qpc_value[2] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "count_motion       , %12.3f, ms\r\n", afs_qpc.qpc_value[3] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "analyze_frame      , %12.3f, ms\r\n", afs_qpc.qpc_value[4] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "get_strip_count    , %12.3f, ms\r\n", afs_qpc.qpc_value[5] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "analyze_map_filter , %12.3f, ms\r\n", afs_qpc.qpc_value[6] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "get_ycp_cache      , %12.3f, ms\r\n", afs_qpc.qpc_value[7] * 1000.0 / (double)afs_qpc.qpc_freq);
-			fprintf(fp, "blend              , %12.3f, ms\r\n", afs_qpc.qpc_value[8] * 1000.0 / (double)afs_qpc.qpc_freq);
+			fprintf(fp, "total              , %12.3f, ms\r\n", QPC_MS(QPC_START));
+			fprintf(fp, "init               , %12.3f, ms\r\n", QPC_MS(QPC_INIT));
+			fprintf(fp, "get_ycp_cache      , %12.3f, ms\r\n", QPC_MS(QPC_YCP_CACHE));
+			fprintf(fp, "scan_frame         , %12.3f, ms\r\n", QPC_MS(QPC_SCAN_FRAME));
+			fprintf(fp, "count_motion       , %12.3f, ms\r\n", QPC_MS(QPC_COUNT_MOTION));
+			fprintf(fp, "analyze_frame      , %12.3f, ms\r\n", QPC_MS(QPC_ANALYZE_FRAME));
+			fprintf(fp, "get_strip_count    , %12.3f, ms\r\n", QPC_MS(QPC_STRIP_COUNT));
+			fprintf(fp, "analyze_map_filter , %12.3f, ms\r\n", QPC_MS(QPC_MAP_FILTER));
+			fprintf(fp, "blend              , %12.3f, ms\r\n", QPC_MS(QPC_BLEND));
 			fprintf(fp, "\r\n\r\n");
 			fclose(fp);
 		}
