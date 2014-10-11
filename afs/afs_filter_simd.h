@@ -9,12 +9,12 @@ void __stdcall afs_analyzemap_filter_avx_plus(unsigned char* sip, int si_w, int 
 void __stdcall afs_analyzemap_filter_avx2(unsigned char* sip, int si_w, int w, int h);
 void __stdcall afs_analyzemap_filter_avx2_plus(unsigned char* sip, int si_w, int w, int h);
 
-void __stdcall afs_merge_scan_sse2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
-void __stdcall afs_merge_scan_sse2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
-void __stdcall afs_merge_scan_avx(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
-void __stdcall afs_merge_scan_avx_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
-void __stdcall afs_merge_scan_avx2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
-void __stdcall afs_merge_scan_avx2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
+void __stdcall afs_merge_scan_sse2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+void __stdcall afs_merge_scan_sse2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+void __stdcall afs_merge_scan_avx(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+void __stdcall afs_merge_scan_avx_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+void __stdcall afs_merge_scan_avx2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+void __stdcall afs_merge_scan_avx2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
 
 #ifdef ENABLE_FUNC_BASE
 #include "simd_util.h"
@@ -77,12 +77,12 @@ static const _declspec(align(16)) BYTE pb_mask_44[] = {
     0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 
 };
 
- static void __forceinline __stdcall afs_merge_scan_simd(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h) {
-	int step = 0;
+ static void __forceinline __stdcall afs_merge_scan_simd(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+	int step = x_start;
 	__m128i x0, x1, x2, x3, x4, x5;
 	const __m128i xPbMask33 = _mm_load_si128((__m128i*)(pb_mask_33));
 	const __m128i xPbMaskf3 = _mm_load_si128((__m128i*)(pb_mask_f3));
-	for (int jw = si_w >> 4; jw; jw--) {
+	for (int jw = (x_fin - x_start) >> 4; jw; jw--) {
 		BYTE *ptr_dst = dst  + step;
 		BYTE *ptr_src0 = src0 + step;
 		BYTE *ptr_src1 = src1 + step;
@@ -158,8 +158,7 @@ static const _declspec(align(16)) BYTE pb_mask_44[] = {
 	}
  }
  
- static void __forceinline __stdcall afs_merge_scan_simd_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h) {
-	int step = 0;
+ static void __forceinline __stdcall afs_merge_scan_simd_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
 	__m128i x0, x1, x2, x3, x4, x5;
 	const __m128i xPbMask33 = _mm_load_si128((__m128i*)(pb_mask_33));
 	const __m128i xPbMaskf3 = _mm_load_si128((__m128i*)(pb_mask_f3));
@@ -169,10 +168,10 @@ static const _declspec(align(16)) BYTE pb_mask_44[] = {
 	BYTE __declspec(align(16)) buffer[MAX_BLOCK_SIZE * 4];
 	BYTE *bufptr_0 = buffer;
 	BYTE *bufptr_1 = buffer + (block_size<<1);
-	for (int jw = 0, step; jw < si_w; jw += block_size) {
-		step = si_w - jw;
-		BOOL over_block_size = (step > block_size);
-		step = over_block_size * block_size + !over_block_size * step;
+	for (int jw = x_start, step; jw < x_fin; jw += block_size) {
+		step = x_fin - jw;
+		int over_block_size = 0-(step > block_size);
+		step = (over_block_size & block_size) | ((~over_block_size) & step);
 		BYTE *ptr_dst = dst  + jw;
 		BYTE *ptr_src0 = src0 + jw;
 		BYTE *ptr_src1 = src1 + jw;

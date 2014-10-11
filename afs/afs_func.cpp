@@ -152,7 +152,7 @@ static const struct {
 	{ AVX2|AVX, afs_merge_scan_avx2_plus },
 	{ AVX|SSE2, afs_merge_scan_avx_plus  },
 	{ SSE2,     afs_merge_scan_sse2_plus },
-	{ NONE,     afs_merge_scan_mmx      },
+	{ NONE,     afs_merge_scan_mmx       },
 };
 
 static const struct {

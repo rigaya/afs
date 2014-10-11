@@ -7,7 +7,7 @@ typedef void (__stdcall *func_analyze_set_threshold)(int thre_shift, int thre_de
 typedef void (__stdcall *func_analyze)(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
 typedef void (__stdcall *func_analyze_shrink_info)(unsigned char *dst, PIXEL_YC *src, int h, int width, int si_pitch);
 typedef void (__stdcall *func_analyzemap_filter)(unsigned char* sip, int si_w, int w, int h);
-typedef void (__stdcall *func_merge_scan)(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h);
+typedef void (__stdcall *func_merge_scan)(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
 typedef void (__stdcall *func_yuy2up)(PIXEL_YC *dst, PIXEL_YC *src, int width, int pitch, int height);
 typedef void (__stdcall *func_blend)(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, unsigned char *sip, unsigned int mask, int w);
 typedef void (__stdcall *func_mie_spot)(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w);

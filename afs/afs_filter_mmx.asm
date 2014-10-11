@@ -345,7 +345,7 @@ pb_mask_33			dq	03333333333333333h
 pb_mask_f3			dq	0f3f3f3f3f3f3f3f3h
 pb_mask_44			dq	04444444444444444h
 
-PUBLIC C _afs_merge_scan_mmx@20
+PUBLIC C _afs_merge_scan_mmx@28
 
 ;void __stdcall afs_merge_scan_mmx(
 ;  [esp+04] unsigned       char* dst
@@ -353,9 +353,11 @@ PUBLIC C _afs_merge_scan_mmx@20
 ;  [esp+12] unsigned       char* src1
 ;  [esp+16] int            si_w
 ;  [esp+20] int            h
+;  [esp+24] int            x_start
+;  [esp+28] int            x_fin
 ;)
 
-_afs_merge_scan_mmx@20 PROC
+_afs_merge_scan_mmx@28 PROC
 		push		ebp
 		push		edi
 		push		esi
@@ -459,9 +461,9 @@ afs_merge_scan_mmx_loopy:
 		pop			edi
 		pop			ebp
 
-		ret        20
+		ret        28
 
-_afs_merge_scan_mmx@20 ENDP
+_afs_merge_scan_mmx@28 ENDP
 
 END
 

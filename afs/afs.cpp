@@ -27,6 +27,7 @@
 #define AFS_SCAN_CACHE_NUM   16
 #define AFS_SCAN_WORKER_MAX  16
 #define AFS_STRIPE_CACHE_NUM  8
+#define AFS_SUB_WORKER_MAX    4
 
 #ifndef AFSVF
 static TCHAR filter_name[] = "自動フィールドシフト";
@@ -355,6 +356,43 @@ log_err:
 	return FALSE;
 }
 
+//合成スレッド scan_frame スレッド用 --------------------------------------------------------
+
+typedef struct SYNTHESIZE_TASK {
+    FILTER_PROC_INFO *fpip;
+    PIXEL_YC *p0, *p1;
+    unsigned char *sip;
+    unsigned char status;
+    int si_w;
+    int tb_order;
+	int mode;
+	BOOL detect_sc;
+	int clip_t, clip_b, clip_l, clip_r;
+} SYNTHESIZE_TASK;
+
+typedef struct MERGE_SCAN_TASK {
+	AFS_STRIPE_DATA *sp;
+    AFS_SCAN_DATA *sp0, *sp1;
+	int si_w;
+} MERGE_SCAN_TASK;
+
+enum SUB_THREAD_TASK {
+	TASK_NONE,
+	TASK_MERGE_SCAN,
+	TASK_SYNTHESIZE
+};
+
+static SUB_THREAD_TASK sub_task = TASK_NONE;
+static MERGE_SCAN_TASK merge_scan_task;
+static SYNTHESIZE_TASK synthesize_task;
+static int thread_sub_n = -1;
+static BOOL thread_sub_abort;
+static HANDLE hThread_sub[AFS_SUB_WORKER_MAX-1];
+static HANDLE hEvent_sub_start[AFS_SUB_WORKER_MAX-1];
+static HANDLE hEvent_sub_fin[AFS_SUB_WORKER_MAX-1];
+
+unsigned int __stdcall sub_thread(void *prm);
+
 //解析スレッド管理 scan_frame スレッド用 --------------------------------------------------------
 
 #define AFS_MAX_SCAN_TASK AFS_SOURCE_CACHE_NUM
@@ -458,14 +496,38 @@ void free_analyze_cache(void)
 	}
 }
 
+void free_synthesize_thread() {
+	if (0 < thread_sub_n - 1) {
+		thread_sub_abort = TRUE;
+		for (int ith = 0; ith < thread_sub_n - 1; ith++) {
+			if (hEvent_sub_start[ith]) {
+				SetEvent(hEvent_sub_start[ith]);
+			}
+		}
+		WaitForMultipleObjects(thread_sub_n - 1, hThread_sub, TRUE, INFINITE);
+		for (int ith = 0; ith < thread_sub_n - 1; ith++) {
+			if (hThread_sub[ith])
+				CloseHandle(hThread_sub[ith]);
+			if (hEvent_sub_start[ith])
+				CloseHandle(hEvent_sub_start[ith]);
+			if (hEvent_sub_fin[ith])
+				CloseHandle(hEvent_sub_fin[ith]);
+		}
+	}
+	ZeroMemory(hThread_sub, sizeof(hThread_sub));
+	ZeroMemory(hEvent_sub_start, sizeof(hEvent_sub_start));
+	ZeroMemory(hEvent_sub_fin, sizeof(hEvent_sub_fin));
+	thread_sub_abort = FALSE;
+}
+
 // フィルタ定義
 
-#define TRACK_N 12
+#define TRACK_N 13
 
-TCHAR *track_name[] = { "上", "下", "左", "右", "切替点", "判定比", "縞(ｼﾌﾄ)", "縞(解除)", "Y動き", "C動き", "解除Lv", "ｽﾚｯﾄﾞ数" };
-int track_s[]       = {    0,    0,    0,    0,       0,        0,         0,          0,       0,       0,        0,         1  };
-int track_default[] = {   16,   16,   32,   32,       0,      192,       128,         64,     128,     256,        4,         2  };
-int track_e[]       = {  512,  512,  512,  512,     256,      256,      1024,       1024,    1024,    1024,        5,  AFS_SCAN_WORKER_MAX };
+TCHAR *track_name[] = { "上", "下", "左", "右", "切替点", "判定比", "縞(ｼﾌﾄ)", "縞(解除)", "Y動き", "C動き", "解除Lv", "ｽﾚｯﾄﾞ数",       "ｻﾌﾞｽﾚｯﾄﾞ" };
+int track_s[]       = {    0,    0,    0,    0,       0,        0,         0,          0,       0,       0,        0,         1,              1    };
+int track_default[] = {   16,   16,   32,   32,       0,      192,       128,         64,     128,     256,        4,         2,              4    };
+int track_e[]       = {  512,  512,  512,  512,     256,      256,      1024,       1024,    1024,    1024,        5, AFS_SCAN_WORKER_MAX, AFS_SUB_WORKER_MAX };
 
 #define CHECK_N 12
 
@@ -543,6 +605,7 @@ BOOL func_init(FILTER*)
 BOOL func_exit(FILTER*)
 {
 	free_scan_thread();
+	free_synthesize_thread();
 #ifndef AFSVF
 	free_source_cache();
 #endif
@@ -763,7 +826,7 @@ void analyze_stripe_pass2(AFS_SCAN_DATA* sp, PIXEL_YC* p1, PIXEL_YC* p0, int max
 
 // 縞・動きキャッシュ＆ワークメモリ確保
 
-BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
+BOOL check_scan_cache(int frame_n, int w, int h, int worker_n, int sub_thread_n)
 {
 	int si_w, size, i, priority;
 
@@ -771,8 +834,9 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
 	size = si_w * (h + 2);
 
 	if (analyze_cachep != NULL) {
-		if (scan_frame_n != frame_n || scan_w != w || scan_h != h || scan_worker_n != worker_n) {
+		if (scan_frame_n != frame_n || scan_w != w || scan_h != h || scan_worker_n != worker_n || thread_sub_n != sub_thread_n) {
 			free_scan_thread();
+			free_synthesize_thread();
 			free_analyze_cache();
 		}
 	}
@@ -783,6 +847,15 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n)
 			scan_thread.task_array[i].hEvent_fin   = CreateEvent(NULL, TRUE, FALSE, NULL); //hEvent_finはマニュアルリセット
 		}
 		scan_thread.hThread = (HANDLE)_beginthreadex(NULL, 0, scan_frame_thread, NULL, 0, NULL);
+	}
+	
+	thread_sub_n = sub_thread_n;
+	if (NULL == hThread_sub[0]) {
+		for (i = 0; i < thread_sub_n - 1; i++) {
+			hEvent_sub_start[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
+			hEvent_sub_fin[i]   = CreateEvent(NULL, FALSE, FALSE, NULL);
+			hThread_sub[i] = (HANDLE)_beginthreadex(NULL, 0, sub_thread, (LPVOID)(i + 1), 0, NULL);
+		}
 	}
 
 	if(analyze_cachep == NULL){
@@ -892,6 +965,17 @@ void count_motion(int frame, int top, int bottom, int left, int right)
 	sp->lf_motion = motion_count[1];
 }
 
+void merge_scan(int thread_id) {
+	AFS_SCAN_DATA *sp0 = merge_scan_task.sp0;
+	AFS_SCAN_DATA *sp1 = merge_scan_task.sp1;
+	AFS_STRIPE_DATA *sp = merge_scan_task.sp;
+	const int si_w = merge_scan_task.si_w;
+	const int min_analyze_cycle = afs_func.analyze.min_cycle;
+	const int x_start = (((si_w *  thread_id   ) / thread_sub_n) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+	const int x_fin   = (((si_w * (thread_id+1)) / thread_sub_n) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+	afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, scan_h, x_start, x_fin);
+}
+
 // 縞情報統合取得
 // mode = 0:判定結果のみ, 1:判定結果+解析マップ
 unsigned char* get_stripe_info(int frame, int mode)
@@ -905,9 +989,28 @@ unsigned char* get_stripe_info(int frame, int mode)
 		return sp->map;
 
 	// 縞検出のビット反転、動き検出のフィールド＆フレーム結合
+#if ENABLE_SUB_THREADS
 	sp0 = scanp(frame);
 	sp1 = scanp(frame + 1);
-	afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, scan_h);
+	merge_scan_task.sp = sp;
+	merge_scan_task.sp0 = sp0;
+	merge_scan_task.sp1 = sp1;
+	merge_scan_task.si_w = si_w;
+	sub_task = TASK_MERGE_SCAN;
+	
+	//thread_sub_nは総スレッド数
+	//自分を除いた数を起動
+	for (int ith = 0; ith < thread_sub_n - 1; ith++) {
+		SetEvent(hEvent_sub_start[ith]);
+	}
+	//メインスレッド(自分)がスレッドID0を担当
+	merge_scan(0);
+	//1スレッド(つまり自スレッドのみなら同期は必要ない)
+	if (0 < thread_sub_n - 1)
+		WaitForMultipleObjects(thread_sub_n - 1, hEvent_sub_fin, TRUE, INFINITE);
+#else
+	afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, scan_h, 0, si_w);
+#endif //ENABLE_SUB_THREADS
 
 	sp->status = 2;
 	sp->frame = frame;
@@ -1299,6 +1402,296 @@ unsigned int __stdcall scan_frame_thread(void *prm) {
 	return 0;
 }
 
+#define DEFINE_SYNTHESIZE_LOCAL \
+    const FILTER_PROC_INFO *fpip = synthesize_task.fpip; \
+	PIXEL_YC *p0 = synthesize_task.p0; \
+	PIXEL_YC *p1 = synthesize_task.p1; \
+	unsigned char *sip = synthesize_task.sip; \
+    unsigned char status = synthesize_task.status; \
+    const int si_w = synthesize_task.si_w; \
+    const int tb_order = synthesize_task.tb_order; \
+	const int y_start = (fpip->h *  thread_id   ) / thread_sub_n; \
+	const int y_end   = (fpip->h * (thread_id+1)) / thread_sub_n; \
+	const int max_w   = fpip->max_w; \
+	const int w       = fpip->w; \
+	const int h       = fpip->h;
+
+#define CHECK_Y_RANGE(y) ((DWORD)(y - y_start) < (DWORD)(y_end - y_start))
+
+void synthesize_mode_5(int thread_id) {
+	DEFINE_SYNTHESIZE_LOCAL;
+	PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
+	PIXEL_YC *ycp01, *ycp02, *ycp03, *ycp11, *ycp12, *ycp13;
+
+	p01 = p03 = p0,   p11 = p13 = p1;
+	p02 = p0 + max_w, p12 = p1 + max_w;
+	for (int pos_y = 0; pos_y < h; pos_y++) {
+		p01 = p02, p11 = p12;
+		p02 = p03, p12 = p13;
+		if (pos_y < h - 1) {
+			p03 += max_w, p13 += max_w;
+		} else {
+			p03 = p01, p13 = p11;
+		}
+		if (CHECK_Y_RANGE(pos_y)) {
+			PIXEL_YC *ycp  = fpip->ycp_edit + pos_y * max_w;
+			unsigned char *sip0 = sip + pos_y * si_w;
+			if (status & AFS_FLAG_SHIFT0) {
+				if (!is_latter_field(pos_y, tb_order)) {
+					ycp02 = p02, ycp11 = p11, ycp12 = p12, ycp13 = p13;
+					for (int pos_x = 0; pos_x < w; pos_x++) {
+						if (!(*sip0 & 0x06)) {
+							PIXEL_YC *pix1, *pix2;
+							if (pos_x >= 2 && pos_x < w - 2){
+								int d, d_min;
+								d_min = d = absdiff((ycp11-2)->y, (ycp13+2)->y);
+								pix1 = ycp11-2, pix2 = ycp13+2;
+								d = absdiff((ycp11+2)->y, (ycp13-2)->y);
+								if (d < d_min) d = d_min, pix1 = ycp11+2, pix2 = ycp13-2;
+								d = absdiff((ycp11-1)->y, (ycp13+1)->y);
+								if (d < d_min) d = d_min, pix1 = ycp11-1, pix2 = ycp13+1;
+								d = absdiff((ycp11+1)->y, (ycp13-1)->y);
+								if (d < d_min) d = d_min, pix1 = ycp11+1, pix2 = ycp13-1;
+								d = absdiff(ycp11->y, ycp13->y);
+								if (d < d_min || ((ycp11->y + ycp11->y - pix1->y - pix2->y)^(pix1->y  + pix2->y - ycp13->y - ycp13->y)) < 0)
+									pix1 = ycp11, pix2 = ycp13;
+							} else {
+								pix1 = ycp11, pix2 = ycp13;
+							}
+							ycp->y  = (pix1->y  + pix2->y  + 1) >> 1;
+							ycp->cr = (pix1->cr + pix2->cr + 1) >> 1;
+							ycp->cb = (pix1->cb + pix2->cb + 1) >> 1;
+						} else {
+							*ycp = *ycp02;
+						}
+						ycp++, ycp02++, ycp11++, ycp12++, ycp13++, sip0++;
+					}
+				} else {
+					memcpy(ycp, p12, sizeof(PIXEL_YC) * w);
+				}
+			} else {
+				if (is_latter_field(pos_y, tb_order)) {
+					ycp01 = p01, ycp02 = p02, ycp03 = p03, ycp12 = p12;
+					for (int pos_x = 0; pos_x < w; pos_x++) {
+						if (!(*sip0 & 0x05)) {
+							PIXEL_YC *pix1, *pix2;
+							if (pos_x >= 2 && pos_x < w - 2) {
+								int d, d_min;
+								d_min = d = absdiff((ycp01-2)->y, (ycp03+2)->y);
+								pix1 = ycp01-2, pix2 = ycp03+2;
+								d = absdiff((ycp01+2)->y, (ycp03-2)->y);
+								if (d < d_min) d = d_min, pix1 = ycp01+2, pix2 = ycp03-2;
+								d = absdiff((ycp01-1)->y, (ycp03+1)->y);
+								if (d < d_min) d = d_min, pix1 = ycp01-1, pix2 = ycp03+1;
+								d = absdiff((ycp01+1)->y, (ycp03-1)->y);
+								if (d < d_min) d = d_min, pix1 = ycp01+1, pix2 = ycp03-1;
+								d = absdiff(ycp01->y, ycp03->y);
+								if (d < d_min || ((ycp01->y + ycp01->y - pix1->y - pix2->y)^(pix1->y  + pix2->y - ycp03->y - ycp03->y)) < 0)
+									pix1 = ycp01, pix2 = ycp03;
+							} else {
+								pix1 = ycp01, pix2 = ycp03;
+							}
+							ycp->y  = (pix1->y  + pix2->y  + 1) >> 1;
+							ycp->cr = (pix1->cr + pix2->cr + 1) >> 1;
+							ycp->cb = (pix1->cb + pix2->cb + 1) >> 1;
+						} else {
+							*ycp = *ycp02;
+						}
+						ycp++, ycp01++, ycp02++, ycp03++, ycp12++, sip0++;
+					}
+				} else {
+					memcpy(ycp, p02, sizeof(PIXEL_YC) * w);
+				}
+			}
+		}
+	}
+}
+
+void synthesize_mode_4(int thread_id) {
+	DEFINE_SYNTHESIZE_LOCAL;
+	PIXEL_YC *p01, *p02, *p03, *p04, *p05, *p06, *p07;
+	PIXEL_YC *p11, *p12, *p13, *p14, *p15, *p16, *p17;
+
+	p01 = p03 = p05 = p0;
+	p02 = p04 = p06 = p0 + max_w;
+	p07 = p0 + max_w * 2;
+	p11 = p13 = p15 = p1;
+	p12 = p14 = p16 = p1 + max_w;
+	p17 = p1 + max_w * 2;
+	for (int pos_y = 0; pos_y < h; pos_y++) {
+		p01 = p02; p02 = p03; p03 = p04; p04 = p05; p05 = p06; p06 = p07;
+		p11 = p12; p12 = p13; p13 = p14; p14 = p15; p15 = p16; p16 = p17;
+		if (pos_y < h - 3) {
+			p07 += max_w;
+			p17 += max_w;
+		} else {
+			p07 = p05;
+			p17 = p15;
+		}
+		if (CHECK_Y_RANGE(pos_y)) {
+			PIXEL_YC *ycp  = fpip->ycp_edit + pos_y * max_w;
+			unsigned char *sip0 = sip + pos_y * si_w;
+			if (status & AFS_FLAG_SHIFT0) {
+				if (!is_latter_field(pos_y, tb_order)) {
+					afs_func.deint4(ycp, p11, p13, p04, p15, p17, sip0, 0x06060606, w);
+				} else {
+					memcpy(ycp, p14, sizeof(PIXEL_YC) * w);
+				}
+			} else {
+				if (is_latter_field(pos_y, tb_order)) {
+					afs_func.deint4(ycp, p01, p03, p04, p05, p07, sip0, 0x05050505, w);
+				} else {
+					memcpy(ycp, p04, sizeof(PIXEL_YC) * w);
+				}
+			}
+		}
+	}
+}
+
+void synthesize_mode_3(int thread_id) {
+	DEFINE_SYNTHESIZE_LOCAL;
+	PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
+
+	p01 = p03 = p0,   p11 = p13 = p1;
+	p02 = p0 + max_w, p12 = p1 + max_w;
+	for (int pos_y = 0; pos_y < h; pos_y++) {
+		p01 = p02, p11 = p12;
+		p02 = p03, p12 = p13;
+		if (pos_y < h - 1) {
+			p03 += max_w, p13 += max_w;
+		} else {
+			p03 = p01, p13 = p11;
+		}
+		if (CHECK_Y_RANGE(pos_y)) {
+			PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+			unsigned char *sip0 = sip + pos_y * si_w;
+			if (status & AFS_FLAG_SHIFT0) {
+				if (!is_latter_field(pos_y, tb_order)) {
+					afs_func.blend(ycp, p11, p02, p13, sip0, 0x06060606, w);
+				} else {
+					afs_func.blend(ycp, p01, p12, p03, sip0, 0x06060606, w);
+				}
+			} else {
+				afs_func.blend(ycp, p01, p02, p03, sip0, 0x05050505, w);
+			}
+		}
+	}
+}
+
+void synthesize_mode_2(int thread_id) {
+	DEFINE_SYNTHESIZE_LOCAL;
+	PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
+
+	p01 = p03 = p0,   p11 = p13 = p1;
+	p02 = p0 + max_w, p12 = p1 + max_w;
+	for (int pos_y = 0; pos_y < h; pos_y++) {
+		p01 = p02, p11 = p12;
+		p02 = p03, p12 = p13;
+		if (pos_y < h - 1) {
+			p03 += max_w, p13 += max_w;
+		} else {
+			p03 = p01, p13 = p11;
+		}
+		if (CHECK_Y_RANGE(pos_y)) {
+			PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+			unsigned char *sip0 = sip + pos_y * si_w;
+			if (status & AFS_FLAG_SHIFT0) {
+				if (!is_latter_field(pos_y, tb_order)) {
+					afs_func.blend(ycp, p11, p02, p13, sip0, 0x02020202, w);
+				} else {
+					afs_func.blend(ycp, p01, p12, p03, sip0, 0x02020202, w);
+				}
+			} else {
+				afs_func.blend(ycp, p01, p02, p03, sip0, 0x01010101, w);
+			}
+		}
+	}
+}
+
+void synthesize_mode_1(int thread_id) {
+	DEFINE_SYNTHESIZE_LOCAL;
+	const int clip_t = synthesize_task.clip_t;
+	const int clip_b = synthesize_task.clip_b;
+	const int clip_l = synthesize_task.clip_l;
+	const int clip_r = synthesize_task.clip_r;
+	PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
+
+	p01 = p03 = p0,   p11 = p13 = p1;
+	p02 = p0 + max_w, p12 = p1 + max_w;
+	if (synthesize_task.detect_sc && (~status & AFS_FLAG_SHIFT0))
+		if (analyze_scene_change(sip, tb_order, max_w, w, h, p0, p1, clip_t, clip_b, clip_l, clip_r))
+			p11 = p01, p12 = p02, p13 = p03;
+	for (int pos_y = 0; pos_y < h; pos_y++) {
+		p01 = p02, p11 = p12;
+		p02 = p03, p12 = p13;
+		if(pos_y < h - 1) {
+			p03 += max_w, p13 += max_w;
+		}else {
+			p03 = p01, p13 = p11;
+		}
+		if (CHECK_Y_RANGE(pos_y)) {
+			PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+			if (status & AFS_FLAG_SHIFT0) {
+				if (!is_latter_field(pos_y, tb_order)) {
+					afs_func.mie_inter(ycp, p02, p11, p12, p13, w);
+				} else {
+					afs_func.mie_spot(ycp, p01, p03, p11, p13, p12, w);
+				}
+			} else {
+				if (is_latter_field(pos_y, tb_order)) {
+					afs_func.mie_inter(ycp, p01, p02, p03, p12, w);
+				} else {
+					afs_func.mie_spot(ycp, p01, p03, p11, p13, p02, w);
+				}
+			}
+		}
+	}
+}
+
+void synthesize_mode_0(int thread_id) {
+	DEFINE_SYNTHESIZE_LOCAL;
+	for (int pos_y = y_start; pos_y < y_end; pos_y++) {
+		PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+		PIXEL_YC *ycp0 = p0 + pos_y * max_w;
+		PIXEL_YC *ycp1 = p1 + pos_y * max_w;
+		if (is_latter_field(pos_y, tb_order) && (status & AFS_FLAG_SHIFT0))
+			memcpy(ycp, ycp1, sizeof(PIXEL_YC) * w);
+		else
+			memcpy(ycp, ycp0, sizeof(PIXEL_YC) * w);
+	}
+}
+
+typedef void(*func_synthesize)(int thread_id);
+
+void synthesize(int thread_id) {
+	func_synthesize func_list[] = {
+		synthesize_mode_0,
+		synthesize_mode_1,
+		synthesize_mode_2,
+		synthesize_mode_3,
+		synthesize_mode_4,
+		synthesize_mode_5
+	};
+	func_list[synthesize_task.mode](thread_id);
+}
+
+unsigned int __stdcall sub_thread(void *prm) {
+	//メインスレッドがスレッドID0なので、ここではIDは1から
+	const int thread_id = (int)prm;
+	//イベントの配列はメインスレッドの分はないのでインデックスから1引く
+	WaitForSingleObject(hEvent_sub_start[thread_id-1], INFINITE);
+	while (!thread_sub_abort) {
+		switch (sub_task) {
+		case TASK_MERGE_SCAN: merge_scan(thread_id); break;
+		case TASK_SYNTHESIZE: synthesize(thread_id); break;
+		default: break;
+		}
+		SetEvent(hEvent_sub_fin[thread_id-1]);
+		WaitForSingleObject(hEvent_sub_start[thread_id-1], INFINITE);
+	}
+	return 0;
+}
+
 BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 {
 	//
@@ -1333,7 +1726,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	unsigned char status;
 	int assume_shift[4], result_stat[4];
 	int si_w;
-	int num_thread;
+	int num_thread, num_sub_thread;
 
 #ifdef AFSVF
 	if(fp->exfunc->set_ycp_filtering_cache_size(fp, fpip->max_w, fpip->max_h, AFS_SOURCE_CACHE_NUM, NULL) == NULL){
@@ -1356,6 +1749,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	thre_Cmotion = fp->track[9];
 	analyze = fp->track[10];
 	num_thread = fp->track[11];
+	num_sub_thread = fp->track[12];
 	if(!fp->check[0]){
 		method_watershed = 0;
 		coeff_shift = 0;
@@ -1420,7 +1814,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 	}
 
 	// 解析情報キャッシュ確保
-	if(!check_scan_cache(fpip->frame_n, fpip->w, fpip->h, num_thread)){
+	if(!check_scan_cache(fpip->frame_n, fpip->w, fpip->h, num_thread, num_sub_thread)){
 		fill_this_ycp(fp, fpip);
 		error_modal(fp, fpip->editp, "解析用メモリが確保できません。");
 		return TRUE;
@@ -1621,7 +2015,38 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 				}
 			}
 		}
-	}else if(analyze == 5){
+	} else
+#if ENABLE_SUB_THREADS
+	if (analyze <= 5) {
+		synthesize_task.mode = analyze;
+		synthesize_task.fpip = fpip;
+		synthesize_task.p0 = p0;
+		synthesize_task.p1 = p1;
+		synthesize_task.sip = sip;
+		synthesize_task.si_w = si_w;
+		synthesize_task.status = status;
+		synthesize_task.tb_order = tb_order;
+		synthesize_task.mode = analyze;
+		synthesize_task.detect_sc = detect_sc;
+		synthesize_task.clip_t = clip_t;
+		synthesize_task.clip_b = clip_b;
+		synthesize_task.clip_l = clip_l;
+		synthesize_task.clip_r = clip_r;
+
+		sub_task = TASK_SYNTHESIZE;
+		//thread_sub_nは総スレッド数
+		//自分を除いた数を起動
+		for (int ith = 0; ith < thread_sub_n - 1; ith++) {
+			SetEvent(hEvent_sub_start[ith]);
+		}
+		//メインスレッド(自分)がスレッドID0を担当
+		synthesize(0);
+		//1スレッド(つまり自スレッドのみなら同期は必要ない)
+		if (0 < thread_sub_n - 1)
+			WaitForMultipleObjects(thread_sub_n - 1, hEvent_sub_fin, TRUE, INFINITE);
+	}
+#else
+	if (analyze == 5) {
 		PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
 		PIXEL_YC *ycp01, *ycp02, *ycp03, *ycp11, *ycp12, *ycp13;
 
@@ -1826,15 +2251,15 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 			else
 				memcpy(ycp, ycp0, sizeof(PIXEL_YC) * fpip->w);
 		}
-
+#endif
 		// 解析結果表示
 		if(edit_mode)
 			disp_status(fpip->ycp_edit, result_stat, assume_shift, reverse,
 			fpip->max_w, fpip->w, fpip->h, clip_t, clip_b, clip_l, clip_r);
 	
 	QPC_GET_COUNTER(QPC_BLEND);
-	QPC_ADD(QPC_BLEND, QPC_BLEND, QPC_START);
-	QPC_ADD(QPC_START, QPC_BLEND, QPC_BLEND);
+	QPC_ADD(QPC_BLEND, QPC_BLEND, QPC_YCP_CACHE);
+	QPC_ADD(QPC_START, QPC_BLEND, QPC_START);
 
 #if CHECK_PERFORMANCE
 	//適当に速度を計測して時たま吐く
@@ -1997,7 +2422,7 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
 
 static void init_dialog(HWND hwnd, HINSTANCE hinst)
 {
-	int top = 302;
+	int top = 322;
 
 	b_font = CreateFont(12, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "ＭＳ Ｐゴシック");
 

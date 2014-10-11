@@ -293,12 +293,12 @@ void __stdcall afs_analyzemap_filter_avx2(BYTE* sip, int si_w, int w, int h) {
 	_mm256_zeroupper();
 }
 
- void __stdcall afs_merge_scan_avx2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h) {
-	int step = 0;
+ void __stdcall afs_merge_scan_avx2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+	int step = x_start;
 	__m256i y0, y1, y2, y3, y4, y5;
 	const __m256i xPbMask33 = _mm256_load_si256((__m256i*)(pb_mask_33));
 	const __m256i xPbMaskf3 = _mm256_load_si256((__m256i*)(pb_mask_f3));
-	for (int jw = si_w >> 5; jw; jw--) {
+	for (int jw = (x_fin - x_start) >> 5; jw; jw--) {
 		BYTE *ptr_dst = dst  + step;
 		BYTE *ptr_src0 = src0 + step;
 		BYTE *ptr_src1 = src1 + step;
@@ -375,8 +375,7 @@ void __stdcall afs_analyzemap_filter_avx2(BYTE* sip, int si_w, int w, int h) {
 	_mm256_zeroupper();
  }
  
- void __stdcall afs_merge_scan_avx2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h) {
-	int step = 0;
+ void __stdcall afs_merge_scan_avx2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
 	__m256i y0, y1, y2, y3, y4, y5;
 	const __m256i xPbMask33 = _mm256_load_si256((__m256i*)(pb_mask_33));
 	const __m256i xPbMaskf3 = _mm256_load_si256((__m256i*)(pb_mask_f3));
@@ -386,8 +385,8 @@ void __stdcall afs_analyzemap_filter_avx2(BYTE* sip, int si_w, int w, int h) {
 	BYTE __declspec(align(32)) buffer[MAX_BLOCK_SIZE * 4];
 	BYTE *bufptr_0 = buffer;
 	BYTE *bufptr_1 = buffer + (block_size<<1);
-	for (int jw = 0, step; jw < si_w; jw += block_size) {
-		step = si_w - jw;
+	for (int jw = x_start, step; jw < x_fin; jw += block_size) {
+		step = x_fin - jw;
 		int over_block_size = 0-(step > block_size);
 		step = (over_block_size & block_size) | ((~over_block_size) & step);
 		BYTE *ptr_dst = dst  + jw;

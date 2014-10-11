@@ -28,12 +28,12 @@ void __stdcall afs_yuy2up_frame_sse2(PIXEL_YC *dst, PIXEL_YC *src, int width, in
 
 #include "afs_filter_simd.h"
 
-void __stdcall afs_merge_scan_sse2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h) {
-	afs_merge_scan_simd(dst, src0, src1, si_w, h);
+void __stdcall afs_merge_scan_sse2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+	afs_merge_scan_simd(dst, src0, src1, si_w, h, x_start, x_fin);
 }
 
-void __stdcall afs_merge_scan_sse2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h) {
-	afs_merge_scan_simd_plus(dst, src0, src1, si_w, h);
+void __stdcall afs_merge_scan_sse2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+	afs_merge_scan_simd_plus(dst, src0, src1, si_w, h, x_start, x_fin);
 }
 
 void __stdcall afs_analyzemap_filter_sse2(BYTE* sip, int si_w, int w, int h) {
