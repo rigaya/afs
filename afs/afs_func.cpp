@@ -6,14 +6,9 @@
 
 #include "afs.h"
 #include "afs_mmx.h"
-#include "afs_simd.h"
 #include "afs_filter_mmx.h"
-#include "afs_filter_simd.h"
 #include "afs_analyze_mmx.h"
-#include "afs_analyze_simd.h"
 #include "afs_yuy2up_mmx.h"
-#include "afs_yuy2up_simd.h"
-
 
 void __stdcall afs_get_stripe_count(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
 	const int y_fin = scan_h - sp0->bottom - ((scan_h - sp0->top - sp0->bottom) & 1);
@@ -84,13 +79,14 @@ static const struct {
 	AFS_FUNC_ANALYZE analyze;
 } FUNC_ANALYZE_LIST[] = {
 	//set_thresholdで変数を渡しているため、これら5つの関数は必ずセットで
-	{ AVX2|AVX,             { 31, 32, BLOCK_SIZE_YCP, afs_analyze_set_threshold_avx2,   NULL,                           { afs_analyze_12_avx2_plus2,   afs_analyze_1_avx2_plus2,   afs_analyze_2_avx2_plus2   } } },
-	{ AVX|SSE41|SSSE3|SSE2, { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_avx,    NULL,                           { afs_analyze_12_avx_plus2,    afs_analyze_1_avx_plus2,    afs_analyze_2_avx_plus2    } } },
-	{ SSE41|SSSE3|SSE2,     { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse4_1, NULL,                           { afs_analyze_12_sse4_1_plus2, afs_analyze_1_sse4_1_plus2, afs_analyze_2_sse4_1_plus2 } } },
-	{ SSSE3|SSE2,           { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_ssse3,  NULL,                           { afs_analyze_12_ssse3_plus2,  afs_analyze_1_ssse3_plus2,  afs_analyze_2_ssse3_plus2  } } },
-	{ SSE2,                 { 15, 16, BLOCK_SIZE_YCP, afs_analyze_set_threshold_sse2,   NULL,                           { afs_analyze_12_sse2_plus2,   afs_analyze_1_sse2_plus2,   afs_analyze_2_sse2_plus2   } } },
-	{ NONE,                 {  7,  4,              4, afs_analyze_set_threshold_mmx,  afs_analyze_shrink_info_mmx_plus, { afs_analyze_12_mmx_plus2,    afs_analyze_1_mmx_plus2,    afs_analyze_2_mmx_plus2    } } },
-};
+	{ AVX2|AVX|POPCNT,             { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx2,          NULL,                   { afs_analyze_12_avx2_plus2,          afs_analyze_1_avx2_plus2,          afs_analyze_2_avx2_plus2          } } },
+	{ AVX|POPCNT|SSE41|SSSE3|SSE2, { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx,           NULL,                   { afs_analyze_12_avx_plus2,           afs_analyze_1_avx_plus2,           afs_analyze_2_avx_plus2           } } },
+	{ POPCNT|SSE41|SSSE3|SSE2,     { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_sse4_1_popcnt, NULL,                   { afs_analyze_12_sse4_1_popcnt_plus2, afs_analyze_1_sse4_1_popcnt_plus2, afs_analyze_2_sse4_1_popcnt_plus2 } } },
+	{ SSE41|SSSE3|SSE2,            { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_sse4_1,        NULL,                   { afs_analyze_12_sse4_1_plus2,        afs_analyze_1_sse4_1_plus2,        afs_analyze_2_sse4_1_plus2        } } },
+	{ SSSE3|SSE2,                  { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_ssse3,         NULL,                   { afs_analyze_12_ssse3_plus2,         afs_analyze_1_ssse3_plus2,         afs_analyze_2_ssse3_plus2         } } },
+	{ SSE2,                        { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_sse2,          NULL,                   { afs_analyze_12_sse2_plus2,          afs_analyze_1_sse2_plus2,          afs_analyze_2_sse2_plus2          } } },
+	{ NONE,                        {  7,  4,              4, FALSE, afs_analyze_set_threshold_mmx, afs_analyze_shrink_info_mmx_plus, { afs_analyze_12_mmx_plus2,           afs_analyze_1_mmx_plus2,           afs_analyze_2_mmx_plus2           } } },
+};       
 
 static const struct {
 	DWORD simd;
@@ -178,7 +174,7 @@ static const struct {
 };
 
 void get_afs_func_list(AFS_FUNC *func_list) {
-	const DWORD simd_avail = get_availableSIMD();
+	const DWORD simd_avail = get_availableSIMD() & ~AVX2;
 	ZeroMemory(func_list, sizeof(func_list[0]));
 	for (int i = 0; i < _countof(FUNC_ANALYZE_LIST); i++) {
 		if ((FUNC_ANALYZE_LIST[i].simd & simd_avail) == FUNC_ANALYZE_LIST[i].simd) {

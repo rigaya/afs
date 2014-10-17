@@ -1,5 +1,11 @@
 ﻿#pragma once
 
+#include "filter.h"
+
+typedef struct {
+	int top, bottom, left, right;
+} AFS_SCAN_CLIP;
+
 typedef struct {
 	int type;
 	unsigned char *dst;
@@ -8,12 +14,18 @@ typedef struct {
 	int tb_order;
 	int max_w;
 	int si_pitch;
+	AFS_SCAN_CLIP *clip;
 } AFS_SCAN_ARG;
 
 typedef struct {
 	unsigned char *map;
 	int status, frame, mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion;
-	int top, bottom, left, right;
+	union {
+		struct {
+			int top, bottom, left, right;
+		};
+		AFS_SCAN_CLIP clip;
+	};
 	int ff_motion, lf_motion;
 } AFS_SCAN_DATA;
 
@@ -27,8 +39,12 @@ static inline BOOL is_latter_field(int pos_y, int tb_order) {
 	return ((pos_y & 1) == tb_order);
 }
 
-#define CHECK_PERFORMANCE 1
+const int BLOCK_SIZE_YCP = 256;
+
+#define CHECK_PERFORMANCE 0
 #define ENABLE_SUB_THREADS 1
+#define SCAN_BACKGROUND 0
+#define SIMD_DEBUG 1
 
 enum {
 	QPC_START = 0,

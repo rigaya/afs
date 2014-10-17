@@ -1,23 +1,7 @@
 ﻿#pragma once
 
-void __stdcall afs_analyzemap_filter_sse2(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_sse2_plus(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_ssse3(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_ssse3_plus(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_avx(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_avx_plus(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_avx2(unsigned char* sip, int si_w, int w, int h);
-void __stdcall afs_analyzemap_filter_avx2_plus(unsigned char* sip, int si_w, int w, int h);
-
-void __stdcall afs_merge_scan_sse2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_sse2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-
-#ifdef ENABLE_FUNC_BASE
 #include "simd_util.h"
+#include "afs_func.h"
 
 static const _declspec(align(16)) BYTE pqb_mask_a[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -728,6 +712,3 @@ static void __forceinline __stdcall afs_analyzemap_filter_simd_plus(BYTE* sip, i
 	//---- loop_2 - last line - end ---------------------------------------------
 	////// loop_2 - end  ////////////////////////////////////////////////////////////////////
 }
-
-
-#endif //ENABLE_FUNC_BASE

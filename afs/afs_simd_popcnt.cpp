@@ -1,6 +1,5 @@
 ﻿#include <Windows.h>
 #include "filter.h"
-#define ENABLE_FUNC_BASE
 #define USE_POPCNT 1
 
 #include "afs_simd.h"

@@ -32,7 +32,7 @@ static __forceinline __m256i get_even_uv_avx2(BYTE *ptr) {
 	return y0;
 }
 
-void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, int pitch, int height) {	
+void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, int pitch, int y_start, int y_fin) {	
 	const int MASK_UV_STORE_0 = 0x20 + 0x10;
 	const int MASK_UV_STORE_1 = 0x08 + 0x04;
 	const int MASK_UV_STORE_2 = 0x80 + 0x40 + 0x02 + 0x01;
@@ -42,7 +42,10 @@ void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, in
 #endif
 	y3 = _mm256_srli_epi16(_mm256_cmpeq_epi16(_mm256_setzero_si256(), _mm256_setzero_si256()), 15);
 	//y0 = _mm256_slli_si256(y1, 4);
-	for (int jh = 0; jh < height; jh++, src += pitch, dst += pitch) {
+	src += y_start * pitch;
+	dst += y_start * pitch;
+
+	for (int jh = y_start; jh < y_fin; jh++, src += pitch, dst += pitch) {
 		BYTE *ptr_src = (BYTE *)src;
 		BYTE *ptr_dst = (BYTE *)dst;
 		y1 = get_even_uv_avx2(ptr_src +  0);
@@ -56,16 +59,15 @@ void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, in
 			y21 = _mm256_permute2x128_si256(y2, y1, (0x00<<4) + 0x03);
 			y6 = _mm256_alignr_epi8(y21, y1, 4);
 			y7 = _mm256_adds_epi16(y7, y6);
-		
+
 			y6 = _mm256_adds_epi16(_mm256_alignr_epi8(y21, y1, 8), _mm256_alignr_epi8(y1, y10, 12));
 			y6 = _mm256_subs_epi16(y6, y7);
 			y6 = _mm256_srai_epi16(y6, 3);
-		
+
 			y7 = _mm256_adds_epi16(y7, y3);
 			y7 = _mm256_subs_epi16(y7, y6);
 			y7 = _mm256_srai_epi16(y7, 1);
-	
-			/////////////////////////////ここキャッシュしたデータ使えない?///////////////////////////////
+
 			yA0 = _mm256_loadu_si256((__m256i*)(ptr_src +  0));
 			yA1 = _mm256_loadu_si256((__m256i*)(ptr_src + 32));
 			yA2 = _mm256_loadu_si256((__m256i*)(ptr_src + 64));

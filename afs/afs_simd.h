@@ -3,38 +3,6 @@
 #include "afs.h"
 #include "filter.h"
 
-void __stdcall afs_blend_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, unsigned char *sip, unsigned int mask, int w);
-void __stdcall afs_blend_sse4_1(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, unsigned char *sip, unsigned int mask, int w);
-void __stdcall afs_blend_avx(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, unsigned char *sip, unsigned int mask, int w);
-void __stdcall afs_blend_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, unsigned char *sip, unsigned int mask, int w);
-
-void __stdcall afs_mie_spot_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w);
-void __stdcall afs_mie_spot_avx(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w);
-void __stdcall afs_mie_spot_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w);
-
-
-void __stdcall afs_mie_inter_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w);
-void __stdcall afs_mie_inter_avx(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w);
-void __stdcall afs_mie_inter_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w);
-
-void __stdcall afs_deint4_sse2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, unsigned char *sip, unsigned int mask, int w);
-void __stdcall afs_deint4_sse4_1(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, unsigned char *sip, unsigned int mask, int w);
-void __stdcall afs_deint4_avx(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, unsigned char *sip, unsigned int mask, int w);
-void __stdcall afs_deint4_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, unsigned char *sip, unsigned int mask, int w);
-
-void __stdcall afs_get_stripe_count(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_stripe_count_sse2(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_stripe_count_sse2_popcnt(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_stripe_count_avx(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_stripe_count_avx2(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
-
-void __stdcall afs_get_motion_count(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_motion_count_sse2(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_motion_count_sse2_popcnt(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_motion_count_avx(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
-void __stdcall afs_get_motion_count_avx2(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
-
-#ifdef ENABLE_FUNC_BASE
 #include "simd_util.h"
 #include "afs.h"
 
@@ -377,12 +345,11 @@ static void __forceinline __stdcall afs_deint4_simd(PIXEL_YC *dst, PIXEL_YC *src
 	}
 }
 
-static const _declspec(align(16)) BYTE STRIPE_COUNT_CHECK_MASK[][16] = {
-	{ 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50 }, 
-	{ 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60 }, 
-};
-
 static void __forceinline __stdcall afs_get_stripe_count_simd(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
+	static const _declspec(align(16)) BYTE STRIPE_COUNT_CHECK_MASK[][16] = {
+		{ 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50 }, 
+		{ 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60 }, 
+	};
 	const int y_fin = scan_h - sp0->bottom - ((scan_h - sp0->top - sp0->bottom) & 1);
 	const DWORD check_mask[2] = { 0x50, 0x60 };
 	__m128i xZero = _mm_setzero_si128();
@@ -418,11 +385,10 @@ static void __forceinline __stdcall afs_get_stripe_count_simd(int *count, AFS_SC
 	}
 }
 
-static const _declspec(align(16)) BYTE MOTION_COUNT_CHECK[16] = {
-	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
-};
-
 static void __forceinline __stdcall afs_get_motion_count_simd(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h) {
+	static const _declspec(align(16)) BYTE MOTION_COUNT_CHECK[16] = {
+		0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+	};
 	const int y_fin = scan_h - sp->bottom - ((scan_h - sp->top - sp->bottom) & 1);
 	__m128i xMotion = _mm_load_si128((__m128i *)MOTION_COUNT_CHECK);
 	__m128i x0, x1;
@@ -455,6 +421,3 @@ static void __forceinline __stdcall afs_get_motion_count_simd(int *motion_count,
 			motion_count[is_latter_feild] += ((~*sip & 0x40) >> 6);
 	}
 }
-
-
-#endif //ENABLE_FUNC_BASE

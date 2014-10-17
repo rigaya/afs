@@ -1,30 +1,14 @@
 ﻿#pragma once
 
-const int BLOCK_SIZE_YCP = 256;
+#include "afs.h"
 
-void __stdcall afs_analyze_set_threshold_sse2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
-void __stdcall afs_analyze_set_threshold_ssse3(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
-void __stdcall afs_analyze_set_threshold_sse4_1(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
-void __stdcall afs_analyze_set_threshold_avx(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
-void __stdcall afs_analyze_set_threshold_avx2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
+void __forceinline afs_analyze_get_local_scan_clip(AFS_SCAN_CLIP *clip_thread, const AFS_SCAN_CLIP *clip, int pos_x, int analyze_block, int scan_w, int left_additional_clip) {
+	int left_clip = clip->left - pos_x;
+	int right_clip = pos_x + analyze_block - (scan_w - clip->right);
+	clip_thread->left  = max(0, left_clip) + left_additional_clip;
+	clip_thread->right = max(0, right_clip);
+}
 
-void __stdcall afs_analyze_12_sse2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_12_ssse3_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_12_sse4_1_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_12_avx_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_12_avx2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_1_sse2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_1_ssse3_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_1_sse4_1_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_1_avx_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_1_avx2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_2_sse2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_2_ssse3_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_2_sse4_1_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_2_avx_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-void __stdcall afs_analyze_2_avx2_plus2(unsigned char *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h);
-
-#ifdef ENABLE_FUNC_BASE
 #include "simd_util.h"
 
 static const _declspec(align(16)) BYTE pb_thre_count[16]       = { 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03 };
@@ -55,6 +39,20 @@ static const _declspec(align(16)) BYTE Array_SUFFLE_YCP_Y[16] = {
 	0, 1, 6, 7, 12, 13, 2, 3, 8, 9, 14, 15, 4, 5, 10, 11, 
 	//0, 1, 6, 7, 12, 13, 2, 3, 8, 9, 14, 15, 4, 5, 10, 11
 };
+
+static __forceinline int count_motion(__m128i x0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
+	DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
+	
+	static const _declspec(align(16)) BYTE MOTION_COUNT_CHECK[16] = {
+		0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40
+	};
+	
+	const __m128i xMotion = _mm_load_si128((__m128i *)MOTION_COUNT_CHECK);
+	x0 = _mm_andnot_si128(x0, xMotion);
+	x0 = _mm_cmpeq_epi8(x0, xMotion);
+	x0 = _mm_and_si128(x0, _mm_load_si128((__m128i *)(mc_mask + x)));
+	return popcnt32(heightMask & _mm_movemask_epi8(x0));
+}
 
 static void __forceinline __stdcall afs_analyze_set_threshold_simd(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
     __m128i x0, x1;
@@ -301,10 +299,13 @@ static void __forceinline __stdcall afs_analyze_shrink_info_simd_plus(BYTE *dst,
 	}
 }
 */
-static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
+static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
 	const int step6 = step * 6;
-	const int width6 = width * 6;
 	const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+	const int scan_t = mc_clip->top;
+	const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+	BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
+	int motion_count_tmp[2] = { 0, 0 };
 	__m128i x0, x1, x2, x3, x4, x5, x6, x7;
 	BYTE *buf_ptr, *buf2_ptr;
 	BYTE *ptr[2];
@@ -317,15 +318,15 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 	BYTE __declspec(align(16)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
+	
+	__stosb(mc_mask, 0, 256);
+	const int mc_scan_x_limit = width - mc_clip->right;
+	for (int i = mc_clip->left; i < mc_scan_x_limit; i++)
+		mc_mask[i] = 0xff;
+	for (int i = 0; i < BUFFER_SIZE; i++)
+		buffer[i] = 0x00;
 
-	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 64) {
-		_mm_store_si128((__m128i*)(buf_ptr +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 32), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 48), _mm_setzero_si128());
-	}
-
-	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+	for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
 		_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
 		_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
@@ -357,7 +358,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 		ptr_p1 = (BYTE *)p1;
 		buf_ptr = buffer;
 		buf2_ptr = buffer + BUFFER_SIZE;
-		for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+		for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
 			_mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
 			_mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
 			for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 16) {
@@ -459,7 +460,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 		if (ih >= 4) {
 			buf2_ptr = buffer + BUFFER_SIZE;
 			ptr_dst = (BYTE *)dst;
-			for (int kw = 0; kw < width6; kw += 96, ptr_dst += 16, buf2_ptr += 16) {
+			for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
 				x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
 				x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
 				x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
@@ -473,6 +474,8 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 				x2 = _mm_or_si128(x2, x1);
 				x2 = _mm_or_si128(x2, x7);
 				_mm_storeu_si128((__m128i*)ptr_dst, x2);
+				const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+				motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
 			}
 			dst += si_pitch;
 		}
@@ -481,7 +484,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 	for ( ; ih < h + 4; ih++) {
 		ptr_dst = (BYTE *)dst;
 		buf2_ptr = buffer + BUFFER_SIZE;
-		for (int kw = 0; kw < width6; kw += 96, ptr_dst += 16, buf2_ptr += 16) {
+		for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
 			x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
 			x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
 			x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
@@ -493,16 +496,23 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 			x2 = _mm_or_si128(x2, x7);
 			_mm_storeu_si128((__m128i*)ptr_dst, x2);
 			_mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
+			const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+			motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
 		}
 		dst += si_pitch;
 	}
+	motion_count[0] += motion_count_tmp[0];
+	motion_count[1] += motion_count_tmp[1];
 }
 
 
-static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
+static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
 	const int step6 = step * 6;
-	const int width6 = width * 6;
 	const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+	const int scan_t = mc_clip->top;
+	const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+	BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
+	int motion_count_tmp[2] = { 0, 0 };
 	__m128i x0, x1, x2, x3, x4, x5, x6, x7;
 	BYTE *buf_ptr, *buf2_ptr;
 	BYTE *ptr[2];
@@ -515,16 +525,16 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 	BYTE __declspec(align(16)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
-
-	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 64) {
-		_mm_store_si128((__m128i*)(buf_ptr +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 32), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 48), _mm_setzero_si128());
-	}
+	
+	__stosb(mc_mask, 0, 256);
+	const int mc_scan_x_limit = width - mc_clip->right;
+	for (int i = mc_clip->left; i < mc_scan_x_limit; i++)
+		mc_mask[i] = 0xff;
+	for (int i = 0; i < BUFFER_SIZE; i++)
+		buffer[i] = 0x00;
 	
 	x3 = _mm_load_si128((__m128i *)pw_thre_shift);
-	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+	for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
 		_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
 		_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
@@ -564,7 +574,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 		ptr_p1 = (BYTE *)p1;
 		buf_ptr = buffer;
 		buf2_ptr = buffer + BUFFER_SIZE;
-		for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+		for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
 			_mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
 			_mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
 			for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 16) {
@@ -657,7 +667,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 		if (ih >= 4) {
 			buf2_ptr = buffer + BUFFER_SIZE;
 			ptr_dst = (BYTE *)dst;
-			for (int kw = 0; kw < width6; kw += 96, ptr_dst += 16, buf2_ptr += 16) {
+			for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
 				x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
 				x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
 				x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
@@ -671,6 +681,8 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 				x2 = _mm_or_si128(x2, x1);
 				x2 = _mm_or_si128(x2, x7);
 				_mm_storeu_si128((__m128i*)ptr_dst, x2);
+				const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+				motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
 			}
 			dst += si_pitch;
 		}
@@ -679,7 +691,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 	for ( ; ih < h + 4; ih++) {
 		ptr_dst = (BYTE *)dst;
 		buf2_ptr = buffer + BUFFER_SIZE;
-		for (int kw = 0; kw < width6; kw += 96, ptr_dst += 16, buf2_ptr += 16) {
+		for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
 			x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
 			x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
 			x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
@@ -691,15 +703,22 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 			x2 = _mm_or_si128(x2, x7);
 			_mm_storeu_si128((__m128i*)ptr_dst, x2);
 			_mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
+			const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+			motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
 		}
 		dst += si_pitch;
 	}
+	motion_count[0] += motion_count_tmp[0];
+	motion_count[1] += motion_count_tmp[1];
 }
 
-static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h) {
+static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
 	const int step6 = step * 6;
-	const int width6 = width * 6;
 	const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+	const int scan_t = mc_clip->top;
+	const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+	BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
+	int motion_count_tmp[2] = { 0, 0 };
 	__m128i x0, x1, x2, x3, x4, x5, x6, x7;
 	BYTE *buf_ptr, *buf2_ptr;
 	BYTE *ptr[2];
@@ -712,15 +731,15 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 	BYTE __declspec(align(16)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
 	buf_ptr = buffer;
 	buf2_ptr = buffer + BUFFER_SIZE;
+	
+	__stosb(mc_mask, 0, 256);
+	const int mc_scan_x_limit = width - mc_clip->right;
+	for (int i = mc_clip->left; i < mc_scan_x_limit; i++)
+		mc_mask[i] = 0xff;
+	for (int i = 0; i < BUFFER_SIZE; i++)
+		buffer[i] = 0x00;
 
-	for (BYTE *buf_fin = buffer + BUFFER_SIZE; buf_ptr < buf_fin; buf_ptr += 64) {
-		_mm_store_si128((__m128i*)(buf_ptr +  0), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 16), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 32), _mm_setzero_si128());
-		_mm_store_si128((__m128i*)(buf_ptr + 48), _mm_setzero_si128());
-	}
-
-	for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+	for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
 		_mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
 		_mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
 		for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16) {
@@ -761,7 +780,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 		ptr_p1 = (BYTE *)p1;
 		buf_ptr = buffer;
 		buf2_ptr = buffer + BUFFER_SIZE;
-		for (int kw = 0; kw < width6; kw += 48, buf2_ptr += 8) {
+		for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
 			_mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
 			_mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
 			for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 16) {
@@ -851,7 +870,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 		if (ih >= 4) {
 			buf2_ptr = buffer + BUFFER_SIZE;
 			ptr_dst = (BYTE *)dst;
-			for (int kw = 0; kw < width6; kw += 96, ptr_dst += 16, buf2_ptr += 16) {
+			for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
 				x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
 				x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
 				x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
@@ -865,6 +884,8 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 				x2 = _mm_or_si128(x2, x1);
 				x2 = _mm_or_si128(x2, x7);
 				_mm_storeu_si128((__m128i*)ptr_dst, x2);
+				const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+				motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
 			}
 			dst += si_pitch;
 		}
@@ -873,7 +894,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 	for ( ; ih < h + 4; ih++) {
 		ptr_dst = (BYTE *)dst;
 		buf2_ptr = buffer + BUFFER_SIZE;
-		for (int kw = 0; kw < width6; kw += 96, ptr_dst += 16, buf2_ptr += 16) {
+		for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
 			x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
 			x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
 			x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
@@ -885,9 +906,11 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
 			x2 = _mm_or_si128(x2, x7);
 			_mm_storeu_si128((__m128i*)ptr_dst, x2);
 			_mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
+			const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+			motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
 		}
 		dst += si_pitch;
 	}
+	motion_count[0] += motion_count_tmp[0];
+	motion_count[1] += motion_count_tmp[1];
 }
-
-#endif //ENABLE_FUNC_BASE

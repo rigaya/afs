@@ -102,7 +102,7 @@ _afs_analyze_set_threshold_mmx@16 PROC
 _afs_analyze_set_threshold_mmx@16 ENDP
 
 
-PUBLIC C _afs_analyze_12_mmx@24
+PUBLIC C _afs_analyze_12_mmx@32
 
 ;void __stdcall afs_analyze_12_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -111,9 +111,11 @@ PUBLIC C _afs_analyze_12_mmx@24
 ;  [esp+16] int            tb_order
 ;  [esp+20] int            step
 ;  [esp+24] int            h
+;  [esp+28] void           *scan
+;  [esp+32] int            *motion_count
 ;)
 
-_afs_analyze_12_mmx@24 PROC
+_afs_analyze_12_mmx@32 PROC
 		push		edi
 		push		esi
 		push		edx
@@ -167,7 +169,7 @@ afs_analyze_12_mmx_exit:
 		pop			esi
 		pop			edi
 
-		ret			24
+		ret			32
 
 afs_analyze_12_mmx_sub:
 
@@ -359,7 +361,7 @@ afs_analyze_12_mmx_latter:
 		jne			afs_analyze_12_mmx_loop
 		ret
 
-_afs_analyze_12_mmx@24 ENDP
+_afs_analyze_12_mmx@32 ENDP
 
 
 PUBLIC C _afs_analyze_shrink_info_mmx@16
@@ -539,7 +541,7 @@ afs_analyze_shrink_info_mmx_sub:
 
 _afs_analyze_shrink_info_mmx@16 ENDP
 
-PUBLIC C _afs_analyze_1_mmx@24
+PUBLIC C _afs_analyze_1_mmx@32
 
 ;void __stdcall afs_analyze_1_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -548,9 +550,11 @@ PUBLIC C _afs_analyze_1_mmx@24
 ;  [esp+16] int            tb_order
 ;  [esp+20] int            step
 ;  [esp+24] int            h
+;  [esp+28] void           *scan
+;  [esp+32] int            *motion_count
 ;)
 
-_afs_analyze_1_mmx@24 PROC
+_afs_analyze_1_mmx@32 PROC
 		push		edi
 		push		esi
 		push		edx
@@ -599,7 +603,7 @@ afs_analyze_1_mmx_exit:
 		pop			esi
 		pop			edi
 
-		ret			24
+		ret			32
 
 afs_analyze_1_mmx_sub:
 
@@ -755,10 +759,10 @@ afs_analyze_1_mmx_latter:
 		jne			afs_analyze_1_mmx_loop
 		ret
 
-_afs_analyze_1_mmx@24 ENDP
+_afs_analyze_1_mmx@32 ENDP
 
 
-PUBLIC C _afs_analyze_2_mmx@24
+PUBLIC C _afs_analyze_2_mmx@32
 
 ;void __stdcall afs_analyze_2_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -767,9 +771,11 @@ PUBLIC C _afs_analyze_2_mmx@24
 ;  [esp+16] int            tb_order
 ;  [esp+20] int            step
 ;  [esp+24] int            h
+;  [esp+28] void           *scan
+;  [esp+32] int            *motion_count
 ;)
 
-_afs_analyze_2_mmx@24 PROC
+_afs_analyze_2_mmx@32 PROC
 		push		edi
 		push		esi
 		push		edx
@@ -820,7 +826,7 @@ afs_analyze_2_mmx_exit:
 		pop			esi
 		pop			edi
 
-		ret			24
+		ret			32
 
 afs_analyze_2_mmx_sub:
 
@@ -976,6 +982,6 @@ afs_analyze_2_mmx_latter:
 		jne			afs_analyze_2_mmx_loop
 		ret
 
-_afs_analyze_2_mmx@24 ENDP
+_afs_analyze_2_mmx@32 ENDP
 
 END

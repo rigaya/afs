@@ -13,6 +13,19 @@
 #include <nmmintrin.h> //イントリンシック命令 SSE4.2
 #endif
 
+#if defined (__cplusplus)
+extern "C" {
+#endif  /* defined (__cplusplus) */
+	void __stosb(unsigned char *, unsigned char, size_t);
+	void __stosd(unsigned long *, unsigned long, size_t);
+	void __stosw(unsigned short *, unsigned short, size_t);
+	void __movsb(unsigned char *, unsigned char const *, size_t);
+	void __movsd(unsigned long *, unsigned long const *, size_t);
+	void __movsw(unsigned short *, unsigned short const *, size_t);
+#if defined (__cplusplus)
+}
+#endif  /* defined (__cplusplus) */
+
 enum {
     NONE   = 0x0000,
     SSE2   = 0x0001,

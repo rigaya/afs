@@ -62,6 +62,9 @@
     <ClCompile Include="afs_simd_popcnt.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="afs_simd_sse41_popcnt.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="afs_yuy2up_mmx.h">
