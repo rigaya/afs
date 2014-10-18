@@ -44,9 +44,6 @@
     <ClCompile Include="afs_yuy2up_avx2.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_debug.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="afs_simd_sse2.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>

@@ -6,6 +6,15 @@ typedef struct {
 	int top, bottom, left, right;
 } AFS_SCAN_CLIP;
 
+static inline AFS_SCAN_CLIP scan_clip(int top, int bottom, int left, int right) {
+	AFS_SCAN_CLIP clip;
+	clip.top = top;
+	clip.bottom = bottom;
+	clip.left = left;
+	clip.right = right;
+	return clip;
+}
+
 typedef struct {
 	int type;
 	unsigned char *dst;
@@ -20,12 +29,7 @@ typedef struct {
 typedef struct {
 	unsigned char *map;
 	int status, frame, mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion;
-	union {
-		struct {
-			int top, bottom, left, right;
-		};
-		AFS_SCAN_CLIP clip;
-	};
+	AFS_SCAN_CLIP clip;
 	int ff_motion, lf_motion;
 } AFS_SCAN_DATA;
 
@@ -41,10 +45,10 @@ static inline BOOL is_latter_field(int pos_y, int tb_order) {
 
 const int BLOCK_SIZE_YCP = 256;
 
-#define CHECK_PERFORMANCE 0
 #define ENABLE_SUB_THREADS 1
-#define SCAN_BACKGROUND 0
-#define SIMD_DEBUG 1
+#define SCAN_BACKGROUND    1
+#define SIMD_DEBUG         0
+#define CHECK_PERFORMANCE  0
 
 enum {
 	QPC_START = 0,

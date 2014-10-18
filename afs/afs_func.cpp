@@ -11,16 +11,16 @@
 #include "afs_yuy2up_mmx.h"
 
 void __stdcall afs_get_stripe_count(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
-	const int y_fin = scan_h - sp0->bottom - ((scan_h - sp0->top - sp0->bottom) & 1);
-	for(int pos_y = sp0->top; pos_y < y_fin; pos_y++) {
-		BYTE *sip = sp->map + pos_y * si_w + sp0->left;
-		if(is_latter_field(pos_y, sp0->tb_order)){
-			for(int pos_x = sp0->left; pos_x < scan_w - sp0->right; pos_x++){
+	const int y_fin = scan_h - sp0->clip.bottom - ((scan_h - sp0->clip.top - sp0->clip.bottom) & 1);
+	for (int pos_y = sp0->clip.top; pos_y < y_fin; pos_y++) {
+		BYTE *sip = sp->map + pos_y * si_w + sp0->clip.left;
+		if (is_latter_field(pos_y, sp0->tb_order)) {
+			for (int pos_x = sp0->clip.left; pos_x < scan_w - sp0->clip.right; pos_x++) {
 				if(!(*sip & 0x50)) count[0]++;
 				sip++;
 			}
-		}else{
-			for(int pos_x = sp0->left; pos_x < scan_w - sp0->right; pos_x++){
+		} else {
+			for (int pos_x = sp0->clip.left; pos_x < scan_w - sp0->clip.right; pos_x++) {
 				if(!(*sip & 0x60)) count[1]++;
 				sip++;
 			}
@@ -29,16 +29,16 @@ void __stdcall afs_get_stripe_count(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DAT
 }
 
 void __stdcall afs_get_motion_count(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h) {
-	const int y_fin = scan_h - sp->bottom - ((scan_h - sp->top - sp->bottom) & 1);
-	for(int pos_y = sp->top; pos_y < y_fin; pos_y++){
-		BYTE *sip = sp->map + pos_y * si_w + sp->left;
-		if(is_latter_field(pos_y, sp->tb_order)){
-			for(int pos_x = sp->left; pos_x < scan_w - sp->right; pos_x++){
+	const int y_fin = scan_h - sp->clip.bottom - ((scan_h - sp->clip.top - sp->clip.bottom) & 1);
+	for (int pos_y = sp->clip.top; pos_y < y_fin; pos_y++) {
+		BYTE *sip = sp->map + pos_y * si_w + sp->clip.left;
+		if (is_latter_field(pos_y, sp->tb_order)) {
+			for (int pos_x = sp->clip.left; pos_x < scan_w - sp->clip.right; pos_x++) {
 				motion_count[1] += ~*sip & 0x40;
 				sip++;
 			}
-		}else{
-			for(int pos_x = sp->left; pos_x < scan_w - sp->right; pos_x++){
+		} else {
+			for (int pos_x = sp->clip.left; pos_x < scan_w - sp->clip.right; pos_x++) {
 				motion_count[0] += ~*sip & 0x40;
 				sip++;
 			}

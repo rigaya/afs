@@ -40,14 +40,14 @@ static const _declspec(align(32)) BYTE MOTION_COUNT_CHECK[32] = {
 };
 
 void __stdcall afs_get_stripe_count_avx2(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
-	const int y_fin = scan_h - sp0->bottom - ((scan_h - sp0->top - sp0->bottom) & 1);
+	const int y_fin = scan_h - sp0->clip.bottom - ((scan_h - sp0->clip.top - sp0->clip.bottom) & 1);
 	const DWORD check_mask[2] = { 0x50, 0x60 };
 	__m256i yMask, y0, y1;
-	for(int pos_y = sp0->top; pos_y < y_fin; pos_y++) {
-		BYTE *sip = sp->map + pos_y * si_w + sp0->left;
+	for(int pos_y = sp0->clip.top; pos_y < y_fin; pos_y++) {
+		BYTE *sip = sp->map + pos_y * si_w + sp0->clip.left;
 		const int first_field_flag = !is_latter_field(pos_y, sp0->tb_order);
 		yMask = _mm256_load_si256((__m256i*)STRIPE_COUNT_CHECK_MASK[first_field_flag]);
-		int x_count = scan_w - sp0->right - sp0->left;
+		int x_count = scan_w - sp0->clip.right - sp0->clip.left;
 		int line_count = 0;
 		BYTE *sip_fin = (BYTE *)(((size_t)sip + 31) & ~31);
 		x_count -= (sip_fin - sip);
@@ -90,13 +90,13 @@ void __stdcall afs_get_stripe_count_avx2(int *count, AFS_SCAN_DATA* sp0, AFS_SCA
 }
 
 void __stdcall afs_get_motion_count_avx2(int *motion_count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h) {
-	const int y_fin = scan_h - sp->bottom - ((scan_h - sp->top - sp->bottom) & 1);
+	const int y_fin = scan_h - sp->clip.bottom - ((scan_h - sp->clip.top - sp->clip.bottom) & 1);
 	__m256i yMotion = _mm256_load_si256((__m256i *)MOTION_COUNT_CHECK);
 	__m256i y0, y1;
-	for(int pos_y = sp->top; pos_y < y_fin; pos_y++) {
-		BYTE *sip = sp->map + pos_y * si_w + sp->left;
+	for(int pos_y = sp->clip.top; pos_y < y_fin; pos_y++) {
+		BYTE *sip = sp->map + pos_y * si_w + sp->clip.left;
 		const int is_latter_feild = is_latter_field(pos_y, sp->tb_order);
-		int x_count = scan_w - sp->right - sp->left;
+		int x_count = scan_w - sp->clip.right - sp->clip.left;
 		int line_count = 0;
 		BYTE *sip_fin = (BYTE *)(((size_t)sip + 31) & ~31);
 		x_count -= (sip_fin - sip);
