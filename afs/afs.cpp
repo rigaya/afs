@@ -972,7 +972,7 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n) {
 
 		for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++) {
 			stripe_array[i].status = 0;
-			stripe_array[i].map = analyze_stripe_cachep + size * i + si_w;
+			stripe_array[i].map = analyze_stripe_cachep + size * i;
 		}
 
 		for (int i = 0; i < worker_n; i++) {
