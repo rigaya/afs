@@ -356,12 +356,12 @@ PIXEL_YC* get_source_cache(FILTER *fp, void *editp, int frame, int w, int h, int
 
 	AFS_SOURCE_DATA *srp = sourcep(frame);
 
-	if(srp->status > 0 && srp->frame == frame && srp->file_id == file_id &&
-		srp->video_number == video_number && srp->yuy2upsample == yuy2upsample){
+	if (srp->status > 0 && srp->frame == frame && srp->file_id == file_id &&
+		srp->video_number == video_number && srp->yuy2upsample == yuy2upsample) {
 			if(hit != NULL) *hit = 1;
 			return srp->map;
 	}
-	if(hit != NULL) *hit = 0;
+	if (hit != NULL) *hit = 0;
 
 	PIXEL_YC *dst = srp->map;
 	PIXEL_YC *src = (PIXEL_YC *)fp->exfunc->get_ycp_source_cache(editp, frame, 0);
@@ -428,10 +428,8 @@ void fill_this_ycp(FILTER *fp, FILTER_PROC_INFO *fpip) {
 }
 
 PIXEL_YC* get_ycp_cache(FILTER *fp, FILTER_PROC_INFO *fpip, int frame, int *hit) {
-	if (frame < 0)
-		frame = 0;
-	if (frame >= fpip->frame_n)
-		frame = fpip->frame_n - 1;
+	int upper_limit = fpip->frame_n - 1;
+	frame = max(0, min(frame, upper_limit));
 
 #ifndef AFSVF
 	return get_source_cache(fp, fpip->editp, frame, fpip->w, fpip->h, hit);
@@ -1005,7 +1003,7 @@ void scan_frame(int frame, int force, int max_w, PIXEL_YC *p1, PIXEL_YC *p0,
 				int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip) {
 	const int si_w = si_pitch(scan_w);
 	AFS_SCAN_DATA *sp = scanp(frame);
-	if(!force && sp->status > 0 && sp->frame == frame && sp->tb_order == tb_order && sp->thre_shift == thre_shift &&
+	if (!force && sp->status > 0 && sp->frame == frame && sp->tb_order == tb_order && sp->thre_shift == thre_shift &&
 		((mode == 0 ) ||
 		(mode == 1 && sp->mode == 1 &&
 		sp->thre_deint == thre_deint && sp->thre_Ymotion == thre_Ymotion && sp->thre_Cmotion == thre_Cmotion)))
