@@ -279,7 +279,6 @@ BYTE *get_debug_analyze_buffer(DWORD size) {
 #ifndef AFSVF
 // インタレース解除フィルタ用ソースキャッシュ
 
-static PIXEL_YC *source_cachep = NULL;
 static int source_frame_n = -1, source_w, source_h;
 
 typedef struct {
@@ -302,30 +301,32 @@ void source_cache_expire(int frame) {
 
 void free_source_cache(void) {
 	clear_source_cache();
-	if (source_cachep != NULL) {
-		_aligned_free(source_cachep);
-		source_cachep = NULL;
+	if (source_array[0].map != NULL) {
+		for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
+			if (source_array[i].map) {
+				_aligned_free(source_array[i].map);
+				source_array[i].map = NULL;
+			}
+		}
 	}
 }
 
 BOOL set_source_cache_size(int frame_n, int max_w, int max_h) {
 	const int size = max_w * max_h;
 
-	if (source_cachep != NULL) {
+	if (source_array[0].map != NULL) {
 		if ((frame_n != 0 && source_frame_n != 0 && source_frame_n != frame_n) || source_w != max_w || source_h != max_h) {
-			_aligned_free(source_cachep);
-			source_cachep = NULL;
+			free_source_cache();
 		}
 	}
 
-	if (source_cachep == NULL) {
-		source_cachep = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * size * AFS_SOURCE_CACHE_NUM, 32);
-		if (source_cachep == NULL)
-			return FALSE;
-
-		ZeroMemory(source_cachep, sizeof(PIXEL_YC) * size * AFS_SOURCE_CACHE_NUM);
+	if (source_array[0].map == NULL) {
 		for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
-			source_array[i].map = source_cachep + size * i;
+			if (NULL == (source_array[i].map = (PIXEL_YC *)_aligned_malloc(sizeof(PIXEL_YC) * size, 32))) {
+				free_source_cache();
+				return FALSE;
+			}
+			ZeroMemory(source_array[i].map, sizeof(PIXEL_YC) * size);
 			source_array[i].status = 0;
 		}
 	}
