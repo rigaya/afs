@@ -45,10 +45,13 @@ static inline BOOL is_latter_field(int pos_y, int tb_order) {
 
 const int BLOCK_SIZE_YCP = 256;
 
-#define ENABLE_SUB_THREADS 1
-#define SCAN_BACKGROUND    1
-#define SIMD_DEBUG         0
-#define CHECK_PERFORMANCE  0
+#define ENABLE_SUB_THREADS 1 //サブスレッドを有効にする
+#define NUM_SUB_THREAD     2 //サブスレッド数の指定 0でトラックバーによる設定が可能に
+#define SCAN_BACKGROUND    0 //scan処理をバックグラウンドで行う (バグってるので使用中止)
+#define ANALYZE_BACKGROUND (0 & SCAN_BACKGROUND) //analyze処理をバックグラウンドで行う (バグってるので使用中止)
+#define BACKGROUND_THREAD_BELOW_NORMAL 0 //バックグラウンドスレッドの優先度を下げる
+#define SIMD_DEBUG         0 //SIMD処理をデバッグする
+#define CHECK_PERFORMANCE  0 //パフォーマンスレポートを出力する
 
 enum {
 	QPC_START = 0,
