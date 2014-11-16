@@ -1788,7 +1788,9 @@ unsigned int __stdcall sub_thread(void *prm) {
 		switch (sub_task) {
 		case TASK_MERGE_SCAN: merge_scan(thread_id); break;
 		case TASK_SYNTHESIZE: synthesize(thread_id); break;
+#ifndef AFSVF
 		case TASK_YUY2UP:     yuy2up(thread_id); break;
+#endif
 		default: break;
 		}
 		SetEvent(hEvent_sub_fin[thread_id-1]);
