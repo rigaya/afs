@@ -518,8 +518,7 @@ unsigned int __stdcall analyze_frame_thread(void *prm);
 
 // 縞、動きスキャン＋合成縞情報キャッシュ
 
-static unsigned char* analyze_scan_cachep = NULL;
-static unsigned char* analyze_stripe_cachep = NULL;
+static unsigned char* analyze_cachep[AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM] = { 0 };
 static PIXEL_YC* scan_workp = NULL;
 static int scan_worker_n = 1;
 static int scan_frame_n = -1, scan_w, scan_h;
@@ -584,7 +583,7 @@ void free_analyze_cache() {
 	for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++)
 		stripe_array[i].status = 0;
 
-	if (analyze_scan_cachep != nullptr) {
+	if (analyze_cachep[0] != nullptr) {
 		scan_arg.type = -1;
 		for (int i = 0; i < scan_worker_n; i++)
 			SetEvent(hEvent_worker_awake[i]);
@@ -594,12 +593,14 @@ void free_analyze_cache() {
 			CloseHandle(hEvent_worker_awake[i]);
 			CloseHandle(hEvent_worker_sleep[i]);
 		}
-		_aligned_free(analyze_scan_cachep);
-		if (analyze_stripe_cachep != nullptr)
-			_aligned_free(analyze_stripe_cachep);
+		for (int i = 0; i < _countof(analyze_cachep); i++) {
+			if (nullptr != analyze_cachep[i]) {
+				_aligned_free(analyze_cachep[i]);
+			}
+		}
+		memset(analyze_cachep, 0, sizeof(analyze_cachep));
 		if (scan_workp)
 			_aligned_free(scan_workp);
-		analyze_scan_cachep = nullptr;
 		scan_workp = nullptr;
 	}
 }
@@ -972,7 +973,7 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n) {
 	const int si_w = si_pitch(w);
 	const int size = si_w * (h + 2);
 
-	if (analyze_scan_cachep != NULL) {
+	if (analyze_cachep[0] != NULL) {
 		if (scan_frame_n != frame_n || scan_w != w || scan_h != h || scan_worker_n != worker_n) {
 			free_scan_thread();
 			free_analyze_cache();
@@ -986,37 +987,31 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n) {
 #endif
 #endif
 
-	if (analyze_scan_cachep == NULL) {
-		analyze_scan_cachep = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size * AFS_SCAN_CACHE_NUM, 64);
-		if (analyze_scan_cachep == NULL)
-			return FALSE;
-		ZeroMemory(analyze_scan_cachep, sizeof(unsigned char) * size * AFS_SCAN_CACHE_NUM);
-		
-		analyze_stripe_cachep = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size * AFS_STRIPE_CACHE_NUM, 64);
-		if (analyze_stripe_cachep == NULL)
-			return FALSE;
-		ZeroMemory(analyze_stripe_cachep, sizeof(unsigned char) * size * AFS_STRIPE_CACHE_NUM);
-
-
+	if (analyze_cachep[0] == NULL) {
 		if (afs_func.analyze.shrink_info || SIMD_DEBUG) {
-			scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64);
-			if (scan_workp == NULL) {
-				_aligned_free(analyze_scan_cachep);
-				analyze_scan_cachep = NULL;
-				_aligned_free(analyze_stripe_cachep);
-				analyze_stripe_cachep = NULL;
+			if (nullptr == (scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64))) {
 				return FALSE;
 			}
 		}
 
+		for (int i = 0; i < AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM; i++) {
+			if (nullptr == (analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, 64))) {
+				if (analyze_cachep[i]) {
+					_aligned_free(analyze_cachep[i]);
+					analyze_cachep[i] = nullptr;
+				}
+				return FALSE;
+			}
+			ZeroMemory(analyze_cachep[i], sizeof(unsigned char) * size);
+		}
 		for (int i = 0; i < AFS_SCAN_CACHE_NUM; i++) {
 			scan_array[i].status = 0;
-			scan_array[i].map = analyze_scan_cachep + size * i + si_w;
+			scan_array[i].map = analyze_cachep[i] + si_w;
 		}
 
 		for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++) {
 			stripe_array[i].status = 0;
-			stripe_array[i].map = analyze_stripe_cachep + size * i;
+			stripe_array[i].map = analyze_cachep[AFS_SCAN_CACHE_NUM + i];
 		}
 
 		for (int i = 0; i < worker_n; i++) {
