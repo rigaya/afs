@@ -17,35 +17,35 @@ typedef void (__stdcall *func_get_stripe_count)(int *count, AFS_SCAN_DATA* sp0, 
 typedef void (__stdcall *func_get_motion_count)(int *count, AFS_SCAN_DATA *sp, int si_w, int scan_w, int scan_h);
 
 typedef struct {
-	int                        align_minus_one;
-	int                        min_cycle;
-	int                        max_block_size;
-	BOOL                       mc_count;
-	func_analyze_set_threshold set_threshold;
-	func_analyze_shrink_info   shrink_info;
-	func_analyze               analyze_main[3];
+    int                        align_minus_one;
+    int                        min_cycle;
+    int                        max_block_size;
+    BOOL                       mc_count;
+    func_analyze_set_threshold set_threshold;
+    func_analyze_shrink_info   shrink_info;
+    func_analyze               analyze_main[3];
 } AFS_FUNC_ANALYZE;
 
 typedef struct {
-	func_get_stripe_count      stripe;
-	func_get_motion_count      motion;
+    func_get_stripe_count      stripe;
+    func_get_motion_count      motion;
 } AFS_FUNC_GET_COUNT;
 
 typedef struct {
-	//afs
-	func_blend                 blend;
-	func_mie_spot              mie_spot;
-	func_mie_inter             mie_inter;
-	func_deint4                deint4;
-	//analyze
-	AFS_FUNC_ANALYZE           analyze;
-	//filter
-	func_analyzemap_filter     analyzemap_filter;
-	func_merge_scan            merge_scan;
-	//yuy2up
-	func_yuy2up                yuy2up;
-	//get count
-	AFS_FUNC_GET_COUNT         get_count;
+    //afs
+    func_blend                 blend;
+    func_mie_spot              mie_spot;
+    func_mie_inter             mie_inter;
+    func_deint4                deint4;
+    //analyze
+    AFS_FUNC_ANALYZE           analyze;
+    //filter
+    func_analyzemap_filter     analyzemap_filter;
+    func_merge_scan            merge_scan;
+    //yuy2up
+    func_yuy2up                yuy2up;
+    //get count
+    AFS_FUNC_GET_COUNT         get_count;
 } AFS_FUNC;
 
 void get_afs_func_list(AFS_FUNC *func_list);
