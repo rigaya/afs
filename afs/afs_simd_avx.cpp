@@ -9,6 +9,10 @@
 
 #include "afs_analyze_simd.h"
 
+#if _MSC_VER >= 1800 && !defined(__AVX__) && !defined(_DEBUG)
+static_assert(false, "do not forget to set /arch:AVX or /arch:AVX2 for this file.");
+#endif
+
 void __stdcall afs_analyze_set_threshold_avx(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
     afs_analyze_set_threshold_simd(thre_shift, thre_deint, thre_Ymotion, thre_Cmotion);
 }

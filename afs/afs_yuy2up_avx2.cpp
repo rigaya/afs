@@ -3,6 +3,10 @@
 #include "filter.h"
 #include "simd_util.h"
 
+#if _MSC_VER >= 1800 && !defined(__AVX__) && !defined(_DEBUG)
+static_assert(false, "do not forget to set /arch:AVX or /arch:AVX2 for this file.");
+#endif
+
 static __forceinline __m256i get_even_uv_avx2(BYTE *ptr) {
     const int MASK_INT_UV = 0x40 + 0x20 + 0x01;
 #if 0

@@ -5,6 +5,10 @@
 #include "afs.h"
 #include "simd_util.h"
 
+#if _MSC_VER >= 1800 && !defined(__AVX__) && !defined(_DEBUG)
+static_assert(false, "do not forget to set /arch:AVX or /arch:AVX2 for this file.");
+#endif
+
 static const _declspec(align(32)) USHORT pw_round_fix1[16] = {
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
