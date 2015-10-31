@@ -315,9 +315,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 //y6 = _mm256_load_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
                 y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
                 y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
-                y0 = y2;
                 y2 = _mm256_xor_si256(y2, y7);
-                y7 = _mm256_xor_si256(y0, _mm256_setzero_si256());
+                y7 = _mm256_xor_si256(y7, y2);
                 y6 = _mm256_and_si256(y6, _mm256_and_si256(y2, y1));
                 y6 = _mm256_subs_epi8(y6, y1);
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y7);
@@ -347,9 +346,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
 #endif
                 y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
                 y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
-                y0 = y2;
                 y2 = _mm256_xor_si256(y2, y5);
-                y5 = _mm256_xor_si256(y0, _mm256_setzero_si256());
+                y5 = _mm256_xor_si256(y5, y2);
                 y4 = _mm256_and_si256(y4, _mm256_and_si256(y2, y1));
                 y4 = _mm256_subs_epi8(y4, y1);
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y5);
