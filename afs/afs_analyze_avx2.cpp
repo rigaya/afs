@@ -230,7 +230,6 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
-    int motion_count_tmp[2] = { 0, 0 };
     __m128i xShrinked0, xShrinked1;
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
@@ -254,7 +253,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
     for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
         for (int jw = 0; jw < 3; jw++, ptr_p[0] += 32, ptr_p[1] += 32) {
             y0 = _mm256_loadu_si256((__m256i *)ptr_p[0]);
-            y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p[1]));
+            y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p[1]));
             _mm_prefetch((char *)ptr_p[0] + step6, _MM_HINT_T0);
             _mm_prefetch((char *)ptr_p[1] + step6, _MM_HINT_T0);
             y0 = _mm256_abs_epi16(y0);
@@ -270,6 +269,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
         y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
         _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
     }
+
+    __m64 m0 = _mm_setzero_si64();
     
     for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
         ptr_p[0] = (BYTE *)p0;
@@ -282,7 +283,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 //ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
                 y0 = _mm256_loadu_si256((__m256i *)(ptr_p[0] + step6));
                 y1 = y0;
-                y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)(ptr_p[1]+step6)));
+                y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)(ptr_p[1]+step6)));
                 y0 = _mm256_abs_epi16(y0);
                 y3 = _mm256_load_si256((__m256i *)pw_thre_motion[jw]);
                 y2 = _mm256_load_si256((__m256i *)pw_thre_shift);
@@ -296,7 +297,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 _mm_prefetch((char *)ptr_p[1] + (step6<<1), _MM_HINT_T0);
             
                 y2 = _mm256_loadu_si256((__m256i *)ptr_p[0]);
-                y2 = _mm256_subs_epi16(y2, y1);
+                y2 = _mm256_sub_epi16(y2, y1);
                 y0 = _mm256_abs_epi16(y2);
                 y2 = _mm256_cmpeq_epi16(y2, y0);
                 y1 = y0;
@@ -308,8 +309,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 y1 = _mm256_unpacklo_epi8(y1, y0);
 #else
                 y0 = _mm256_slli_epi16(y0, 8);
-                y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
-                y1 = _mm256_or_si256(y1, y0);
+                y1 = _mm256_blendv_epi8(y0, y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
+                //y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
+                //y1 = _mm256_or_si256(y1, y0);
 #endif
                 //y7 = _mm256_load_si256((__m256i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6));
                 //y6 = _mm256_load_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
@@ -329,7 +331,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 y3 = _mm256_or_si256(y3, y0);
             
                 y2 = _mm256_loadu_si256((__m256i *)(ptr_p[tb_order != (ih & 1)]));
-                y2 = _mm256_subs_epi16(y2, _mm256_loadu_si256((__m256i *)(ptr_p[tb_order == (ih & 1)]+step6)));
+                y2 = _mm256_sub_epi16(y2, _mm256_loadu_si256((__m256i *)(ptr_p[tb_order == (ih & 1)]+step6)));
                 y0 = _mm256_abs_epi16(y2);
                 y2 = _mm256_cmpeq_epi16(y2, y0);
                 y1 = y0;
@@ -341,8 +343,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 y1 = _mm256_unpacklo_epi8(y1, y0);
 #else
                 y0 = _mm256_slli_epi16(y0, 8);
-                y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
-                y1 = _mm256_or_si256(y1, y0);
+                y1 = _mm256_blendv_epi8(y0, y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
+                //y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
+                //y1 = _mm256_or_si256(y1, y0);
 #endif
                 y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
                 y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
@@ -384,7 +387,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
                 //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-                motion_count_tmp[is_latter_feild] += count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
             }
             dst += si_pitch;
         }
@@ -407,13 +412,15 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, 
             _mm256_store_si256((__m256i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm256_setzero_si256());
             //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-            motion_count_tmp[is_latter_feild] += count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
         }
         dst += si_pitch;
     }
     _mm256_zeroupper();
-    motion_count[0] += motion_count_tmp[0];
-    motion_count[1] += motion_count_tmp[1];
+    *(__m64 *)motion_count = m0;
+    _mm_empty();
 }
 
 void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
@@ -422,7 +429,6 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
-    int motion_count_tmp[2] = { 0, 0 };
     __m128i xShrinked0, xShrinked1;
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
@@ -463,6 +469,8 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
         y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
         _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
     }
+
+    __m64 m0 = _mm_setzero_si64();
         
  // if(abs_01diff < thre_motion) flag |= motion;
  // (new_sign, abs_diff) <= last - *p;
@@ -563,7 +571,9 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
                 //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
                 const int is_latter_feild = is_latter_field(ih, tb_order);
-                motion_count_tmp[is_latter_feild] += count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
             }
             dst += si_pitch;
         }
@@ -586,14 +596,16 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
             _mm256_store_si256((__m256i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm256_setzero_si256());
             //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-            motion_count_tmp[is_latter_feild] += count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
         }
         dst += si_pitch;
     }
 
     _mm256_zeroupper();
-    motion_count[0] += motion_count_tmp[0];
-    motion_count[1] += motion_count_tmp[1];
+    *(__m64 *)motion_count = m0;
+    _mm_empty();
 }
 
 void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
@@ -602,7 +614,6 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
-    int motion_count_tmp[2] = { 0, 0 };
     __m128i xShrinked0, xShrinked1;
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
@@ -642,6 +653,8 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
         y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
         _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
     }
+
+    __m64 m0 = _mm_setzero_si64();
         
  // if(abs_01diff < thre_motion) flag |= motion;
  // (new_sign, abs_diff) <= last - *p;
@@ -743,7 +756,9 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
                 //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-                motion_count_tmp[is_latter_feild] += count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
             }
             dst += si_pitch;
         }
@@ -766,12 +781,14 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, i
             _mm256_store_si256((__m256i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm256_setzero_si256());
             //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-            motion_count_tmp[is_latter_feild] += count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
         }
         dst += si_pitch;
     }
     _mm256_zeroupper();
-    motion_count[0] += motion_count_tmp[0];
-    motion_count[1] += motion_count_tmp[1];
+    *(__m64 *)motion_count = m0;
+    _mm_empty();
 }
 

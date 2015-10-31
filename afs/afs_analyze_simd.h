@@ -305,7 +305,6 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
-    int motion_count_tmp[2] = { 0, 0 };
     __m128i x0, x1, x2, x3, x4, x5, x6, x7;
     BYTE *buf_ptr, *buf2_ptr;
     BYTE *ptr[2];
@@ -352,6 +351,8 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
         afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
         _mm_storel_epi64((__m128i*)(buf2_ptr), x0);
     }
+
+    __m64 m0 = _mm_setzero_si64();
     
     for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
@@ -475,7 +476,9 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
                 x2 = _mm_or_si128(x2, x7);
                 _mm_storeu_si128((__m128i*)ptr_dst, x2);
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-                motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
             }
             dst += si_pitch;
         }
@@ -497,12 +500,14 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
             _mm_storeu_si128((__m128i*)ptr_dst, x2);
             _mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-            motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
         }
         dst += si_pitch;
     }
-    motion_count[0] += motion_count_tmp[0];
-    motion_count[1] += motion_count_tmp[1];
+    *(__m64 *)motion_count = m0;
+    _mm_empty();
 }
 
 
@@ -559,6 +564,8 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
         afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
         _mm_storel_epi64((__m128i*)(buf2_ptr), x0);
     }
+
+    __m64 m0 = _mm_setzero_si64();
         
  // if(abs_01diff < thre_motion) flag |= motion;
  // (new_sign, abs_diff) <= last - *p;
@@ -682,7 +689,9 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
                 x2 = _mm_or_si128(x2, x7);
                 _mm_storeu_si128((__m128i*)ptr_dst, x2);
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-                motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
             }
             dst += si_pitch;
         }
@@ -704,12 +713,14 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
             _mm_storeu_si128((__m128i*)ptr_dst, x2);
             _mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-            motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
         }
         dst += si_pitch;
     }
-    motion_count[0] += motion_count_tmp[0];
-    motion_count[1] += motion_count_tmp[1];
+    *(__m64 *)motion_count = m0;
+    _mm_empty();
 }
 
 static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
@@ -718,7 +729,6 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
-    int motion_count_tmp[2] = { 0, 0 };
     __m128i x0, x1, x2, x3, x4, x5, x6, x7;
     BYTE *buf_ptr, *buf2_ptr;
     BYTE *ptr[2];
@@ -764,6 +774,8 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
         afs_analyze_shrink_info_sub<TRUE>(tmp8pix, x0, x1);
         _mm_storel_epi64((__m128i*)(buf2_ptr), x0);
     }
+
+    __m64 m0 = _mm_setzero_si64();
         
  // if(abs_01diff < thre_motion) flag |= motion;
  // (new_sign, abs_diff) <= last - *p;
@@ -885,7 +897,9 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
                 x2 = _mm_or_si128(x2, x7);
                 _mm_storeu_si128((__m128i*)ptr_dst, x2);
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-                motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
             }
             dst += si_pitch;
         }
@@ -907,10 +921,12 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
             _mm_storeu_si128((__m128i*)ptr_dst, x2);
             _mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
-            motion_count_tmp[is_latter_feild] += count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
         }
         dst += si_pitch;
     }
-    motion_count[0] += motion_count_tmp[0];
-    motion_count[1] += motion_count_tmp[1];
+    *(__m64 *)motion_count = m0;
+    _mm_empty();
 }
