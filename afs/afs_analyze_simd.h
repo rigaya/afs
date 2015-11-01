@@ -478,7 +478,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
                 int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
                 __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
-                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
             }
             dst += si_pitch;
         }
@@ -502,11 +502,12 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
             __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
-            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
         }
         dst += si_pitch;
     }
-    *(__m64 *)motion_count = m0;
+    __m64 m2 = *(__m64 *)motion_count;
+    *(__m64 *)motion_count = _mm_add_pi32(m2, m0);
     _mm_empty();
 }
 
@@ -691,7 +692,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
                 int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
                 __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
-                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
             }
             dst += si_pitch;
         }
@@ -715,11 +716,12 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
             __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
-            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
         }
         dst += si_pitch;
     }
-    *(__m64 *)motion_count = m0;
+    __m64 m2 = *(__m64 *)motion_count;
+    *(__m64 *)motion_count = _mm_add_pi32(m2, m0);
     _mm_empty();
 }
 
@@ -899,7 +901,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
                 const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
                 int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
                 __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
-                m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
             }
             dst += si_pitch;
         }
@@ -923,10 +925,11 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
             __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
-            m0 = _mm_add_pi32(m0, _mm_unpacklo_pi16(m1, m1));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
         }
         dst += si_pitch;
     }
-    *(__m64 *)motion_count = m0;
+    __m64 m2 = *(__m64 *)motion_count;
+    *(__m64 *)motion_count = _mm_add_pi32(m2, m0);
     _mm_empty();
 }
