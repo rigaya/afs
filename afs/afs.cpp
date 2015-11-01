@@ -2499,25 +2499,29 @@ BOOL func_is_saveframe(FILTER *fp, void *editp, int saveno, int frame, int fps, 
 }
 #endif
 
-#define ID_BUTTON_LV1    40001
-#define ID_BUTTON_LV2    40002
-#define ID_BUTTON_LV3    40003
-#define ID_BUTTON_LV4    40004
-#define ID_BUTTON_24FPS  40005
-#define ID_BUTTON_30FPS  40006
-#define ID_BUTTON_STRIPE 40007
-#define ID_BUTTON_MOTION 40008
-#define ID_BUTTON_HDTV   40009
+#define ID_BUTTON_DEFAULT  40001
+#define ID_BUTTON_LV1      40002
+#define ID_BUTTON_LV2      40003
+#define ID_BUTTON_LV3      40004
+#define ID_BUTTON_LV4      40005
+#define ID_BUTTON_24FPS    40006
+#define ID_BUTTON_24FPS_HD 40007
+#define ID_BUTTON_30FPS    40008
+#define ID_BUTTON_STRIPE   40009
+#define ID_BUTTON_MOTION   40010
+#define ID_BUTTON_HDTV     40011
 
 HFONT b_font;
-HWND b_lv1, b_lv2, b_lv3, b_lv4, b_24fps, b_30fps, b_stripe, b_motion, b_hdtv;
+HWND b_default, b_lv1, b_lv2, b_lv3, b_lv4, b_24fps, b_24fps_hd, b_30fps, b_stripe, b_motion, b_hdtv;
 
 static void init_dialog(HWND hwnd, HINSTANCE hinst);
+static void on_lvdefault_button(FILTER *fp);
 static void on_lv1_button(FILTER *fp);
 static void on_lv2_button(FILTER *fp);
 static void on_lv3_button(FILTER *fp);
 static void on_lv4_button(FILTER *fp);
 static void on_24fps_button(FILTER *fp);
+static void on_24fps_hd_button(FILTER *fp);
 static void on_30fps_button(FILTER *fp);
 static void on_stripe_button(FILTER *fp);
 static void on_motion_button(FILTER *fp);
@@ -2540,6 +2544,9 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
         return TRUE;
     case WM_COMMAND:
         switch(LOWORD(wparam)) {
+        case ID_BUTTON_DEFAULT:
+            on_lvdefault_button(fp);
+            break;
         case ID_BUTTON_LV1:
             on_lv1_button(fp);
             break;
@@ -2554,6 +2561,9 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
             break;
         case ID_BUTTON_24FPS:
             on_24fps_button(fp);
+            break;
+        case ID_BUTTON_24FPS_HD:
+            on_24fps_hd_button(fp);
             break;
         case ID_BUTTON_30FPS:
             on_30fps_button(fp);
@@ -2586,36 +2596,70 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
 }
 
 static void init_dialog(HWND hwnd, HINSTANCE hinst) {
-    int top = 322;
+    int top = 310;
 
     b_font = CreateFont(12, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "ＭＳ Ｐゴシック");
 
-    b_lv1 = CreateWindow("BUTTON", "動き重視", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top, 90, 18, hwnd, (HMENU)ID_BUTTON_LV1, hinst, NULL);
+    b_default = CreateWindow("BUTTON", "デフォルト", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top, 90, 18, hwnd, (HMENU)ID_BUTTON_DEFAULT, hinst, NULL);
+    SendMessage(b_default, WM_SETFONT, (WPARAM)b_font, 0);
+
+    b_lv1 = CreateWindow("BUTTON", "動き重視", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+20, 90, 18, hwnd, (HMENU)ID_BUTTON_LV1, hinst, NULL);
     SendMessage(b_lv1, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_lv2 = CreateWindow("BUTTON", "二重化", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+20, 90, 18, hwnd, (HMENU)ID_BUTTON_LV2, hinst, NULL);
+    b_lv2 = CreateWindow("BUTTON", "二重化", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+40, 90, 18, hwnd, (HMENU)ID_BUTTON_LV2, hinst, NULL);
     SendMessage(b_lv2, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_lv3 = CreateWindow("BUTTON", "映画/アニメ", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+40, 90, 18, hwnd, (HMENU)ID_BUTTON_LV3, hinst, NULL);
+    b_lv3 = CreateWindow("BUTTON", "映画/アニメ", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+60, 90, 18, hwnd, (HMENU)ID_BUTTON_LV3, hinst, NULL);
     SendMessage(b_lv3, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_lv4 = CreateWindow("BUTTON", "残像最小化", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+60, 90, 18, hwnd, (HMENU)ID_BUTTON_LV4, hinst, NULL);
+    b_lv4 = CreateWindow("BUTTON", "残像最小化", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+80, 90, 18, hwnd, (HMENU)ID_BUTTON_LV4, hinst, NULL);
     SendMessage(b_lv4, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_24fps = CreateWindow("BUTTON", "24fps固定", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+80, 90, 18, hwnd, (HMENU)ID_BUTTON_24FPS, hinst, NULL);
+    b_24fps = CreateWindow("BUTTON", "24fps固定", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+100, 90, 18, hwnd, (HMENU)ID_BUTTON_24FPS, hinst, NULL);
     SendMessage(b_24fps, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_30fps = CreateWindow("BUTTON", "→ 30fps固定", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+100, 90, 18, hwnd, (HMENU)ID_BUTTON_30FPS, hinst, NULL);
+    b_24fps_hd = CreateWindow("BUTTON", "24fps固定 (HD)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+120, 90, 18, hwnd, (HMENU)ID_BUTTON_24FPS_HD, hinst, NULL);
+    SendMessage(b_24fps_hd, WM_SETFONT, (WPARAM)b_font, 0);
+
+    b_30fps = CreateWindow("BUTTON", "→ 30fps固定", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+140, 90, 18, hwnd, (HMENU)ID_BUTTON_30FPS, hinst, NULL);
     SendMessage(b_30fps, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_stripe = CreateWindow("BUTTON", "→ 解除強(縞)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+120, 90, 18, hwnd, (HMENU)ID_BUTTON_STRIPE, hinst, NULL);
+    b_stripe = CreateWindow("BUTTON", "→ 解除強(縞)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+160, 90, 18, hwnd, (HMENU)ID_BUTTON_STRIPE, hinst, NULL);
     SendMessage(b_stripe, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_motion = CreateWindow("BUTTON", "→ 解除強(動)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+140, 90, 18, hwnd, (HMENU)ID_BUTTON_MOTION, hinst, NULL);
+    b_motion = CreateWindow("BUTTON", "→ 解除強(動)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+180, 90, 18, hwnd, (HMENU)ID_BUTTON_MOTION, hinst, NULL);
     SendMessage(b_motion, WM_SETFONT, (WPARAM)b_font, 0);
 
-    b_hdtv   = CreateWindow("BUTTON", "解除Lv0(HD)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+160, 90, 18, hwnd, (HMENU)ID_BUTTON_HDTV, hinst, NULL);
+    b_hdtv   = CreateWindow("BUTTON", "解除Lv0(HD)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+200, 90, 18, hwnd, (HMENU)ID_BUTTON_HDTV, hinst, NULL);
     SendMessage(b_hdtv, WM_SETFONT, (WPARAM)b_font, 0);
+}
+
+static void on_lvdefault_button(FILTER *fp) {
+    SendMessage(b_default, WM_KILLFOCUS, 0, 0);
+    fp->track[0]  = track_default[0];
+    fp->track[1]  = track_default[1];
+    fp->track[2]  = track_default[2];
+    fp->track[3]  = track_default[3];
+    fp->track[4]  = track_default[4];
+    fp->track[5]  = track_default[5];
+    fp->track[6]  = track_default[6];
+    fp->track[7]  = track_default[7];
+    fp->track[8]  = track_default[8];
+    fp->track[9]  = track_default[9];
+    fp->track[10] = track_default[10];
+    fp->check[0]  = check_default[0];
+    fp->check[1]  = check_default[1];
+    fp->check[2]  = check_default[2];
+    fp->check[3]  = check_default[3];
+    fp->check[4]  = check_default[4];
+    fp->check[5]  = check_default[5];
+    fp->check[6]  = check_default[6];
+    fp->check[7]  = check_default[7];
+    fp->check[8]  = check_default[8];
+    fp->check[9]  = check_default[9];
+    fp->check[10] = check_default[10];
+    fp->check[11] = check_default[11];
+    fp->exfunc->filter_window_update(fp);
 }
 
 static void on_lv1_button(FILTER *fp) {
@@ -2710,6 +2754,30 @@ static void on_24fps_button(FILTER *fp) {
     fp->check[0]  = 1;
     fp->check[1]  = 1;
     fp->check[2]  = 0;
+    fp->check[3]  = 1;
+    fp->check[4]  = 0;
+    fp->check[8]  = 0;
+    fp->check[9]  = 0;
+    fp->check[11] = 0;
+    fp->exfunc->filter_window_update(fp);
+}
+
+static void on_24fps_hd_button(FILTER *fp) {
+    SendMessage(b_24fps_hd, WM_KILLFOCUS, 0, 0);
+    fp->track[0]  = 8;
+    fp->track[1]  = 8;
+    fp->track[2]  = 8;
+    fp->track[3]  = 8;
+    fp->track[4]  = 32;
+    fp->track[5]  = 192;
+    fp->track[6]  = 384;
+    fp->track[7]  = 64;
+    fp->track[8]  = 96;
+    fp->track[9]  = 192;
+    fp->track[10] = 3;
+    fp->check[0]  = 1;
+    fp->check[1]  = 1;
+    fp->check[2]  = 1;
     fp->check[3]  = 1;
     fp->check[4]  = 0;
     fp->check[8]  = 0;
