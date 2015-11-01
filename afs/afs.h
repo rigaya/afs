@@ -51,7 +51,7 @@ const int BLOCK_SIZE_YCP = 256;
 #define ANALYZE_BACKGROUND (0 & SCAN_BACKGROUND) //analyze処理をバックグラウンドで行う (バグってるので使用中止)
 #define BACKGROUND_THREAD_BELOW_NORMAL 0 //バックグラウンドスレッドの優先度を下げる
 #define SIMD_DEBUG         0 //SIMD処理をデバッグする
-#define CHECK_PERFORMANCE  1 //パフォーマンスレポートを出力する
+#define CHECK_PERFORMANCE  0 //パフォーマンスレポートを出力する
 
 enum {
     QPC_START = 0,
