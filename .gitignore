@@ -28,6 +28,7 @@ build/
 *.ilk
 *.meta
 *.obj
+*.opendb
 *.pch
 *.pdb
 *.pgc
