@@ -328,6 +328,7 @@
     </ClCompile>
     <ClCompile Include="afs_filter_avx2.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <ClCompile Include="afs_func.cpp" />
     <ClCompile Include="afs_yuy2up_avx2.cpp">
