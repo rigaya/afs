@@ -46,6 +46,8 @@ typedef struct {
     func_yuy2up                yuy2up;
     //get count
     AFS_FUNC_GET_COUNT         get_count;
+    //simd avail
+    DWORD                      simd_avail;
 } AFS_FUNC;
 
 void get_afs_func_list(AFS_FUNC *func_list);

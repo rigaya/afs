@@ -55,6 +55,14 @@ static inline int si_pitch(int x) {
     return (x + align_minus_one) & (~align_minus_one);
 }
 
+static __declspec(noinline) void avx2_dummy_if_avail() {
+    if (afs_func.simd_avail & AVX2) {
+        __asm {
+            vpxor ymm0, ymm0, ymm0
+        };
+    }
+}
+
 static __declspec(noinline) void error_message(FILTER *fp, LPTSTR m) {
     fp->exfunc->ini_save_str(fp, "error_message", m);
     
@@ -719,6 +727,7 @@ unsigned __stdcall thread_func(LPVOID worker_id) {
 
     WaitForSingleObject(g_afs.hEvent_worker_awake[id], INFINITE);
     while (g_afs.scan_arg.type >= 0) {
+        avx2_dummy_if_avail();
         PIXEL_YC *workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
         int pos_x = ((int)(g_afs.scan_w * id / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
         int x_fin = ((int)(g_afs.scan_w * (id+1) / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
@@ -1650,6 +1659,7 @@ unsigned int __stdcall sub_thread(void *prm) {
     //イベントの配列はメインスレッドの分はないのでインデックスから1引く
     WaitForSingleObject(g_afs.sub_thread.hEvent_sub_start[thread_id-1], INFINITE);
     while (!g_afs.sub_thread.thread_sub_abort) {
+        avx2_dummy_if_avail();
         switch (g_afs.sub_thread.sub_task) {
         case TASK_MERGE_SCAN: merge_scan(thread_id); break;
         case TASK_SYNTHESIZE: synthesize(thread_id); break;
@@ -1731,6 +1741,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         return TRUE;
     }
 #endif
+    avx2_dummy_if_avail();
 
     setup_sub_thread(num_sub_thread);
 

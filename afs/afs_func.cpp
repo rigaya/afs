@@ -176,6 +176,7 @@ static const struct {
 void get_afs_func_list(AFS_FUNC *func_list) {
     const DWORD simd_avail = get_availableSIMD();
     ZeroMemory(func_list, sizeof(func_list[0]));
+    func_list->simd_avail = simd_avail;
     for (int i = 0; i < _countof(FUNC_ANALYZE_LIST); i++) {
         if ((FUNC_ANALYZE_LIST[i].simd & simd_avail) == FUNC_ANALYZE_LIST[i].simd) {
             memcpy(&func_list->analyze, &FUNC_ANALYZE_LIST[i].analyze, sizeof(func_list->analyze));
