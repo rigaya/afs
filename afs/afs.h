@@ -130,48 +130,6 @@ enum {
     TASK_TYPE_ANALYZE,
 };
 
-typedef struct BACKGROUND_TASK {
-    HANDLE hEvent_start; //タスク開始
-    HANDLE hEvent_fin;  //タスクの終了
-    union {
-        //scan_task
-        struct {
-            int i_frame, force, max_w;
-            PIXEL_YC *p1, *p0;
-            int mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion;
-            AFS_SCAN_CLIP *mc_clip;
-        } scan;
-        //analyze_task
-        struct {
-            int frame, drop, smooth, force24, coeff_shift, method_watershed;
-            int *reverse;
-            int frame_n, replay_mode;
-        } analyze;
-    };
-} BACKGROUND_TASK;
-
-#if SCAN_BACKGROUND
-typedef struct BACKGROUND_THREAD {
-    HANDLE hThread;     //スレッドのハンドル
-    DWORD work_task_id; //現在処理中のタスクID
-    DWORD set_task_id;  //追加するタスクのID
-    BOOL abort;         //スレッド中断(終了)指示用
-    BACKGROUND_TASK task_array[AFS_MAX_BACKGROUND_TASK]; //タスクを格納する配列
-} BACKGROUND_THREAD;
-
-#define scantask_workp (scan_thread.task_array + ((scan_thread.work_task_id)&(AFS_MAX_BACKGROUND_TASK-1))) //次に処理するタスクへのポインタ
-#define scantask_setp  (scan_thread.task_array + ((scan_thread.set_task_id) &(AFS_MAX_BACKGROUND_TASK-1))) //次に指示を格納する空きタスクへのポインタ
-
-unsigned int __stdcall scan_frame_thread(void *prm);
-
-#if ANALYZE_BACKGROUND
-#define analyzetask_workp (analyze_thread.task_array + ((analyze_thread.work_task_id)&(AFS_MAX_BACKGROUND_TASK-1))) //次に処理するタスクへのポインタ
-#define analyzetask_setp  (analyze_thread.task_array + ((analyze_thread.set_task_id) &(AFS_MAX_BACKGROUND_TASK-1))) //次に指示を格納する空きタスクへのポインタ
-
-unsigned int __stdcall analyze_frame_thread(void *prm);
-#endif //ANALYZE_BACKGROUND
-#endif //SCAN_BACKGROUND
-
 typedef struct {
     void *map;
     int status, frame, file_id, video_number, yuy2upsample;
@@ -182,12 +140,6 @@ typedef struct AFS_CONTEXT {
 #if ENABLE_SUB_THREADS
     AFS_SUB_THREAD sub_thread;
 #endif //ENABLE_SUB_THREADS
-#if SCAN_BACKGROUND
-    static BACKGROUND_THREAD scan_thread;
-#if ANALYZE_BACKGROUND
-    static BACKGROUND_THREAD analyze_thread;
-#endif //ANALYZE_BACKGROUND
-#endif //SCAN_BACKGROUND
 
     int cache_nv16;
     // インタレース解除フィルタ用ソースキャッシュ
