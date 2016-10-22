@@ -1151,7 +1151,13 @@ unsigned char analyze_frame(int frame, int drop, int smooth, int force24, int co
 BOOL analyze_scene_change(unsigned char* sip, int tb_order, int max_w, int w, int h,
                           PIXEL_YC *p0, PIXEL_YC *p1, int top, int bottom, int left, int right) {
     const int si_w = si_pitch(w);
-    int hist3d[2][4096] = { 0 };
+    //どうやらスタックに確保すると死ぬようなので、mallocする
+    static int *hist3d[2] = { nullptr, nullptr };
+    if (hist3d[0] == nullptr) {
+        hist3d[0] = (int *)malloc(sizeof(int) * 4096 * 2);
+        hist3d[1] = hist3d[0] + 4096;
+    }
+    memset(hist3d[0], 0, sizeof(int) * 4096 * 2);
 
     int count = 0, count0 = 0;
     for (int pos_y = top; pos_y < h - bottom; pos_y++) {
