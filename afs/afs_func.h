@@ -67,6 +67,8 @@ void __stdcall afs_blend_nv16up_ssse3(void *dst, void *src1, void *src2, void *s
 void __stdcall afs_blend_nv16_ssse3(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_nv16up_avx(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_nv16_avx(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+void __stdcall afs_blend_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+void __stdcall afs_blend_nv16_avx2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 
 void __stdcall afs_mie_spot_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_avx(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);

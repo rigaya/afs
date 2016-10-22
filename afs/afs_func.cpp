@@ -115,7 +115,7 @@ static const struct {
     DWORD simd;
     func_blend blend[4];
 } FUNC_BLEND_LIST[] = {
-    { AVX2|AVX,             { afs_blend_avx2,   afs_blend_avx2,   afs_blend_nv16up_avx,    afs_blend_nv16_avx    } },
+    { AVX2|AVX,             { afs_blend_avx2,   afs_blend_avx2,   afs_blend_nv16up_avx2,   afs_blend_nv16_avx2   } },
     { AVX|SSE41|SSSE3|SSE2, { afs_blend_avx,    afs_blend_avx,    afs_blend_nv16up_avx,    afs_blend_nv16_avx    } },
     { SSE41|SSSE3|SSE2,     { afs_blend_sse4_1, afs_blend_sse4_1, afs_blend_nv16up_sse4_1, afs_blend_nv16_sse4_1 } },
     { SSE2,                 { afs_blend_sse2,   afs_blend_sse2,   afs_blend_nv16up_ssse3,  afs_blend_nv16_ssse3  } },
