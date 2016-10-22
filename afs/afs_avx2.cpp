@@ -586,28 +586,38 @@ void __stdcall afs_copy_yc48_line_avx2(void *dst, void *src1, int w, int src_fra
 
 #include "afs_convert_const.h"
 
-static __forceinline void convert_range_y_yuy2_to_yc48(__m256i& x0, __m256i& x1) {
-    x0 = _mm256_permute4x64_epi64(x0, _MM_SHUFFLE(3, 1, 2, 0));
-    x1 = _mm256_unpackhi_epi8(x0, _mm256_setzero_si256());
-    x0 = _mm256_unpacklo_epi8(x0, _mm256_setzero_si256());
-    x0 = _mm256_slli_epi16(x0, 6);
-    x1 = _mm256_slli_epi16(x1, 6);
-    x0 = _mm256_mulhi_epi16(x0, _mm256_set1_epi16(19152));
-    x1 = _mm256_mulhi_epi16(x1, _mm256_set1_epi16(19152));
-    x0 = _mm256_sub_epi16(x0, _mm256_set1_epi16(299));
-    x1 = _mm256_sub_epi16(x1, _mm256_set1_epi16(299));
+static __forceinline void convert_range_y_yuy2_to_yc48(__m256i& y0, __m256i& y1) {
+    y0 = _mm256_permute4x64_epi64(y0, _MM_SHUFFLE(3, 1, 2, 0));
+    y1 = _mm256_unpackhi_epi8(y0, _mm256_setzero_si256());
+    y0 = _mm256_unpacklo_epi8(y0, _mm256_setzero_si256());
+    y0 = _mm256_slli_epi16(y0, 6);
+    y1 = _mm256_slli_epi16(y1, 6);
+    y0 = _mm256_mulhi_epi16(y0, _mm256_set1_epi16(19152));
+    y1 = _mm256_mulhi_epi16(y1, _mm256_set1_epi16(19152));
+    y0 = _mm256_sub_epi16(y0, _mm256_set1_epi16(299));
+    y1 = _mm256_sub_epi16(y1, _mm256_set1_epi16(299));
 }
 
-static __forceinline void convert_range_c_yuy2_to_yc48(__m256i& x0, __m256i& x1) {
-    x0 = _mm256_permute4x64_epi64(x0, _MM_SHUFFLE(3, 1, 2, 0));
-    x1 = _mm256_unpackhi_epi8(x0, _mm256_setzero_si256());
-    x0 = _mm256_unpacklo_epi8(x0, _mm256_setzero_si256());
-    x0 = _mm256_slli_epi16(x0, 6);
-    x1 = _mm256_slli_epi16(x1, 6);
-    x0 = _mm256_mulhi_epi16(x0, _mm256_set1_epi16(18752));
-    x1 = _mm256_mulhi_epi16(x1, _mm256_set1_epi16(18752));
-    x0 = _mm256_sub_epi16(x0, _mm256_set1_epi16(2340));
-    x1 = _mm256_sub_epi16(x1, _mm256_set1_epi16(2340));
+static __forceinline void convert_range_c_yuy2_to_yc48(__m256i& y0, __m256i& y1) {
+    y0 = _mm256_permute4x64_epi64(y0, _MM_SHUFFLE(3, 1, 2, 0));
+    y1 = _mm256_unpackhi_epi8(y0, _mm256_setzero_si256());
+    y0 = _mm256_unpacklo_epi8(y0, _mm256_setzero_si256());
+    y0 = _mm256_slli_epi16(y0, 6);
+    y1 = _mm256_slli_epi16(y1, 6);
+    y0 = _mm256_mulhi_epi16(y0, _mm256_set1_epi16(18752));
+    y1 = _mm256_mulhi_epi16(y1, _mm256_set1_epi16(18752));
+    y0 = _mm256_sub_epi16(y0, _mm256_set1_epi16(2340));
+    y1 = _mm256_sub_epi16(y1, _mm256_set1_epi16(2340));
+}
+
+static __forceinline __m256i afs_blend(const __m256i& msrc1, const __m256i& msrc2, const __m256i& msrc3, const __m256i& mmask) {
+    __m256i y3, y4;
+    y3 = _mm256_add_epi16(msrc1, msrc3);
+    y4 = _mm256_add_epi16(msrc2, msrc2);
+    y3 = _mm256_add_epi16(y3, y4);
+    y3 = _mm256_add_epi16(y3, _mm256_set1_epi16(2));
+    y3 = _mm256_srai_epi16(y3, 2);
+    return _mm256_blendv_epi8(msrc2, y3, mmask); //x1 = sip ? x3 : x2;
 }
 
 static __forceinline __m256i afs_mask_for_uv_16(const __m256i& msip) {
