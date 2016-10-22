@@ -24,7 +24,7 @@ pw_round_fix2        dq    00002000200020002h
 dq_mask_center32    dq    00000ffffffff0000h
 pw_mask_0c            dq    0000c000c000c000ch
 
-PUBLIC C _afs_blend_mmx@28
+PUBLIC C _afs_blend_mmx@32
 
 ;void __stdcall afs_blend_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -34,9 +34,10 @@ PUBLIC C _afs_blend_mmx@28
 ;  [esp+20] unsigned char  *sip
 ;  [esp+24] unsigned int   mask
 ;  [esp+28] int            w
+;  [esp+32] int            src_frame_size
 ;)
 
-_afs_blend_mmx@28 PROC
+_afs_blend_mmx@32 PROC
         push        edi
         push        esi
         push        edx
@@ -193,11 +194,11 @@ afs_blend_mmx_exit:
         pop            esi
         pop            edi
 
-        ret        28
+        ret        32
 
-_afs_blend_mmx@28 ENDP
+_afs_blend_mmx@32 ENDP
 
-PUBLIC C _afs_mie_spot_mmx@28
+PUBLIC C _afs_mie_spot_mmx@32
 
 ;void __stdcall afs_mie_spot_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -207,9 +208,10 @@ PUBLIC C _afs_mie_spot_mmx@28
 ;  [esp+20] PIXEL_YC       *src4
 ;  [esp+24] PIXEL_YC       *src_spot
 ;  [esp+28] int            w
+;  [esp+32] int            src_frame_size
 ;)
 
-_afs_mie_spot_mmx@28 PROC
+_afs_mie_spot_mmx@32 PROC
         push        ebp
         push        edi
         push        esi
@@ -325,11 +327,11 @@ afs_mie_spot_mmx_exit:
         pop            edi
         pop            ebp
 
-        ret        28
+        ret        32
 
-_afs_mie_spot_mmx@28 ENDP
+_afs_mie_spot_mmx@32 ENDP
 
-PUBLIC C _afs_mie_inter_mmx@24
+PUBLIC C _afs_mie_inter_mmx@28
 
 ;void __stdcall afs_mie_inter_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -338,9 +340,10 @@ PUBLIC C _afs_mie_inter_mmx@24
 ;  [esp+16] PIXEL_YC       *src3
 ;  [esp+20] PIXEL_YC       *src4
 ;  [esp+24] int            w
+;  [esp+28] int            src_frame_size
 ;)
 
-_afs_mie_inter_mmx@24 PROC
+_afs_mie_inter_mmx@28 PROC
         push        edi
         push        esi
         push        edx
@@ -439,12 +442,12 @@ afs_mie_inter_mmx_exit:
         pop            esi
         pop            edi
 
-        ret        24
+        ret        28
 
-_afs_mie_inter_mmx@24 ENDP
+_afs_mie_inter_mmx@28 ENDP
 
 
-PUBLIC C _afs_deint4_mmx@36
+PUBLIC C _afs_deint4_mmx@40
 
 ;void __stdcall afs_deint4_mmx(
 ;  [esp+04] PIXEL_YC       *dst
@@ -456,9 +459,10 @@ PUBLIC C _afs_deint4_mmx@36
 ;  [esp+28] unsigned char  *sip
 ;  [esp+32] unsigned int   mask
 ;  [esp+36] int            w
+;  [esp+40] int            src_frame_size
 ;)
 
-_afs_deint4_mmx@36 PROC
+_afs_deint4_mmx@40 PROC
         push        ebp
         push        edi
         push        esi
@@ -630,8 +634,8 @@ afs_deint4_mmx_exit:
         pop            edi
         pop            ebp
 
-        ret        36
+        ret        40
 
-_afs_deint4_mmx@36 ENDP
+_afs_deint4_mmx@40 ENDP
 
 END

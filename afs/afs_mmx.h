@@ -2,23 +2,23 @@
 extern "C" {
 #endif
 extern void __stdcall afs_blend_mmx(
-  PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3,
-  unsigned char *sip, unsigned int mask, int w
+  void *dst, void *src1, void *src2, void *src3,
+  unsigned char *sip, unsigned int mask, int w, int src_frame_size
 );
 
 extern void __stdcall afs_mie_spot_mmx(
-  PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,
-  PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w
+    void *dst, void *src1, void *src2,
+    void *src3, void *src4, void *src_spot,int w, int src_frame_size
 );
 
 extern void __stdcall afs_mie_inter_mmx(
-  PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2,
-  PIXEL_YC *src3, PIXEL_YC *src4, int w
+    void *dst, void *src1, void *src2,
+    void *src3, void *src4, int w, int src_frame_size
 );
 
 extern void __stdcall afs_deint4_mmx(
-  PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7,
-  unsigned char *sip, unsigned int mask, int w
+    void *dst, void *src1, void *src3, void *src4, void *src5, void *src7,
+  unsigned char *sip, unsigned int mask, int w, int src_frame_size
 );
 
 #ifdef __cplusplus

@@ -2,6 +2,7 @@
 #ifndef _SIMD_UTIL_H_
 #define _SIMD_UTIL_H_
 
+#include <stdint.h>
 #include <emmintrin.h> //イントリンシック命令 SSE2
 #if USE_SSSE3
 #include <tmmintrin.h> //イントリンシック命令 SSSE3
@@ -38,6 +39,7 @@ enum {
     AVX2   = 0x0080,
 };
 
+#define CLAMP(x, low, high) (((x) > (high))? (high) : ((x) < (low))? (low) : (x))
 #define SWAP(type,x,y) { type temp = x; x = y; y = temp; }
 
 static inline int popcnt32_c(DWORD bits) {
@@ -99,14 +101,107 @@ static inline __m128i _mm_abs_epi16_simd(__m128i x0) {
 #define _mm256_srli256_si256(a, i) ((i<=16) ? _mm256_alignr_epi8(_mm256_permute2x128_si256(a, a, (0x08<<4) + 0x03), a, i) : _mm256_bsrli_epi128(_mm256_permute2x128_si256(a, a, (0x08<<4) + 0x03), MM_ABS(i-16)))
 #define _mm256_slli256_si256(a, i) ((i<=16) ? _mm256_alignr_epi8(a, _mm256_permute2x128_si256(a, a, (0x00<<4) + 0x08), MM_ABS(16-i)) : _mm256_bslli_epi128(_mm256_permute2x128_si256(a, a, (0x00<<4) + 0x08), MM_ABS(i-16)))
 
+template<bool aligned_store>
+static void __forceinline memcpy_avx2(void *_dst, void *_src, int size) {
+    uint8_t *dst = (uint8_t *)_dst;
+    uint8_t *src = (uint8_t *)_src;
+    if (size < 128) {
+        for (int i = 0; i < size; i++)
+            dst[i] = src[i];
+        return;
+    }
+    uint8_t *dst_fin = dst + size;
+    uint8_t *dst_aligned_fin = (uint8_t *)(((size_t)(dst_fin + 31) & ~31) - 128);
+    __m256i y0, y1, y2, y3;
+    const int start_align_diff = (int)((size_t)dst & 31);
+    if (start_align_diff) {
+        y0 = _mm256_loadu_si256((__m256i*)src);
+        _mm256_storeu_si256((__m256i*)dst, y0);
+        dst += 32 - start_align_diff;
+        src += 32 - start_align_diff;
+    }
+    for (; dst < dst_aligned_fin; dst += 128, src += 128) {
+        y0 = _mm256_loadu_si256((__m256i*)(src +  0));
+        y1 = _mm256_loadu_si256((__m256i*)(src + 32));
+        y2 = _mm256_loadu_si256((__m256i*)(src + 64));
+        y3 = _mm256_loadu_si256((__m256i*)(src + 96));
+        _mm256_stream_switch_si256((__m256i*)(dst +  0), y0);
+        _mm256_stream_switch_si256((__m256i*)(dst + 32), y1);
+        _mm256_stream_switch_si256((__m256i*)(dst + 64), y2);
+        _mm256_stream_switch_si256((__m256i*)(dst + 96), y3);
+    }
+    uint8_t *dst_tmp = dst_fin - 128;
+    src -= (dst - dst_tmp);
+    y0 = _mm256_loadu_si256((__m256i*)(src +  0));
+    y1 = _mm256_loadu_si256((__m256i*)(src + 32));
+    y2 = _mm256_loadu_si256((__m256i*)(src + 64));
+    y3 = _mm256_loadu_si256((__m256i*)(src + 96));
+    _mm256_storeu_si256((__m256i*)(dst_tmp +  0), y0);
+    _mm256_storeu_si256((__m256i*)(dst_tmp + 32), y1);
+    _mm256_storeu_si256((__m256i*)(dst_tmp + 64), y2);
+    _mm256_storeu_si256((__m256i*)(dst_tmp + 96), y3);
+    _mm256_zeroupper();
+}
+
+
 static inline int limit_1_to_16(int value) {
     int cmp_ret = (value>=16);
     return (cmp_ret<<4) + ((value & 0x0f) & (cmp_ret-1)) + (value == 0);
 }
+static inline int limit_1_to_32(int value) {
+    int cmp_ret = (value>=32);
+    return (cmp_ret<<5) + ((value & 0x1f) & (cmp_ret-1)) + (value == 0);
+}
 #else
+template<bool use_stream>
+static void __forceinline memcpy_sse(void *_dst, void *_src, int size) {
+    uint8_t *dst = (uint8_t *)_dst;
+    uint8_t *src = (uint8_t *)_src;
+    if (size < 64) {
+        for (int i = 0; i < size; i++)
+            dst[i] = src[i];
+        return;
+    }
+    uint8_t *dst_fin = dst + size;
+    uint8_t *dst_aligned_fin = (uint8_t *)(((size_t)(dst_fin + 15) & ~15) - 64);
+    __m128 x0, x1, x2, x3;
+    const int start_align_diff = (int)((size_t)dst & 15);
+    if (start_align_diff) {
+        x0 = _mm_loadu_ps((float*)src);
+        _mm_storeu_ps((float*)dst, x0);
+        dst += 16 - start_align_diff;
+        src += 16 - start_align_diff;
+    }
+#define _mm_stream_switch_ps(x, ymm) ((use_stream) ? _mm_stream_ps((x), (ymm)) : _mm_store_ps((x), (ymm)))
+    for (; dst < dst_aligned_fin; dst += 64, src += 64) {
+        x0 = _mm_loadu_ps((float*)(src +  0));
+        x1 = _mm_loadu_ps((float*)(src + 16));
+        x2 = _mm_loadu_ps((float*)(src + 32));
+        x3 = _mm_loadu_ps((float*)(src + 48));
+        _mm_stream_switch_ps((float*)(dst +  0), x0);
+        _mm_stream_switch_ps((float*)(dst + 16), x1);
+        _mm_stream_switch_ps((float*)(dst + 32), x2);
+        _mm_stream_switch_ps((float*)(dst + 48), x3);
+    }
+    uint8_t *dst_tmp = dst_fin - 64;
+    src -= (dst - dst_tmp);
+    x0 = _mm_loadu_ps((float*)(src +  0));
+    x1 = _mm_loadu_ps((float*)(src + 16));
+    x2 = _mm_loadu_ps((float*)(src + 32));
+    x3 = _mm_loadu_ps((float*)(src + 48));
+    _mm_storeu_ps((float*)(dst_tmp +  0), x0);
+    _mm_storeu_ps((float*)(dst_tmp + 16), x1);
+    _mm_storeu_ps((float*)(dst_tmp + 32), x2);
+    _mm_storeu_ps((float*)(dst_tmp + 48), x3);
+}
+
 static inline int limit_1_to_8(int value) {
     int cmp_ret = (value>=8);
     return (cmp_ret<<3) + ((value & 0x07) & (cmp_ret-1)) + (value == 0);
+}
+static inline int limit_1_to_16(int value) {
+    int cmp_ret = (value>=16);
+    return (cmp_ret<<4) + ((value & 0x0f) & (cmp_ret-1)) + (value == 0);
 }
 #endif //_INCLUDED_IMM
 

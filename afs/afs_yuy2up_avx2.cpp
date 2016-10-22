@@ -36,7 +36,7 @@ static __forceinline __m256i get_even_uv_avx2(BYTE *ptr) {
     return y0;
 }
 
-void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, int pitch, int y_start, int y_fin) {    
+void __stdcall afs_yuy2up_frame_avx2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *_src, int width, int src_pitch, int y_start, int y_fin) {
     const int MASK_UV_STORE_0 = 0x20 + 0x10;
     const int MASK_UV_STORE_1 = 0x08 + 0x04;
     const int MASK_UV_STORE_2 = 0x80 + 0x40 + 0x02 + 0x01;
@@ -46,10 +46,12 @@ void __stdcall afs_yuy2up_frame_avx2(PIXEL_YC *dst, PIXEL_YC *src, int width, in
 #endif
     y3 = _mm256_srli_epi16(_mm256_cmpeq_epi16(_mm256_setzero_si256(), _mm256_setzero_si256()), 15);
     //y0 = _mm256_slli_si256(y1, 4);
-    src += y_start * pitch;
-    dst += y_start * pitch;
+    PIXEL_YC *src = (PIXEL_YC *)_src;
+    PIXEL_YC *dst = (PIXEL_YC *)pixel;
+    src += y_start * src_pitch;
+    dst += y_start * dst_pitch;
 
-    for (int jh = y_start; jh < y_fin; jh++, src += pitch, dst += pitch) {
+    for (int jh = y_start; jh < y_fin; jh++, src += src_pitch, dst += dst_pitch) {
         BYTE *ptr_src = (BYTE *)src;
         BYTE *ptr_dst = (BYTE *)dst;
         y1 = get_even_uv_avx2(ptr_src +  0);

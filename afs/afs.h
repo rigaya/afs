@@ -8,6 +8,18 @@
 #define AFS_STRIPE_CACHE_NUM  8
 #define AFS_SUB_WORKER_MAX    4
 
+enum {
+    AFS_MODE_YUY2UP      = 0x01,
+    AFS_MODE_CACHE_YC48  = 0x00,
+    AFS_MODE_CACHE_NV16  = 0x02,
+    AFS_MODE_AVIUTL_YC48 = 0x00,
+    AFS_MODE_AVIUTL_YUY2 = 0x04,
+    AFS_MODE_YC48_YC48UP = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_YC48 | AFS_MODE_YUY2UP,
+    AFS_MODE_YC48_YC48   = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_YC48,
+    AFS_MODE_YC48_NV16UP = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_NV16 | AFS_MODE_YUY2UP,
+    AFS_MODE_YC48_NV16   = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_NV16,
+};
+
 typedef struct {
     int top, bottom, left, right;
 } AFS_SCAN_CLIP;
@@ -24,8 +36,8 @@ static inline AFS_SCAN_CLIP scan_clip(int top, int bottom, int left, int right) 
 typedef struct {
     int type;
     unsigned char *dst;
-    PIXEL_YC *p0;
-    PIXEL_YC *p1;
+    void *p0;
+    void *p1;
     int tb_order;
     int max_w;
     int si_pitch;
@@ -52,7 +64,7 @@ static inline BOOL is_latter_field(int pos_y, int tb_order) {
 const int BLOCK_SIZE_YCP = 256;
 
 #define ENABLE_SUB_THREADS 1 //サブスレッドを有効にする
-#define NUM_SUB_THREAD     2 //サブスレッド数の指定 0でトラックバーによる設定が可能に
+#define NUM_SUB_THREAD     1 //サブスレッド数の指定 0でトラックバーによる設定が可能に
 #define SCAN_BACKGROUND    0 //scan処理をバックグラウンドで行う (バグってるので使用中止)
 #define ANALYZE_BACKGROUND (0 & SCAN_BACKGROUND) //analyze処理をバックグラウンドで行う (バグってるので使用中止)
 #define BACKGROUND_THREAD_BELOW_NORMAL 0 //バックグラウンドスレッドの優先度を下げる
@@ -63,7 +75,7 @@ const int BLOCK_SIZE_YCP = 256;
 //サブスレッド scan_frame スレッド用 --------------------------------------------------------
 typedef struct SYNTHESIZE_TASK {
     FILTER_PROC_INFO *fpip;
-    PIXEL_YC *p0, *p1;
+    void *p0, *p1;
     unsigned char *sip;
     unsigned char status;
     int si_w;
@@ -80,8 +92,9 @@ typedef struct MERGE_SCAN_TASK {
 } MERGE_SCAN_TASK;
 
 typedef struct YUY2UPSAMPLE_TASK {
-    PIXEL_YC *dst, *src;
-    int width, pitch, height;
+    void *dst, *src;
+    int dst_pitch, max_h;
+    int width, src_pitch, height;
 } YUY2UPSAMPLE_TASK;
 
 enum SUB_THREAD_TASK {
@@ -160,7 +173,7 @@ unsigned int __stdcall analyze_frame_thread(void *prm);
 #endif //SCAN_BACKGROUND
 
 typedef struct {
-    PIXEL_YC *map;
+    void *map;
     int status, frame, file_id, video_number, yuy2upsample;
 } AFS_SOURCE_DATA;
 
@@ -176,7 +189,9 @@ typedef struct AFS_CONTEXT {
 #endif //ANALYZE_BACKGROUND
 #endif //SCAN_BACKGROUND
 
+    int cache_nv16;
     // インタレース解除フィルタ用ソースキャッシュ
+    unsigned int mode;
     int source_frame_n;
     int source_w;
     int source_h;

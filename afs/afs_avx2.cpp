@@ -277,7 +277,11 @@ sip(ffffffeeeeeedddd ddccccccbbbbbbaa) _mm256_blendv_epi8
     }
 }
 
-void __stdcall afs_blend_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
+void __stdcall afs_blend_avx2(void *_dst, void *_src1, void *_src2, void *_src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels) {
+    PIXEL_YC *dst  = (PIXEL_YC *)_dst;
+    PIXEL_YC *src1 = (PIXEL_YC *)_src1;
+    PIXEL_YC *src2 = (PIXEL_YC *)_src2;
+    PIXEL_YC *src3 = (PIXEL_YC *)_src3;
     const int dst_mod32 = (size_t)dst & 0x1f;
     if (dst_mod32) {
         int mod6 = dst_mod32 % 6;
@@ -345,7 +349,13 @@ void __forceinline __stdcall afs_mie_spot_avx2_base(PIXEL_YC *dst, PIXEL_YC *src
     }
 }
 
-void __stdcall afs_mie_spot_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src_spot,int w) {
+void __stdcall afs_mie_spot_avx2(void *_dst, void *_src1, void *_src2, void *_src3, void *_src4, void *_src_spot,int w, int src_frame_pixels) {
+    PIXEL_YC *dst  = (PIXEL_YC *)_dst;
+    PIXEL_YC *src1 = (PIXEL_YC *)_src1;
+    PIXEL_YC *src2 = (PIXEL_YC *)_src2;
+    PIXEL_YC *src3 = (PIXEL_YC *)_src3;
+    PIXEL_YC *src4 = (PIXEL_YC *)_src4;
+    PIXEL_YC *src_spot = (PIXEL_YC *)_src_spot;
     const int dst_mod32 = (size_t)dst & 0x1f;
     if (dst_mod32) {
         int mod6 = dst_mod32 % 6;
@@ -402,7 +412,12 @@ void __forceinline __stdcall afs_mie_inter_avx2_base(PIXEL_YC *dst, PIXEL_YC *sr
     _mm256_zeroupper();
 }
 
-void __stdcall afs_mie_inter_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, PIXEL_YC *src4, int w) {
+void __stdcall afs_mie_inter_avx2(void *_dst, void *_src1, void *_src2, void *_src3, void *_src4, int w, int src_frame_pixels) {
+    PIXEL_YC *dst  = (PIXEL_YC *)_dst;
+    PIXEL_YC *src1 = (PIXEL_YC *)_src1;
+    PIXEL_YC *src2 = (PIXEL_YC *)_src2;
+    PIXEL_YC *src3 = (PIXEL_YC *)_src3;
+    PIXEL_YC *src4 = (PIXEL_YC *)_src4;
     const int dst_mod32 = (size_t)dst & 0x1f;
     if (dst_mod32) {
         int mod6 = dst_mod32 % 6;
@@ -543,7 +558,13 @@ sip(ffffffeeeeeedddd ddccccccbbbbbbaa) _mm256_blendv_epi8
     }
 }
 
-void __stdcall afs_deint4_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PIXEL_YC *src4, PIXEL_YC *src5, PIXEL_YC *src7, BYTE *sip, unsigned int mask, int w) {
+void __stdcall afs_deint4_avx2(void *_dst, void *_src1, void *_src3, void *_src4, void *_src5, void *_src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels) {
+    PIXEL_YC *dst  = (PIXEL_YC *)_dst;
+    PIXEL_YC *src1 = (PIXEL_YC *)_src1;
+    PIXEL_YC *src3 = (PIXEL_YC *)_src3;
+    PIXEL_YC *src4 = (PIXEL_YC *)_src4;
+    PIXEL_YC *src5 = (PIXEL_YC *)_src5;
+    PIXEL_YC *src7 = (PIXEL_YC *)_src7;
     const int dst_mod32 = (size_t)dst & 0x1f;
     if (dst_mod32) {
         int mod6 = dst_mod32 % 6;
@@ -557,4 +578,8 @@ void __stdcall afs_deint4_avx2(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src3, PI
         afs_deint4_avx2_base<false>(dst, src1, src3, src4, src5, src7, sip, mask, 16);
     }
     _mm256_zeroupper();
+}
+
+void __stdcall afs_copy_yc48_line_avx2(void *dst, void *src1, int w, int src_frame_pixels) {
+    memcpy_avx2<true>(dst, src1, w * sizeof(PIXEL_YC));
 }

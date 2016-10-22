@@ -22,7 +22,7 @@ static __forceinline __m128i get_even_uv(BYTE *ptr) {
     return x0;
 }
 
-static void __forceinline __stdcall afs_yuy2up_frame_simd(PIXEL_YC *dst, PIXEL_YC *src, int width, int pitch, int y_start, int y_fin) {
+static void __forceinline __stdcall afs_yuy2up_frame_simd(PIXEL_YC *dst, int dst_pitch, PIXEL_YC *src, int width, int src_pitch, int y_start, int y_fin) {
     static const _declspec(align(16)) USHORT maskUV_store[24] = {
         0x0000, 0x0000, 0x0000, 0x0000, 0xffff, 0xffff, 0x0000, 0x0000,
         0x0000, 0x0000, 0xffff, 0xffff, 0x0000, 0x0000, 0x0000, 0x0000,
@@ -34,10 +34,10 @@ static void __forceinline __stdcall afs_yuy2up_frame_simd(PIXEL_YC *dst, PIXEL_Y
     __m128i x0, x1, x2, x3, x4, x5, x6, x7;
     x3 = _mm_setzero_si128();
     //x0 = _mm_slli_si128(x1, 4);
-    src += y_start * pitch;
-    dst += y_start * pitch;
+    src += y_start * src_pitch;
+    dst += y_start * dst_pitch;
 
-    for (int jh = y_start; jh < y_fin; jh++, src += pitch, dst += pitch) {
+    for (int jh = y_start; jh < y_fin; jh++, src += src_pitch, dst += dst_pitch) {
         BYTE *ptr_src = (BYTE *)src;
         BYTE *ptr_dst = (BYTE *)dst;
         x1 = get_even_uv(ptr_src +  0);

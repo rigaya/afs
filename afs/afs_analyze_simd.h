@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "afs.h"
+#include "afs_convert_const.h"
 
 void __forceinline afs_analyze_get_local_scan_clip(AFS_SCAN_CLIP *clip_thread, const AFS_SCAN_CLIP *clip, int pos_x, int analyze_block, int scan_w, int left_additional_clip) {
     int left_clip = clip->left - pos_x;
@@ -12,20 +13,16 @@ void __forceinline afs_analyze_get_local_scan_clip(AFS_SCAN_CLIP *clip_thread, c
 #include "simd_util.h"
 
 static const _declspec(align(16)) BYTE pb_thre_count[16]       = { 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03 };
+
 static const _declspec(align(16)) BYTE pw_thre_count2[16]      = { 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00 };
 static const _declspec(align(16)) BYTE pw_thre_count1[16]      = { 0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x03, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_2stripe_0[16]   = { 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_2stripe_1[16]   = { 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_1stripe_0[16]   = { 0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x10, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_1stripe_1[16]   = { 0x20, 0x00, 0x20, 0x00, 0x20, 0x00, 0x20, 0x00, 0x20, 0x00, 0x20, 0x00, 0x20, 0x00, 0x20, 0x00 };
-static const _declspec(align(16)) BYTE pw_mask_12stripe_0[16]  = { 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00 };
-static const _declspec(align(16)) BYTE pw_mask_12stripe_1[16]  = { 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_2motion_0[16]   = { 0x00, 0x04, 0x00, 0x04, 0x00, 0x04, 0x00, 0x04, 0x00, 0x04, 0x00, 0x04, 0x00, 0x04, 0x00, 0x04 };
 static const _declspec(align(16)) BYTE pw_mask_1motion_0[16]   = { 0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40 };
 
-static const _declspec(align(16)) BYTE pb_mask_1stripe_01[16]  = { 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30 };
-static const _declspec(align(16)) BYTE pb_mask_12stripe_01[16] = { 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33 };
-static const _declspec(align(16)) BYTE pb_mask_12motion_01[16] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 static const _declspec(align(16)) BYTE pw_mask_12stripe_01[16] = { 0x33, 0x00, 0x33, 0x00, 0x33, 0x00, 0x33, 0x00, 0x33, 0x00, 0x33, 0x00, 0x33, 0x00, 0x33, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_12motion_01[16] = { 0xcc, 0x00, 0xcc, 0x00, 0xcc, 0x00, 0xcc, 0x00, 0xcc, 0x00, 0xcc, 0x00, 0xcc, 0x00, 0xcc, 0x00 };
 static const _declspec(align(16)) BYTE pw_mask_lowbyte[16]     = { 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00 };
@@ -34,11 +31,19 @@ static _declspec(align(16)) USHORT pw_thre_shift[8]       = { 0 };
 static _declspec(align(16)) USHORT pw_thre_deint[8]       = { 0 };
 static _declspec(align(16)) USHORT pw_thre_motion[3][8]   = { 0 };
 
+static const _declspec(align(16)) BYTE pb_mask_2motion_0[16]   = { 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04 };
+static const _declspec(align(16)) BYTE pb_mask_1motion_0[16]   = { 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40 };
 
-static const _declspec(align(16)) BYTE Array_SUFFLE_YCP_Y[16] = {
-    0, 1, 6, 7, 12, 13, 2, 3, 8, 9, 14, 15, 4, 5, 10, 11, 
-    //0, 1, 6, 7, 12, 13, 2, 3, 8, 9, 14, 15, 4, 5, 10, 11
-};
+static _declspec(align(16)) USHORT pb_thre_shift[16]       = { 0 };
+static _declspec(align(16)) USHORT pb_thre_deint[16]       = { 0 };
+static _declspec(align(16)) USHORT pb_thre_motion[3][16]   = { 0 };
+
+static const _declspec(align(16)) BYTE pw_mask_12stripe_0[16]  = { 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00, 0x11, 0x00 };
+static const _declspec(align(16)) BYTE pw_mask_12stripe_1[16]  = { 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00, 0x22, 0x00 };
+
+static const _declspec(align(16)) BYTE pb_mask_1stripe_01[16]  = { 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30 };
+static const _declspec(align(16)) BYTE pb_mask_12stripe_01[16] = { 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33 };
+static const _declspec(align(16)) BYTE pb_mask_12motion_01[16] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 
 static __forceinline int count_motion(__m128i x0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
     DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
@@ -88,6 +93,33 @@ static void __forceinline __stdcall afs_analyze_set_threshold_simd(int thre_shif
     pw_thre_motion[2][5] = thre_Ymotion;
     pw_thre_motion[2][6] = thre_Cmotion;
     pw_thre_motion[2][7] = thre_Cmotion;
+}
+
+static void __forceinline afs_analyze_set_threshold_nv16_simd(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
+    __m128i x0, x1;
+#if 0
+    thre_shift   = CLAMP((thre_shift  *219 + (1<<11))>>12, 0, 127);
+    thre_deint   = CLAMP((thre_deint  *219 + (1<<11))>>12, 0, 127);
+    thre_Ymotion = CLAMP((thre_Ymotion*219 + (1<<11))>>12, 0, 127);
+    thre_Cmotion = CLAMP((thre_Cmotion*  7 + (1<< 6))>> 7, 0, 127);
+#else
+    thre_shift   = CLAMP((thre_shift  *219 + 383)>>12, 0, 127);
+    thre_deint   = CLAMP((thre_deint  *219 + 383)>>12, 0, 127);
+    thre_Ymotion = CLAMP((thre_Ymotion*219 + 383)>>12, 0, 127);
+    thre_Cmotion = CLAMP((thre_Cmotion*  7 +  66)>> 7, 0, 127);
+#endif
+
+    x0 = _mm_set1_epi8((char)thre_shift);
+    _mm_stream_si128((__m128i *)pb_thre_shift, x0);
+
+    x1 = _mm_set1_epi8((char)thre_deint);
+    _mm_stream_si128((__m128i *)pb_thre_deint, x1);
+
+    x0 = _mm_set1_epi8((char)thre_Ymotion);
+    _mm_stream_si128((__m128i *)pb_thre_motion[0], x0);
+
+    x1 = _mm_set1_epi8((char)thre_Cmotion);
+    _mm_stream_si128((__m128i *)pb_thre_motion[1], x1);
 }
 
 template <BOOL aligned>
@@ -178,6 +210,53 @@ static void __forceinline afs_analyze_shrink_info_sub(BYTE *src, __m128i &x0, __
 
     x0 = _mm_packs_epi16(x0, x0);
     x1 = _mm_packs_epi16(x1, x1);
+
+    x0 = _mm_and_si128(x0, _mm_load_si128((__m128i*)pb_mask_12motion_01));
+    x1 = _mm_and_si128(x1, _mm_load_si128((__m128i*)pb_mask_12stripe_01));
+
+    x0 = _mm_or_si128(x0, x1);
+}
+
+//各8pixel分の16bit幅のマスクデータを2つ受け取り、x0とx1に16pixel分の8bit幅の出力を返す
+static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m128i& xY0, const __m128i& xY1, const __m128i& xC0, const __m128i& xC1, __m128i &x0, __m128i &x1) {
+    const __m128i xLowMask = _mm_set1_epi32(0x0000ffff);
+    __m128i x2, x3, x6, x7;
+#if USE_SSE41
+    x6 = _mm_blend_epi16(xC0, _mm_slli_epi32(xC0, 16), 0x80+0x20+0x08+0x02);
+    x7 = _mm_blend_epi16(xC0, _mm_srli_epi32(xC0, 16), 0x40+0x10+0x04+0x01);
+#else
+    x6 = _mm_or_si128(_mm_and_si128(   xLowMask, xC0), _mm_slli_epi32(xC0, 16));
+    x7 = _mm_or_si128(_mm_andnot_si128(xLowMask, xC0), _mm_srli_epi32(xC0, 16));
+#endif
+    x0 = xY0;
+
+    x1 = _mm_or_si128(x0, x6);
+    x0 = _mm_and_si128(x0, x6);
+    x1 = _mm_or_si128(x1, x7);
+    x0 = _mm_and_si128(x0, x7);
+    x1 = _mm_slli_epi16(x1, 8);
+    x2 = _mm_srai_epi16(x0, 8);
+    x3 = _mm_srai_epi16(x1, 8);
+
+#if USE_SSE41
+    x6 = _mm_blend_epi16(xC1, _mm_slli_epi32(xC1, 16), 0x80+0x20+0x08+0x02);
+    x7 = _mm_blend_epi16(xC1, _mm_srli_epi32(xC1, 16), 0x40+0x10+0x04+0x01);
+#else
+    x6 = _mm_or_si128(_mm_and_si128(   xLowMask, xC1), _mm_slli_epi32(xC1, 16));
+    x7 = _mm_or_si128(_mm_andnot_si128(xLowMask, xC1), _mm_srli_epi32(xC1, 16));
+#endif
+    x0 = xY1;
+
+    x1 = _mm_or_si128(x0, x6);
+    x0 = _mm_and_si128(x0, x6);
+    x1 = _mm_or_si128(x1, x7);
+    x0 = _mm_and_si128(x0, x7);
+    x1 = _mm_slli_epi16(x1, 8);
+    x0 = _mm_srai_epi16(x0, 8);
+    x1 = _mm_srai_epi16(x1, 8);
+
+    x0 = _mm_packs_epi16(x2, x0);
+    x1 = _mm_packs_epi16(x3, x1);
 
     x0 = _mm_and_si128(x0, _mm_load_si128((__m128i*)pb_mask_12motion_01));
     x1 = _mm_and_si128(x1, _mm_load_si128((__m128i*)pb_mask_12stripe_01));
@@ -926,6 +1005,252 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
             int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
             __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
             m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
+        }
+        dst += si_pitch;
+    }
+    __m64 m2 = *(__m64 *)motion_count;
+    *(__m64 *)motion_count = _mm_add_pi32(m2, m0);
+    _mm_empty();
+}
+
+static __m128i __forceinline afs_subs_epi8(__m128i x0, __m128i x1) {
+    __m128i x2, x3;
+#if USE_SSE41
+    x2 = _mm_cvtepi8_epi16(_mm_srli_si128(x0, 8));
+    x0 = _mm_cvtepi8_epi16(x0);
+    x3 = _mm_cvtepi8_epi16(_mm_srli_si128(x1, 8));
+    x1 = _mm_cvtepi8_epi16(x1);
+#else
+    x2 = _mm_unpackhi_epi8(x0, _mm_setzero_si128());
+    x0 = _mm_unpacklo_epi8(x0, _mm_setzero_si128());
+    x3 = _mm_unpackhi_epi8(x1, _mm_setzero_si128());
+    x1 = _mm_unpacklo_epi8(x1, _mm_setzero_si128());
+#endif
+    x0 = _mm_sub_epi16(x0, x1);
+    x2 = _mm_sub_epi16(x2, x3);
+    return _mm_packs_epi16(x0, x2);
+}
+
+static __m128i __forceinline afs_abs_epi8(__m128i x0) {
+#if USE_SSSE3
+    return _mm_abs_epi8(x0);
+#else
+    __m128i x1;
+    x1 = _mm_setzero_si128();
+    x1 = _mm_cmpgt_epi8(x1, x0);
+    x0 = _mm_xor_si128(x0, x1);
+    return _mm_sub_epi8(x0, x1);
+#endif
+}
+
+//出力 16pixel分の8bitマスク
+static __m128i __forceinline afs_analyze_motion(__m128i x0, __m128i x1, int i_thre_motion) {
+    __m128i x2, x3;
+    x0 = _mm_sub_epi8(_mm_max_epu8(x0, x1), _mm_min_epu8(x0, x1));
+    x0 = _mm_min_epu8(x0, _mm_set1_epi8(127));
+    x3 = _mm_load_si128((__m128i *)pb_thre_motion[i_thre_motion]);
+    x2 = _mm_load_si128((__m128i *)pb_thre_shift);
+    x3 = _mm_cmpgt_epi8(x3, x0);
+    x2 = _mm_cmpgt_epi8(x2, x0);
+    x3 = _mm_and_si128(x3, _mm_load_si128((__m128i *)pb_mask_2motion_0));
+    x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pb_mask_1motion_0));
+    x3 = _mm_or_si128(x3, x2);
+    return x3;
+}
+
+static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i x2, const BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
+    __m128i x6, x7;
+    x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
+    x6 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+    x2 = _mm_xor_si128(x2, x7);
+    x7 = _mm_xor_si128(x7, x2);
+    x6 = _mm_and_si128(x6, x2);
+    x6 = _mm_and_si128(x6, x0);
+    x6 = _mm_subs_epi8(x6, x0);
+    _mm_store_si128((__m128i *)(buf_ptr +  0), x7);
+    _mm_store_si128((__m128i *)(buf_ptr + 16), x6);
+
+    x0 = x6;
+    x0 = _mm_cmpgt_epi8(x0, _mm_load_si128((__m128i *)pb_thre_count));
+    x0 = _mm_srli_epi16(x0, 4);
+    x0 = _mm_and_si128(x0, _mm_load_si128((__m128i *)pw_mask_12stripe));
+    return x0;
+}
+
+//出力 x0, x1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
+static void __forceinline afs_analyze_stripe_nv16(__m128i& x0, __m128i& x1, const BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
+    __m128i x2, x4, x5;
+#if 1
+    x2 = x0;
+    x0 = _mm_sub_epi8(_mm_max_epu8(x2, x1), _mm_min_epu8(x2, x1));
+    x2 = _mm_cmpeq_epi8(_mm_max_epu8(x2, x1), x2);
+    x0 = _mm_min_epu8(x0, _mm_set1_epi8(127));
+#else
+    x2 = afs_subs_epi8(x0, x1);
+#if USE_SSSE3
+    x0 = _mm_abs_epi8(x2);
+    x2 = _mm_cmpeq_epi8(x2, x0);
+#else
+    x0 = x2;
+    x2 = _mm_setzero_si128();
+    x2 = _mm_cmpgt_epi8(x2, x0);
+    x0 = _mm_xor_si128(x0, x2);
+    x0 = _mm_sub_epi8(x0, x2);
+#endif
+#endif
+    x1 = x0;
+    x1 = _mm_cmpgt_epi8(x1, _mm_load_si128((__m128i *)pb_thre_deint));
+    x0 = _mm_cmpgt_epi8(x0, _mm_load_si128((__m128i *)pb_thre_shift));
+    x4 = _mm_unpacklo_epi8(x1, x0);
+    x5 = _mm_unpackhi_epi8(x1, x0);
+    //
+    x0 = afs_analyze_element_stripe_nv16(x4, _mm_unpacklo_epi8(x2, x2), buf_ptr +  0, pw_mask_12stripe);
+    x1 = afs_analyze_element_stripe_nv16(x5, _mm_unpackhi_epi8(x2, x2), buf_ptr + 32, pw_mask_12stripe);
+}
+
+//出力 x0, x1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
+static void __forceinline afs_analyze_count_stripe_nv16(__m128i& x0, __m128i& x1, BYTE *ptr_p0, BYTE *ptr_p1, const BYTE *buf_ptr, int i_thre_motion, int step, int tb_order, int ih) {
+    BYTE *ptr[2];
+    ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
+    ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
+    _mm_prefetch((char *)ptr_p0 + (step << 1), _MM_HINT_T0);
+    _mm_prefetch((char *)ptr_p1 + (step << 1), _MM_HINT_T0);
+
+    __m128i x3, x4, x6;
+
+    //analyze motion
+    x0 = _mm_loadu_si128((__m128i *)(ptr_p0 + step));
+    x1 = _mm_loadu_si128((__m128i *)(ptr_p1 + step));
+    x6 = afs_analyze_motion(x0, x1, i_thre_motion);
+
+    //analyze non-shift
+    x1 = _mm_loadu_si128((__m128i *)ptr_p0);
+    afs_analyze_stripe_nv16(x0, x1, buf_ptr, pw_mask_12stripe_0);
+
+    //analyze shift
+    x3 = _mm_loadu_si128((__m128i *)(ptr[0]));
+    x4 = _mm_loadu_si128((__m128i *)(ptr[1]+step));
+    afs_analyze_stripe_nv16(x3, x4, buf_ptr + 64, pw_mask_12stripe_1);
+
+    //gather flags
+    x0 = _mm_or_si128(x0, _mm_unpacklo_epi8(_mm_setzero_si128(), x6));
+    x1 = _mm_or_si128(x1, _mm_unpackhi_epi8(_mm_setzero_si128(), x6));
+    x0 = _mm_or_si128(x0, x3);
+    x1 = _mm_or_si128(x1, x4);
+}
+
+static void __forceinline __stdcall afs_analyze_12_nv16_simd_plus2(BYTE *dst, BYTE *p0, BYTE *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+    const int frame_size = step * max_h; 
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * 4;
+    const int scan_t = mc_clip->top;
+    const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+    BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
+    __m128i x0, x1, x2, x4, x5, x6, x7;
+    BYTE *buf_ptr, *buf2_ptr;
+    int ih;
+
+    BYTE *ptr_dst = (BYTE *)dst;
+    BYTE *ptr_p0 = (BYTE *)p0;
+    BYTE *ptr_p1 = (BYTE *)p1;
+    __m128i tmpY0, tmpY1, tmpC0, tmpC1;
+    BYTE __declspec(align(16)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
+    buf_ptr = buffer;
+    buf2_ptr = buffer + BUFFER_SIZE;
+
+    __stosb(mc_mask, 0, 256);
+    const int mc_scan_x_limit = width - mc_clip->right;
+    for (int i = mc_clip->left; i < mc_scan_x_limit; i++)
+        mc_mask[i] = 0xff;
+    for (int i = 0; i < BUFFER_SIZE; i++)
+        buffer[i] = 0x00;
+
+    for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16, ptr_p0 += 16, ptr_p1 += 16) {
+        //Y
+        _mm_prefetch((char *)ptr_p0 + step, _MM_HINT_T0);
+        _mm_prefetch((char *)ptr_p1 + step, _MM_HINT_T0);
+        x0 = _mm_loadu_si128((__m128i *)ptr_p0);
+        x1 = _mm_loadu_si128((__m128i *)ptr_p1);
+        tmpY0 = afs_analyze_motion(x0, x1, 0);
+
+        //C
+        _mm_prefetch((char *)ptr_p0 + frame_size + step, _MM_HINT_T0);
+        _mm_prefetch((char *)ptr_p1 + frame_size + step, _MM_HINT_T0);
+        x0 = _mm_loadu_si128((__m128i *)(ptr_p0 + frame_size));
+        x1 = _mm_loadu_si128((__m128i *)(ptr_p1 + frame_size));
+        tmpC0 = afs_analyze_motion(x0, x1, 1);
+
+        tmpY1 = _mm_unpackhi_epi8(_mm_setzero_si128(), tmpY0);
+        tmpY0 = _mm_unpacklo_epi8(_mm_setzero_si128(), tmpY0);
+        tmpC1 = _mm_unpackhi_epi8(_mm_setzero_si128(), tmpC0);
+        tmpC0 = _mm_unpacklo_epi8(_mm_setzero_si128(), tmpC0);
+
+        afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, x0, x1);
+        _mm_store_si128((__m128i*)(buf2_ptr), x0);
+    }
+
+    __m64 m0 = _mm_setzero_si64();
+
+    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
+        ptr_p0 = (BYTE *)p0;
+        ptr_p1 = (BYTE *)p1;
+        buf_ptr = buffer;
+        buf2_ptr = buffer + BUFFER_SIZE;
+        for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 256) {
+            //Y
+            afs_analyze_count_stripe_nv16(tmpY0, tmpY1, ptr_p0,              ptr_p1,              buf_ptr +   0, 0, step, tb_order, ih);
+            //C
+            afs_analyze_count_stripe_nv16(tmpC0, tmpC1, ptr_p0 + frame_size, ptr_p1 + frame_size, buf_ptr + 128, 1, step, tb_order, ih);
+
+            afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, x0, x1);
+            _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), x0);
+            _mm_store_si128((__m128i*)(buf2_ptr + (((ih+1) & 7)) * BLOCK_SIZE_YCP), x1);
+        }
+
+        if (ih >= 4) {
+            buf2_ptr = buffer + BUFFER_SIZE;
+            ptr_dst = (BYTE *)dst;
+            for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
+                x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
+                x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
+                x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
+                x4 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-1)&7) * BLOCK_SIZE_YCP));
+                x1 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih+1)&7) * BLOCK_SIZE_YCP));
+                x2 = x6;
+                x2 = _mm_or_si128(x2, x5);
+                x2 = _mm_or_si128(x2, x4);
+                x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pb_mask_12stripe_01));
+                x1 = _mm_and_si128(x1, _mm_load_si128((__m128i *)pb_mask_1stripe_01));
+                x2 = _mm_or_si128(x2, x1);
+                x2 = _mm_or_si128(x2, x7);
+                _mm_storeu_si128((__m128i*)ptr_dst, x2);
+                const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+                int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3, 1, 3, 0)));
+            }
+            dst += si_pitch;
+        }
+    }
+    //残りの4ライン
+    for (; ih < h + 4; ih++) {
+        ptr_dst = (BYTE *)dst;
+        buf2_ptr = buffer + BUFFER_SIZE;
+        for (int kw = 0; kw < width; kw += 16, ptr_dst += 16, buf2_ptr += 16) {
+            x7 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-4)&7) * BLOCK_SIZE_YCP));
+            x6 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-3)&7) * BLOCK_SIZE_YCP));
+            x5 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-2)&7) * BLOCK_SIZE_YCP));
+            x4 = _mm_load_si128((__m128i*)(buf2_ptr + ((ih-1)&7) * BLOCK_SIZE_YCP));
+            x2 = x6;
+            x2 = _mm_or_si128(x2, x5);
+            x2 = _mm_or_si128(x2, x4);
+            x2 = _mm_and_si128(x2, _mm_load_si128((__m128i *)pb_mask_12stripe_01));
+            x2 = _mm_or_si128(x2, x7);
+            _mm_storeu_si128((__m128i*)ptr_dst, x2);
+            _mm_store_si128((__m128i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm_setzero_si128());
+            const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
+            int count = count_motion(x2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3, 1, 3, 0)));
         }
         dst += si_pitch;
     }
