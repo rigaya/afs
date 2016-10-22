@@ -40,9 +40,9 @@ static _declspec(align(32)) USHORT pw_thre_shift[16]       = { 0 };
 static _declspec(align(32)) USHORT pw_thre_deint[16]       = { 0 };
 static _declspec(align(32)) USHORT pw_thre_motion[3][16]   = { 0 };
 
-static _declspec(align(32)) USHORT pb_thre_shift[16]       = { 0 };
-static _declspec(align(32)) USHORT pb_thre_deint[16]       = { 0 };
-static _declspec(align(32)) USHORT pb_thre_motion[3][16]   = { 0 };
+static _declspec(align(32)) BYTE pb_thre_shift[16]       = { 0 };
+static _declspec(align(32)) BYTE pb_thre_deint[16]       = { 0 };
+static _declspec(align(32)) BYTE pb_thre_motion[3][16]   = { 0 };
 
 static __forceinline int count_motion(__m256i y0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
     DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
