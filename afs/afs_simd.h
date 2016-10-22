@@ -628,13 +628,13 @@ static __forceinline void afs_blend_nv16_simd_base(PIXEL_YC *dst, uint8_t *src1,
         mc0b = mc4b;
     }
     //終端処理
-    int wfix = w & 15;
-    if (wfix) {
-        src1 -= 16 - wfix;
-        src2 -= 16 - wfix;
-        src3 -= 16 - wfix;
-        dst  -= 16 - wfix;
-        sip  -= 16 - wfix;
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        src2 -= offset;
+        src3 -= offset;
+        dst  -= offset;
+        sip  -= offset;
 
         mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
         mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
@@ -806,14 +806,14 @@ static __forceinline void afs_mie_spot_nv16_simd_base(PIXEL_YC *dst, uint8_t *sr
         mc0b = mc5b;
     }
     //終端処理
-    int wfix = w & 15;
-    if (wfix) {
-        src1 -= 16 - wfix;
-        src2 -= 16 - wfix;
-        src3 -= 16 - wfix;
-        src4 -= 16 - wfix;
-        src_spot -= 16 - wfix;
-        dst  -= 16 - wfix;
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        src2 -= offset;
+        src3 -= offset;
+        src4 -= offset;
+        src_spot -= offset;
+        dst  -= offset;
 
         mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
         mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
@@ -981,13 +981,13 @@ static __forceinline void afs_mie_inter_nv16_simd_base(PIXEL_YC *dst, uint8_t *s
         mc0b = mc5b;
     }
     //終端処理
-    int wfix = w & 15;
-    if (wfix) {
-        src1 -= 16 - wfix;
-        src2 -= 16 - wfix;
-        src3 -= 16 - wfix;
-        src4 -= 16 - wfix;
-        dst  -= 16 - wfix;
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        src2 -= offset;
+        src3 -= offset;
+        src4 -= offset;
+        dst  -= offset;
 
         mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
         mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
@@ -1164,15 +1164,15 @@ static __forceinline void afs_deint4_nv16_simd_base(PIXEL_YC *dst, uint8_t *src1
         mc0b = mc2b;
     }
     //終端処理
-    int wfix = w & 15;
-    if (wfix) {
-        src1 -= 16 - wfix;
-        src3 -= 16 - wfix;
-        src4 -= 16 - wfix;
-        src5 -= 16 - wfix;
-        src7 -= 16 - wfix;
-        dst  -= 16 - wfix;
-        sip  -= 16 - wfix;
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        src3 -= offset;
+        src4 -= offset;
+        src5 -= offset;
+        src7 -= offset;
+        dst  -= offset;
+        sip  -= offset;
 
         mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
         mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
@@ -1314,10 +1314,10 @@ static __forceinline void afs_convert_nv16_yc48(PIXEL_YC *dst, uint8_t *src1, in
         mc0b = mc4b;
     }
     //終端処理
-    int wfix = w & 15;
-    if (wfix) {
-        src1 -= 16 - wfix;
-        dst  -= 16 - wfix;
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        dst  -= offset;
 
         mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
 
