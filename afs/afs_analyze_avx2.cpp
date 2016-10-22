@@ -106,10 +106,10 @@ void __stdcall afs_analyze_set_threshold_avx2(int thre_shift, int thre_deint, in
 
 void __stdcall afs_analyze_set_threshold_nv16_avx2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
     __m256i y0, y1;
-    thre_shift   = CLAMP((thre_shift  *219 + 383)>>12, -128, 127);
-    thre_deint   = CLAMP((thre_deint  *219 + 383)>>12, -128, 127);
-    thre_Ymotion = CLAMP((thre_Ymotion*219 + 383)>>12, -128, 127);
-    thre_Cmotion = CLAMP((thre_Cmotion*  7 +  66)>> 7, -128, 127);
+    thre_shift   = CLAMP((thre_shift  *219 + 383)>>12, 0, 127);
+    thre_deint   = CLAMP((thre_deint  *219 + 383)>>12, 0, 127);
+    thre_Ymotion = CLAMP((thre_Ymotion*219 + 383)>>12, 0, 127);
+    thre_Cmotion = CLAMP((thre_Cmotion*  7 +  66)>> 7, 0, 127);
 
     y0 = _mm256_set1_epi8((char)thre_shift);
     _mm256_stream_si256((__m256i *)pb_thre_shift, y0);
