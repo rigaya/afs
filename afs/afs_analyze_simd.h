@@ -1040,7 +1040,7 @@ static __m128i __forceinline afs_analyze_motion(__m128i x0, __m128i x1, int i_th
     return x3;
 }
 
-static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i x2, const BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
+static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i x2, BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m128i x6, x7;
     x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
     x6 = _mm_load_si128((__m128i *)(buf_ptr + 16));
@@ -1060,7 +1060,7 @@ static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i
 }
 
 //出力 x0, x1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
-static void __forceinline afs_analyze_stripe_nv16(__m128i& x0, __m128i& x1, const BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
+static void __forceinline afs_analyze_stripe_nv16(__m128i& x0, __m128i& x1, BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m128i x2, x4, x5;
     x2 = x0;
     x0 = _mm_sub_epi8(_mm_max_epu8(x2, x1), _mm_min_epu8(x2, x1));
@@ -1077,7 +1077,7 @@ static void __forceinline afs_analyze_stripe_nv16(__m128i& x0, __m128i& x1, cons
 }
 
 //出力 x0, x1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
-static void __forceinline afs_analyze_count_stripe_nv16(__m128i& x0, __m128i& x1, BYTE *ptr_p0, BYTE *ptr_p1, const BYTE *buf_ptr, int i_thre_motion, int step, int tb_order, int ih) {
+static void __forceinline afs_analyze_count_stripe_nv16(__m128i& x0, __m128i& x1, BYTE *ptr_p0, BYTE *ptr_p1, BYTE *buf_ptr, int i_thre_motion, int step, int tb_order, int ih) {
     BYTE *ptr[2];
     ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
     ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
