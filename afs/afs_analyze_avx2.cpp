@@ -40,9 +40,9 @@ static _declspec(align(32)) USHORT pw_thre_shift[16]       = { 0 };
 static _declspec(align(32)) USHORT pw_thre_deint[16]       = { 0 };
 static _declspec(align(32)) USHORT pw_thre_motion[3][16]   = { 0 };
 
-static _declspec(align(32)) BYTE pb_thre_shift[16]       = { 0 };
-static _declspec(align(32)) BYTE pb_thre_deint[16]       = { 0 };
-static _declspec(align(32)) BYTE pb_thre_motion[3][16]   = { 0 };
+static _declspec(align(32)) BYTE pb_thre_shift[32]       = { 0 };
+static _declspec(align(32)) BYTE pb_thre_deint[32]       = { 0 };
+static _declspec(align(32)) BYTE pb_thre_motion[3][32]   = { 0 };
 
 static __forceinline int count_motion(__m256i y0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
     DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
@@ -248,19 +248,19 @@ static __m256i __forceinline afs_analyze_shrink_info_sub_avx2(BYTE *src, __m128i
     return y0;
 }
 
-//各16pixel分の16bit幅のマスクデータを2つ受け取り、x0とx1に32pixel分の8bit幅の出力を返す
-static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, const __m256i& yY1, const __m256i& yC0, const __m256i& yC1, __m256i &x0, __m256i &x1) {
+//各16pixel分の16bit幅のマスクデータを2つ受け取り、y0とy1に32pixel分の8bit幅の出力を返す
+static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, const __m256i& yY1, const __m256i& yC0, const __m256i& yC1, __m256i &y0, __m256i &y1) {
     const __m256i yLowMask = _mm256_set1_epi32(0x0000ffff);
-    __m256i y0, y1, y2, y3, y6, y7;
-    y6 = _mm256_blend_epi16(yC0, _mm256_slli_epi32(yC0, 16), 0x40+0x10+0x04+0x01);
-    y7 = _mm256_blend_epi16(yC0, _mm256_srli_epi32(yC0, 16), 0x80+0x20+0x08+0x02);
+    __m256i y2, y3, y6, y7;
+    y6 = _mm256_blend_epi16(yC0, _mm256_slli_epi32(yC0, 16), 0x80+0x20+0x08+0x02);
+    y7 = _mm256_blend_epi16(yC0, _mm256_srli_epi32(yC0, 16), 0x40+0x10+0x04+0x01);
     y0 = yY0;
 
-    y1 = _mm256_or_si256(x0, y6);
-    y0 = _mm256_and_si256(x0, y6);
-    y1 = _mm256_or_si256(x1, y7);
-    y0 = _mm256_and_si256(x0, y7);
-    y2 = _mm256_srai_epi16(x0, 8);
+    y1 = _mm256_or_si256(y0, y6);
+    y0 = _mm256_and_si256(y0, y6);
+    y1 = _mm256_or_si256(y1, y7);
+    y0 = _mm256_and_si256(y0, y7);
+    y2 = _mm256_srai_epi16(y0, 8);
 #if 0
     y3 = _mm256_slli_epi16(y1, 8);
     y3 = _mm256_srai_epi16(y3, 8);
@@ -269,15 +269,15 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, c
 #endif
 
     //
-    y6 = _mm256_blend_epi16(yC1, _mm256_slli_epi32(yC1, 16), 0x40+0x10+0x04+0x01);
-    y7 = _mm256_blend_epi16(yC1, _mm256_srli_epi32(yC1, 16), 0x80+0x20+0x08+0x02);
+    y6 = _mm256_blend_epi16(yC1, _mm256_slli_epi32(yC1, 16), 0x80+0x20+0x08+0x02);
+    y7 = _mm256_blend_epi16(yC1, _mm256_srli_epi32(yC1, 16), 0x40+0x10+0x04+0x01);
     y0 = yY1;
 
-    y1 = _mm256_or_si256(x0, y6);
-    y0 = _mm256_and_si256(x0, y6);
-    y1 = _mm256_or_si256(x1, y7);
-    y0 = _mm256_and_si256(x0, y7);
-    y0 = _mm256_srai_epi16(x0, 8);
+    y1 = _mm256_or_si256(y0, y6);
+    y0 = _mm256_and_si256(y0, y6);
+    y1 = _mm256_or_si256(y1, y7);
+    y0 = _mm256_and_si256(y0, y7);
+    y0 = _mm256_srai_epi16(y0, 8);
 #if 0
     y1 = _mm256_slli_epi16(x1, 8);
     y1 = _mm256_srai_epi16(x1, 8);
@@ -288,10 +288,10 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, c
     y0 = _mm256_packs_epi16(y2, y0);
     y1 = _mm256_packs_epi16(y3, y1);
 
-    y0 = _mm256_and_si256(x0, _mm256_load_si256((__m256i*)pb_mask_12motion_01));
-    y1 = _mm256_and_si256(x1, _mm256_load_si256((__m256i*)pb_mask_12stripe_01));
+    y0 = _mm256_and_si256(y0, _mm256_load_si256((__m256i*)pb_mask_12motion_01));
+    y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pb_mask_12stripe_01));
 
-    y0 = _mm256_or_si256(x0, y1);
+    y0 = _mm256_or_si256(y0, y1);
 }
 
 void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
@@ -873,27 +873,11 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     _mm_empty();
 }
 
-static __m256i __forceinline afs_subs_epi8(__m256i y0, __m256i y1) {
-    __m256i y2, y3;
-    y2 = _mm256_unpackhi_epi8(y0, _mm256_setzero_si256());
-    y0 = _mm256_unpacklo_epi8(y0, _mm256_setzero_si256());
-    y3 = _mm256_unpackhi_epi8(y1, _mm256_setzero_si256());
-    y1 = _mm256_unpacklo_epi8(y1, _mm256_setzero_si256());
-    y0 = _mm256_sub_epi16(y0, y1);
-    y2 = _mm256_sub_epi16(y2, y3);
-    return _mm256_packs_epi16(y0, y2);
-}
-
-static __m256i __forceinline afs_abs_epi8(__m256i y0) {
-    return _mm256_abs_epi8(y0);
-}
-
-//出力 16pixel分の8bitマスク
+//出力 32pixel分の8bitマスク
 static __m256i __forceinline afs_analyze_motion(__m256i y0, __m256i y1, int i_thre_motion) {
     __m256i y2, y3;
-    y0 = afs_subs_epi8(y0, y1);
-    y0 = _mm256_abs_epi8(y0);
-
+    y0 = _mm256_sub_epi8(_mm256_max_epu8(y0, y1), _mm256_min_epu8(y0, y1));
+    y0 = _mm256_min_epu8(y0, _mm256_set1_epi8(127));
     y3 = _mm256_load_si256((__m256i *)pb_thre_motion[i_thre_motion]);
     y2 = _mm256_load_si256((__m256i *)pb_thre_shift);
     y3 = _mm256_cmpgt_epi8(y3, y0);
@@ -904,7 +888,7 @@ static __m256i __forceinline afs_analyze_motion(__m256i y0, __m256i y1, int i_th
     return y3;
 }
 
-static __m256i __forceinline afs_analyze_element_stripe_nv16(__m256i y0, __m256i y2, const BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
+static __m256i __forceinline afs_analyze_element_stripe_nv16(__m256i y0, __m256i y2, BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m256i y6, y7;
     y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
     y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
@@ -923,26 +907,25 @@ static __m256i __forceinline afs_analyze_element_stripe_nv16(__m256i y0, __m256i
     return y0;
 }
 
-//出力 y0, y1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
-static void __forceinline afs_analyze_stripe_nv16(__m256i& y0, __m256i& y1, const BYTE *buf_ptr) {
+//出力 y0, y1 ... 16bit幅で16pixelずつ(計32pixel)のマスクデータ
+static void __forceinline afs_analyze_stripe_nv16(__m256i& y0, __m256i& y1, BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m256i y2, y4, y5;
-    y2 = afs_subs_epi8(y0, y1);
-
-    y0 = _mm256_abs_epi8(y2);
-    y2 = _mm256_cmpeq_epi8(y2, y0);
-
+    y2 = y0;
+    y0 = _mm256_sub_epi8(_mm256_max_epu8(y2, y1), _mm256_min_epu8(y2, y1));
+    y2 = _mm256_cmpeq_epi8(_mm256_max_epu8(y2, y1), y2);
+    y0 = _mm256_min_epu8(y0, _mm256_set1_epi8(127));
     y1 = y0;
     y1 = _mm256_cmpgt_epi8(y1, _mm256_load_si256((__m256i *)pb_thre_deint));
     y0 = _mm256_cmpgt_epi8(y0, _mm256_load_si256((__m256i *)pb_thre_shift));
     y4 = _mm256_unpacklo_epi8(y1, y0);
     y5 = _mm256_unpackhi_epi8(y1, y0);
     //
-    y0 = afs_analyze_element_stripe_nv16(y4, y2, buf_ptr +  0, pw_mask_12stripe_0);
-    y1 = afs_analyze_element_stripe_nv16(y5, y2, buf_ptr + 64, pw_mask_12stripe_1);
+    y0 = afs_analyze_element_stripe_nv16(y4, _mm256_unpacklo_epi8(y2, y2), buf_ptr +  0, pw_mask_12stripe);
+    y1 = afs_analyze_element_stripe_nv16(y5, _mm256_unpackhi_epi8(y2, y2), buf_ptr + 64, pw_mask_12stripe);
 }
 
-//出力 y0, y1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
-static void __forceinline afs_analyze_count_stripe_nv16(__m256i& y0, __m256i& y1, BYTE *ptr_p0, BYTE *ptr_p1, const BYTE *buf_ptr, int i_thre_motion, int step, int tb_order, int ih) {
+//出力 y0, y1 ... 16bit幅で16pixelずつ(計32pixel)のマスクデータ
+static void __forceinline afs_analyze_count_stripe_nv16(__m256i& y0, __m256i& y1, BYTE *ptr_p0, BYTE *ptr_p1, BYTE *buf_ptr, int i_thre_motion, int step, int tb_order, int ih) {
     BYTE *ptr[2];
     ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
     ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
@@ -957,13 +940,13 @@ static void __forceinline afs_analyze_count_stripe_nv16(__m256i& y0, __m256i& y1
     y6 = afs_analyze_motion(y0, y1, i_thre_motion);
 
     //analyze non-shift
-    y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
-    afs_analyze_stripe_nv16(y0, y1, buf_ptr);
+    y1 = _mm256_loadu_si256((__m256i *)ptr_p0);
+    afs_analyze_stripe_nv16(y0, y1, buf_ptr, pw_mask_12stripe_0);
 
     //analyze shift
     y3 = _mm256_loadu_si256((__m256i *)(ptr[0]));
     y4 = _mm256_loadu_si256((__m256i *)(ptr[1]+step));
-    afs_analyze_stripe_nv16(y3, y4, buf_ptr + 2 * BLOCK_SIZE_YCP * 4);
+    afs_analyze_stripe_nv16(y3, y4, buf_ptr + 128, pw_mask_12stripe_1);
 
     //gather flags
     y0 = _mm256_or_si256(y0, _mm256_unpacklo_epi8(_mm256_setzero_si256(), y6));
@@ -972,7 +955,9 @@ static void __forceinline afs_analyze_count_stripe_nv16(__m256i& y0, __m256i& y1
     y1 = _mm256_or_si256(y1, y4);
 }
 
-void __stdcall afs_analyze_nv16_12_simd_plus2(BYTE *dst, BYTE *p0, BYTE *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+    BYTE *p0 = (BYTE *)_p0;
+    BYTE *p1 = (BYTE *)_p1;
     const int frame_size = step * max_h;
     const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * 4;
     const int scan_t = mc_clip->top;
@@ -986,7 +971,7 @@ void __stdcall afs_analyze_nv16_12_simd_plus2(BYTE *dst, BYTE *p0, BYTE *p1, int
     BYTE *ptr_p0 = (BYTE *)p0;
     BYTE *ptr_p1 = (BYTE *)p1;
     __m256i tmpY0, tmpY1, tmpC0, tmpC1;
-    BYTE __declspec(align(16)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
+    BYTE __declspec(align(32)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
     buf_ptr = buffer;
     buf2_ptr = buffer + BUFFER_SIZE;
 
@@ -997,7 +982,7 @@ void __stdcall afs_analyze_nv16_12_simd_plus2(BYTE *dst, BYTE *p0, BYTE *p1, int
     for (int i = 0; i < BUFFER_SIZE; i++)
         buffer[i] = 0x00;
 
-    for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32) {
+    for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32, ptr_p0 += 32, ptr_p1 += 32) {
         //Y
         _mm_prefetch((char *)ptr_p0 + step, _MM_HINT_T0);
         _mm_prefetch((char *)ptr_p1 + step, _MM_HINT_T0);
@@ -1010,7 +995,7 @@ void __stdcall afs_analyze_nv16_12_simd_plus2(BYTE *dst, BYTE *p0, BYTE *p1, int
         _mm_prefetch((char *)ptr_p1 + frame_size + step, _MM_HINT_T0);
         y0 = _mm256_loadu_si256((__m256i *)(ptr_p0 + frame_size));
         y1 = _mm256_loadu_si256((__m256i *)(ptr_p1 + frame_size));
-        tmpC0 = afs_analyze_motion(y0, y1, 0);
+        tmpC0 = afs_analyze_motion(y0, y1, 1);
 
         tmpY1 = _mm256_unpackhi_epi8(_mm256_setzero_si256(), tmpY0);
         tmpY0 = _mm256_unpacklo_epi8(_mm256_setzero_si256(), tmpY0);

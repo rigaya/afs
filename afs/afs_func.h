@@ -159,6 +159,7 @@ void __stdcall afs_analyze_set_threshold_nv16_ssse3(int thre_shift, int thre_dei
 void __stdcall afs_analyze_set_threshold_nv16_sse4_1(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 void __stdcall afs_analyze_set_threshold_nv16_sse4_1_popcnt(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 void __stdcall afs_analyze_set_threshold_nv16_avx(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
+void __stdcall afs_analyze_set_threshold_nv16_avx2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 
 void __stdcall afs_analyze_12_sse2_plus2(unsigned char *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip);
 void __stdcall afs_analyze_12_ssse3_plus2(unsigned char *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip);
@@ -184,6 +185,7 @@ void __stdcall afs_analyze_12_nv16_ssse3_plus2(BYTE *dst, void *p0, void *p1, in
 void __stdcall afs_analyze_12_nv16_sse4_1_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip);
 void __stdcall afs_analyze_12_nv16_sse4_1_popcnt_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip);
 void __stdcall afs_analyze_12_nv16_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip);
+void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip);
 
 void __stdcall afs_yuy2up_frame_sse2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 void __stdcall afs_yuy2up_frame_sse4_1(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
