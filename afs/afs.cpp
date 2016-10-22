@@ -51,6 +51,7 @@ AFS_FUNC afs_func = { 0 };
 #define stripep(x) (g_afs.stripe_array+((x)&(AFS_STRIPE_CACHE_NUM-1)))
 
 static inline int afs_cache_nv16() {
+    static_assert(AFS_MODE_CACHE_NV16 == 0x02, "AFS_MODE_CACHE_NV16 is not 0x02, afs_cache_nv16() will fail.");
     return (g_afs.mode & AFS_MODE_CACHE_NV16) >> 1;
 }
 
