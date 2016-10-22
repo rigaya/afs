@@ -1013,24 +1013,6 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
     _mm_empty();
 }
 
-static __m128i __forceinline afs_subs_epi8(__m128i x0, __m128i x1) {
-    __m128i x2, x3;
-#if USE_SSE41
-    x2 = _mm_cvtepi8_epi16(_mm_srli_si128(x0, 8));
-    x0 = _mm_cvtepi8_epi16(x0);
-    x3 = _mm_cvtepi8_epi16(_mm_srli_si128(x1, 8));
-    x1 = _mm_cvtepi8_epi16(x1);
-#else
-    x2 = _mm_unpackhi_epi8(x0, _mm_setzero_si128());
-    x0 = _mm_unpacklo_epi8(x0, _mm_setzero_si128());
-    x3 = _mm_unpackhi_epi8(x1, _mm_setzero_si128());
-    x1 = _mm_unpacklo_epi8(x1, _mm_setzero_si128());
-#endif
-    x0 = _mm_sub_epi16(x0, x1);
-    x2 = _mm_sub_epi16(x2, x3);
-    return _mm_packs_epi16(x0, x2);
-}
-
 static __m128i __forceinline afs_abs_epi8(__m128i x0) {
 #if USE_SSSE3
     return _mm_abs_epi8(x0);
@@ -1080,24 +1062,10 @@ static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i
 //出力 x0, x1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
 static void __forceinline afs_analyze_stripe_nv16(__m128i& x0, __m128i& x1, const BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m128i x2, x4, x5;
-#if 1
     x2 = x0;
     x0 = _mm_sub_epi8(_mm_max_epu8(x2, x1), _mm_min_epu8(x2, x1));
     x2 = _mm_cmpeq_epi8(_mm_max_epu8(x2, x1), x2);
     x0 = _mm_min_epu8(x0, _mm_set1_epi8(127));
-#else
-    x2 = afs_subs_epi8(x0, x1);
-#if USE_SSSE3
-    x0 = _mm_abs_epi8(x2);
-    x2 = _mm_cmpeq_epi8(x2, x0);
-#else
-    x0 = x2;
-    x2 = _mm_setzero_si128();
-    x2 = _mm_cmpgt_epi8(x2, x0);
-    x0 = _mm_xor_si128(x0, x2);
-    x0 = _mm_sub_epi8(x0, x2);
-#endif
-#endif
     x1 = x0;
     x1 = _mm_cmpgt_epi8(x1, _mm_load_si128((__m128i *)pb_thre_deint));
     x0 = _mm_cmpgt_epi8(x0, _mm_load_si128((__m128i *)pb_thre_shift));
