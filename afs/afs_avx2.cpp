@@ -583,3 +583,245 @@ void __stdcall afs_deint4_avx2(void *_dst, void *_src1, void *_src3, void *_src4
 void __stdcall afs_copy_yc48_line_avx2(void *dst, void *src1, int w, int src_frame_pixels) {
     memcpy_avx2<true>(dst, src1, w * sizeof(PIXEL_YC));
 }
+
+#include "afs_convert_const.h"
+
+static __forceinline void convert_range_y_yuy2_to_yc48(__m256i& x0, __m256i& x1) {
+    x0 = _mm256_permute4x64_epi64(x0, _MM_SHUFFLE(3, 1, 2, 0));
+    x1 = _mm256_unpackhi_epi8(x0, _mm256_setzero_si256());
+    x0 = _mm256_unpacklo_epi8(x0, _mm256_setzero_si256());
+    x0 = _mm256_slli_epi16(x0, 6);
+    x1 = _mm256_slli_epi16(x1, 6);
+    x0 = _mm256_mulhi_epi16(x0, _mm256_set1_epi16(19152));
+    x1 = _mm256_mulhi_epi16(x1, _mm256_set1_epi16(19152));
+    x0 = _mm256_sub_epi16(x0, _mm256_set1_epi16(299));
+    x1 = _mm256_sub_epi16(x1, _mm256_set1_epi16(299));
+}
+
+static __forceinline void convert_range_c_yuy2_to_yc48(__m256i& x0, __m256i& x1) {
+    x0 = _mm256_permute4x64_epi64(x0, _MM_SHUFFLE(3, 1, 2, 0));
+    x1 = _mm256_unpackhi_epi8(x0, _mm256_setzero_si256());
+    x0 = _mm256_unpacklo_epi8(x0, _mm256_setzero_si256());
+    x0 = _mm256_slli_epi16(x0, 6);
+    x1 = _mm256_slli_epi16(x1, 6);
+    x0 = _mm256_mulhi_epi16(x0, _mm256_set1_epi16(18752));
+    x1 = _mm256_mulhi_epi16(x1, _mm256_set1_epi16(18752));
+    x0 = _mm256_sub_epi16(x0, _mm256_set1_epi16(2340));
+    x1 = _mm256_sub_epi16(x1, _mm256_set1_epi16(2340));
+}
+
+static __forceinline __m256i afs_mask_for_uv_16(const __m256i& msip) {
+    return _mm256_blend_epi16(msip, _mm256_slli_epi32(msip, 16), 0x80+0x20+0x08+0x02);
+}
+
+static __forceinline __m256i afs_uv_interp_lanczos(const __m256i& y0, const __m256i& y1, const __m256i& y2) {
+    __m256i y3, y6, y7;
+    y7 = y1;
+    y6 = _mm256_alignr256_epi8(y2, y1, 4);
+    y7 = _mm256_add_epi16(y7, y6);
+
+    y6 = _mm256_add_epi16(_mm256_alignr256_epi8(y2, y1, 8), _mm256_alignr256_epi8(y1, y0, 12));
+    y6 = _mm256_sub_epi16(y6, y7);
+    y6 = _mm256_srai_epi16(y6, 3);
+
+    y3 = _mm256_cmpeq_epi16(y1, y1);
+    y3 = _mm256_srli_epi16(y3, 15);
+    y7 = _mm256_add_epi16(y7, y3);
+    y7 = _mm256_sub_epi16(y7, y6);
+    y7 = _mm256_srai_epi16(y7, 1);
+    return y7;
+}
+
+static __forceinline __m256i afs_uv_interp_linear(const __m256i& y1, const __m256i& y2) {
+    //y1 ... | 1 | 0 |
+    //y2 ... | 3 | 2 |
+    __m256i y3, y4;
+    y3 = _mm256_alignr256_epi8(y2, y1, 4); // | 2 | 1 |
+    y4 = _mm256_add_epi16(y1, _mm256_srli_epi16(_mm256_cmpeq_epi16(y1, y1), 15));
+    y3 = _mm256_add_epi16(y3, y4);
+    return _mm256_srai_epi16(y3, 1);
+}
+
+static __forceinline void afs_pack_yc48(__m256i& y0, __m256i& y1, __m256i& y2, const __m256i& yY, const __m256i& yC0, const __m256i& yC1) {
+    __m256i yYtemp, yCtemp0, yCtemp1;
+
+    yCtemp0 = yC0; // _mm256_permute2x128_si256(yC0, yC1, (2<<4) | 0);
+    yCtemp1 = yC1; // _mm256_permute2x128_si256(yC0, yC1, (3<<4) | 1);
+
+    yYtemp = _mm256_shuffle_epi8(yY, yC_SUFFLE_YCP_Y); //52741630
+
+    yCtemp1 = _mm256_shuffle_epi32(yCtemp1, _MM_SHUFFLE(3, 0, 1, 2));
+    yCtemp0 = _mm256_shuffle_epi32(yCtemp0, _MM_SHUFFLE(1, 2, 3, 0));
+    yCtemp0 = _mm256_alignr_epi8(yCtemp0, yCtemp0, 14);
+
+    __m256i yA0, yA1, yA2;
+    yA0 = _mm256_blend_epi16(yYtemp, yCtemp0, 0x80+0x04+0x02);
+    yA1 = _mm256_blend_epi16(yYtemp, yCtemp1, 0x08+0x04);
+    yA2 = _mm256_blend_epi16(yYtemp, yCtemp0, 0x10+0x08);
+    yA2 = _mm256_blend_epi16(yA2, yCtemp1, 0x80+0x40+0x02+0x01);
+    yA1 = _mm256_blend_epi16(yA1, yCtemp0, 0x40+0x20+0x01);
+    yA0 = _mm256_blend_epi16(yA0, yCtemp1, 0x20+0x10);
+
+    y0 = _mm256_permute2x128_si256(yA0, yA1, (2<<4)|0);
+    y1 = _mm256_blend_epi32(yA0, yA2, 0x0f);
+    y2 = _mm256_permute2x128_si256(yA1, yA2, (3<<4)|1);
+}
+
+template<bool aligned_store>
+static __forceinline void afs_pack_store_yc48(uint8_t *dst, const __m256i& my0a, const __m256i& my0b, const __m256i& mc0a, const __m256i& mc0b, const __m256i& mc1a, const __m256i& mc1b) {
+    __m256i y0, y1, y2;
+    afs_pack_yc48(y0, y1, y2, my0a, mc0a, mc1a);
+
+    _mm256_stream_switch_si256((__m256i*)((uint8_t *)dst +  0), y0);
+    _mm256_stream_switch_si256((__m256i*)((uint8_t *)dst + 32), y1);
+    _mm256_stream_switch_si256((__m256i*)((uint8_t *)dst + 64), y2);
+
+    afs_pack_yc48(y0, y1, y2, my0b, mc0b, mc1b);
+
+    _mm256_stream_switch_si256((__m256i*)((uint8_t *)dst +  96), y0);
+    _mm256_stream_switch_si256((__m256i*)((uint8_t *)dst + 128), y1);
+    _mm256_stream_switch_si256((__m256i*)((uint8_t *)dst + 160), y2);
+}
+
+template<bool uv_upsample>
+static __forceinline void afs_convert_nv16_yc48(PIXEL_YC *dst, uint8_t *src1, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 32;
+    //コンパイラ頑張れ
+    __m256i mc00, mc0a, mc0b, mc1a, mc1b;
+    __m256i my0a, my0b, my1a, my1b;
+    __m256i mc4a, mc4b, mc5a, mc5b;
+    mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+
+    convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+
+    //色差をブレンド
+    mc0a = mc1a;
+    mc0b = mc1b;
+    mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    const int dst_mod32 = (size_t)dst & 0x1f;
+    if (dst_mod32) {
+        my1a = _mm256_loadu_si256((const __m256i *)src1);
+        mc5a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels + 32));
+
+        //YUY2->YC48に変換
+        convert_range_y_yuy2_to_yc48(my1a, my1b);
+        convert_range_c_yuy2_to_yc48(mc5a, mc5b);
+
+        my0a = my1a;
+        my0b = my1b;
+        mc4a = mc5a;
+        mc4b = mc5b;
+
+        //UVは補間を行う
+        if (uv_upsample) {
+            mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+            mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc4a);
+            mc00 = mc0b;
+        } else {
+            mc1a = afs_uv_interp_linear(mc0a, mc0b);
+            mc1b = afs_uv_interp_linear(mc0b, mc4a);
+        }
+
+        //YC48を構築
+        afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+
+        mc0a = mc4a;
+        mc0b = mc4b;
+
+        //ずれ修正
+        int mod6 = dst_mod32 % 6;
+        int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+        dst += dw;
+        src1 += dw;
+
+        mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+
+        convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+
+        mc0a = mc1a;
+        mc0b = mc1b;
+        mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    }
+
+    for (; src1 < src1_fin; src1 += 32, dst += 32) {
+        my1a = _mm256_loadu_si256((const __m256i *)src1);
+        mc5a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels + 32));
+
+        //YUY2->YC48に変換
+        convert_range_y_yuy2_to_yc48(my1a, my1b);
+        convert_range_c_yuy2_to_yc48(mc5a, mc5b);
+
+        my0a = my1a;
+        my0b = my1b;
+        mc4a = mc5a;
+        mc4b = mc5b;
+
+        //UVは補間を行う
+        if (uv_upsample) {
+            mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+            mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc4a);
+            mc00 = mc0b;
+        } else {
+            mc1a = afs_uv_interp_linear(mc0a, mc0b);
+            mc1b = afs_uv_interp_linear(mc0b, mc4a);
+        }
+
+        //YC48を構築
+        afs_pack_store_yc48<true>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+
+        mc0a = mc4a;
+        mc0b = mc4b;
+    }
+    //終端処理
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        dst  -= offset;
+
+        mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+
+        convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+
+        mc0a = mc1a;
+        mc0b = mc1b;
+        mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    }
+    my1a = _mm256_loadu_si256((const __m256i *)src1);
+
+    //YUY2->YC48に変換
+    convert_range_y_yuy2_to_yc48(my1a, my1b);
+    convert_range_c_yuy2_to_yc48(mc5a, mc5b);
+
+    //輝度をまずブレンド
+    my0a = my1a;
+    my0b = my1b;
+
+    ////マスクを更新
+    //afs_mask_extend16(msipa, msipb, mmask, sip + 16);
+
+    ////色差をブレンド
+    //mc4a = afs_blend(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
+    //mc4b = afs_blend(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipa));
+    mc4a = _mm256_permute4x64_epi64(_mm256_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3)), _MM_SHUFFLE(3,3,3,3));
+
+    //UVは補間を行う
+    if (uv_upsample) {
+        mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc4a);
+        mc00 = mc0b;
+    } else {
+        mc1a = afs_uv_interp_linear(mc0a, mc0b);
+        mc1b = afs_uv_interp_linear(mc0b, mc4a);
+    }
+
+    //YC48を構築
+    afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+}
+
+void __stdcall afs_convert_nv16_yc48up_avx2(void *dst, void *src1, int w, int src_frame_pixels) {
+    afs_convert_nv16_yc48<true>((PIXEL_YC *)dst, (uint8_t *)src1, w, src_frame_pixels);
+}
+
+void __stdcall afs_convert_nv16_yc48_avx2(void *dst, void *src1, int w, int src_frame_pixels) {
+    afs_convert_nv16_yc48<false>((PIXEL_YC *)dst, (uint8_t *)src1, w, src_frame_pixels);
+}

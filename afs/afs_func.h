@@ -116,6 +116,8 @@ void __stdcall afs_convert_nv16_yc48up_sse4_1(void *dst, void *src1, int w, int 
 void __stdcall afs_convert_nv16_yc48_sse4_1(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_convert_nv16_yc48up_avx(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_convert_nv16_yc48_avx(void *dst, void *src1, int w, int src_frame_pixels);
+void __stdcall afs_convert_nv16_yc48up_avx2(void *dst, void *src1, int w, int src_frame_pixels);
+void __stdcall afs_convert_nv16_yc48_avx2(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_copy_yc48_line_sse(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_copy_yc48_line_avx2(void *dst, void *src1, int w, int src_frame_pixels);
 
