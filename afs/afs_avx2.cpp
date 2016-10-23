@@ -742,8 +742,14 @@ static __forceinline void afs_blend_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *
         convert_range_c_yuy2_to_yc48(mc6a, mc6b);
         convert_range_c_yuy2_to_yc48(mc7a, mc7b);
 
+        //輝度をまずブレンド
         my0a = afs_blend(my1a, my2a, my3a, msipa);
         my0b = afs_blend(my1b, my2b, my3b, msipb);
+
+        //マスクを更新
+        afs_mask_extend16(msipa, msipb, mmask, sip + 32);
+
+        //色差をブレンド
         mc4a = afs_blend(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
         mc4b = afs_blend(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipb));
 
@@ -804,8 +810,14 @@ static __forceinline void afs_blend_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *
         convert_range_c_yuy2_to_yc48(mc6a, mc6b);
         convert_range_c_yuy2_to_yc48(mc7a, mc7b);
 
+        //輝度をまずブレンド
         my0a = afs_blend(my1a, my2a, my3a, msipa);
         my0b = afs_blend(my1b, my2b, my3b, msipb);
+
+        //マスクを更新
+        afs_mask_extend16(msipa, msipb, mmask, sip + 32);
+
+        //色差をブレンド
         mc4a = afs_blend(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
         mc4b = afs_blend(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipb));
 
