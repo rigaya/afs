@@ -1716,7 +1716,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     //    get_ycp_source_cache()を使って自分で読み込む必要があります。
     //
     unsigned char *sip, *sip0;
-    void *p0, *p1, *ycp, *ycp0, *ycp1;
+    void *p0, *p1, *ycp0, *ycp1;
     int hit, prev_hit;
 
 #ifdef AFSVF
