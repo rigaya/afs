@@ -895,6 +895,450 @@ void __stdcall afs_blend_nv16_avx2(void *dst, void *src1, void *src2, void *src3
     afs_blend_nv16<false>((PIXEL_YC *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, sip, mask, w, src_frame_pixels);
 }
 
+static __forceinline __m256i afs_mie_spot(const __m256i& msrc1, const __m256i& msrc2, const __m256i& msrc3, const __m256i& msrc4, const __m256i& msrc_spot) {
+    __m256i y0, y1, y2;
+    y0 = _mm256_add_epi16(msrc1, msrc2);
+    y1 = _mm256_add_epi16(msrc3, msrc4);
+    y0 = _mm256_add_epi16(y0, y1);
+    y0 = _mm256_add_epi16(y0, _mm256_set1_epi16(2));
+    y0 = _mm256_srai_epi16(y0, 2);
+    y2 = _mm256_add_epi16(msrc_spot, _mm256_set1_epi16(1));
+    y0 = _mm256_add_epi16(y0, y2);
+    y0 = _mm256_srai_epi16(y0, 1);
+    return y0;
+}
+
+template<bool uv_upsample>
+static __forceinline void afs_mie_spot_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *src4, uint8_t *src_spot, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 32;
+    //コンパイラ頑張れ
+    __m256i mc00, mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b, mc4a, mc4b, mcsa, mcsb;
+    __m256i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b, my4a, my4b, mysa, mysb;
+    __m256i mc5a, mc5b, mc6a, mc6b, mc7a, mc7b, mc8a, mc8b, mc9a, mc9b;
+    mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+    mc2a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels));
+    mc3a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels));
+    mc4a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels));
+    mcsa = _mm256_loadu_si256((const __m256i *)(src_spot + src_frame_pixels));
+
+    convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+    convert_range_c_yuy2_to_yc48(mc2a, mc2b);
+    convert_range_c_yuy2_to_yc48(mc3a, mc3b);
+    convert_range_c_yuy2_to_yc48(mc4a, mc4b);
+    convert_range_c_yuy2_to_yc48(mcsa, mcsb);
+
+    //色差をブレンド
+    mc0a = afs_mie_spot(mc1a, mc2a, mc3a, mc4a, mcsa);
+    mc0b = afs_mie_spot(mc1b, mc2b, mc3b, mc4b, mcsb);
+    mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    const int dst_mod32 = (size_t)dst & 0x1f;
+    if (dst_mod32) {
+        my1a = _mm256_loadu_si256((const __m256i *)src1);
+        my2a = _mm256_loadu_si256((const __m256i *)src2);
+        my3a = _mm256_loadu_si256((const __m256i *)src3);
+        my4a = _mm256_loadu_si256((const __m256i *)src4);
+        mysa = _mm256_loadu_si256((const __m256i *)src_spot);
+        mc6a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels + 32));
+        mc7a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels + 32));
+        mc8a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels + 32));
+        mc9a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels + 32));
+        mcsa = _mm256_loadu_si256((const __m256i *)(src_spot + src_frame_pixels + 32));
+
+        //YUY2->YC48に変換
+        convert_range_y_yuy2_to_yc48(my1a, my1b);
+        convert_range_y_yuy2_to_yc48(my2a, my2b);
+        convert_range_y_yuy2_to_yc48(my3a, my3b);
+        convert_range_y_yuy2_to_yc48(my4a, my4b);
+        convert_range_y_yuy2_to_yc48(mysa, mysb);
+        convert_range_c_yuy2_to_yc48(mc6a, mc6b);
+        convert_range_c_yuy2_to_yc48(mc7a, mc7b);
+        convert_range_c_yuy2_to_yc48(mc8a, mc8b);
+        convert_range_c_yuy2_to_yc48(mc9a, mc9b);
+        convert_range_c_yuy2_to_yc48(mcsa, mcsb);
+
+        //輝度をまずブレンド
+        my0a = afs_mie_spot(my1a, my2a, my3a, my4a, mysa);
+        my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
+
+        //色差をブレンド
+        mc5a = afs_mie_spot(mc6a, mc7a, mc8a, mc9a, mcsa);
+        mc5b = afs_mie_spot(mc6b, mc7b, mc8b, mc9b, mcsb);
+
+        //UVは補間を行う
+        if (uv_upsample) {
+            mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+            mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
+            mc00 = mc0b;
+        } else {
+            mc1a = afs_uv_interp_linear(mc0a, mc0b);
+            mc1b = afs_uv_interp_linear(mc0b, mc5a);
+        }
+
+        //YC48を構築
+        afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+
+        mc0a = mc5a;
+        mc0b = mc5b;
+
+        //ずれ修正
+        int mod6 = dst_mod32 % 6;
+        int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+        dst += dw;
+        src1 += dw;
+        src2 += dw;
+        src3 += dw;
+        src4 += dw;
+        src_spot += dw;
+
+        mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+        mc2a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels));
+        mc3a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels));
+        mc4a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels));
+        mcsa = _mm256_loadu_si256((const __m256i *)(src_spot + src_frame_pixels));
+
+        convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+        convert_range_c_yuy2_to_yc48(mc2a, mc2b);
+        convert_range_c_yuy2_to_yc48(mc3a, mc3b);
+        convert_range_c_yuy2_to_yc48(mc4a, mc4b);
+        convert_range_c_yuy2_to_yc48(mcsa, mcsb);
+
+        mc0a = afs_mie_spot(mc1a, mc2a, mc3a, mc4a, mcsa);
+        mc0b = afs_mie_spot(mc1b, mc2b, mc3b, mc4b, mcsb);
+        mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    }
+
+    for (; src1 < src1_fin; src1 += 32, src2 += 32, src3 += 32, src4 += 32, src_spot += 32, dst += 32) {
+        my1a = _mm256_loadu_si256((const __m256i *)src1);
+        my2a = _mm256_loadu_si256((const __m256i *)src2);
+        my3a = _mm256_loadu_si256((const __m256i *)src3);
+        my4a = _mm256_loadu_si256((const __m256i *)src4);
+        mysa = _mm256_loadu_si256((const __m256i *)src_spot);
+        mc6a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels + 32));
+        mc7a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels + 32));
+        mc8a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels + 32));
+        mc9a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels + 32));
+        mcsa = _mm256_loadu_si256((const __m256i *)(src_spot + src_frame_pixels + 32));
+
+        //YUY2->YC48に変換
+        convert_range_y_yuy2_to_yc48(my1a, my1b);
+        convert_range_y_yuy2_to_yc48(my2a, my2b);
+        convert_range_y_yuy2_to_yc48(my3a, my3b);
+        convert_range_y_yuy2_to_yc48(my4a, my4b);
+        convert_range_y_yuy2_to_yc48(mysa, mysb);
+        convert_range_c_yuy2_to_yc48(mc6a, mc6b);
+        convert_range_c_yuy2_to_yc48(mc7a, mc7b);
+        convert_range_c_yuy2_to_yc48(mc8a, mc8b);
+        convert_range_c_yuy2_to_yc48(mc9a, mc9b);
+        convert_range_c_yuy2_to_yc48(mcsa, mcsb);
+
+        //輝度をまずブレンド
+        my0a = afs_mie_spot(my1a, my2a, my3a, my4a, mysa);
+        my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
+
+        //色差をブレンド
+        mc5a = afs_mie_spot(mc6a, mc7a, mc8a, mc9a, mcsa);
+        mc5b = afs_mie_spot(mc6b, mc7b, mc8b, mc9b, mcsb);
+
+        //UVは補間を行う
+        if (uv_upsample) {
+            mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+            mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
+            mc00 = mc0b;
+        } else {
+            mc1a = afs_uv_interp_linear(mc0a, mc0b);
+            mc1b = afs_uv_interp_linear(mc0b, mc5a);
+        }
+
+        //YC48を構築
+        afs_pack_store_yc48<true>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+
+        mc0a = mc5a;
+        mc0b = mc5b;
+    }
+    //終端処理
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        src2 -= offset;
+        src3 -= offset;
+        src4 -= offset;
+        dst  -= offset;
+        src_spot -= offset;
+
+        mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+        mc2a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels));
+        mc3a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels));
+        mc4a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels));
+        mcsa = _mm256_loadu_si256((const __m256i *)(src_spot + src_frame_pixels));
+
+        convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+        convert_range_c_yuy2_to_yc48(mc2a, mc2b);
+        convert_range_c_yuy2_to_yc48(mc3a, mc3b);
+        convert_range_c_yuy2_to_yc48(mc4a, mc4b);
+        convert_range_c_yuy2_to_yc48(mcsa, mcsb);
+
+        mc0a = afs_mie_spot(mc1a, mc2a, mc3a, mc4a, mcsa);
+        mc0b = afs_mie_spot(mc1b, mc2b, mc3b, mc4b, mcsb);
+        mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    }
+    my1a = _mm256_loadu_si256((const __m256i *)src1);
+    my2a = _mm256_loadu_si256((const __m256i *)src2);
+    my3a = _mm256_loadu_si256((const __m256i *)src3);
+    my4a = _mm256_loadu_si256((const __m256i *)src4);
+    mysa = _mm256_loadu_si256((const __m256i *)src_spot);
+
+    //YUY2->YC48に変換
+    convert_range_y_yuy2_to_yc48(my1a, my1b);
+    convert_range_y_yuy2_to_yc48(my2a, my2b);
+    convert_range_y_yuy2_to_yc48(my3a, my3b);
+    convert_range_y_yuy2_to_yc48(my4a, my4b);
+    convert_range_y_yuy2_to_yc48(mysa, mysb);
+    convert_range_c_yuy2_to_yc48(mc6a, mc6b);
+    convert_range_c_yuy2_to_yc48(mc7a, mc7b);
+    convert_range_c_yuy2_to_yc48(mc8a, mc8b);
+    convert_range_c_yuy2_to_yc48(mc9a, mc9b);
+    convert_range_c_yuy2_to_yc48(mcsa, mcsb);
+
+    //輝度をまずブレンド
+    my0a = afs_mie_spot(my1a, my2a, my3a, my4a, mysa);
+    my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
+
+    ////色差をブレンド
+    mc5a = _mm256_permute4x64_epi64(_mm256_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3)), _MM_SHUFFLE(3, 3, 3, 3));
+
+    //UVは補間を行う
+    if (uv_upsample) {
+        mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
+        mc00 = mc0b;
+    } else {
+        mc1a = afs_uv_interp_linear(mc0a, mc0b);
+        mc1b = afs_uv_interp_linear(mc0b, mc5a);
+    }
+
+    //YC48を構築
+    afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+}
+
+void __stdcall afs_mie_spot_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels) {
+    afs_mie_spot_nv16<true>((PIXEL_YC *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)src4, (uint8_t *)src_spot, w, src_frame_pixels);
+}
+
+void __stdcall afs_mie_spot_nv16_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels) {
+    afs_mie_spot_nv16<false>((PIXEL_YC *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)src4, (uint8_t *)src_spot, w, src_frame_pixels);
+}
+
+static __forceinline __m256i afs_mie_inter(const __m256i& msrc1, const __m256i& msrc2, const __m256i& msrc3, const __m256i& msrc4) {
+    __m256i y0, y1;
+    y0 = _mm256_add_epi16(msrc1, msrc2);
+    y1 = _mm256_add_epi16(msrc3, msrc4);
+    y0 = _mm256_add_epi16(y0, y1);
+    y0 = _mm256_add_epi16(y0, _mm256_set1_epi16(2));
+    y0 = _mm256_srai_epi16(y0, 2);
+    return y0;
+}
+
+template<bool uv_upsample>
+static __forceinline void afs_mie_inter_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *src4, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 32;
+    //コンパイラ頑張れ
+    __m256i mc00, mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b, mc4a, mc4b;
+    __m256i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b, my4a, my4b;
+    __m256i mc5a, mc5b, mc6a, mc6b, mc7a, mc7b, mc8a, mc8b, mc9a, mc9b;
+    mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+    mc2a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels));
+    mc3a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels));
+    mc4a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels));
+
+    convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+    convert_range_c_yuy2_to_yc48(mc2a, mc2b);
+    convert_range_c_yuy2_to_yc48(mc3a, mc3b);
+    convert_range_c_yuy2_to_yc48(mc4a, mc4b);
+
+    //色差をブレンド
+    mc0a = afs_mie_inter(mc1a, mc2a, mc3a, mc4a);
+    mc0b = afs_mie_inter(mc1b, mc2b, mc3b, mc4b);
+    mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    const int dst_mod32 = (size_t)dst & 0x1f;
+    if (dst_mod32) {
+        my1a = _mm256_loadu_si256((const __m256i *)src1);
+        my2a = _mm256_loadu_si256((const __m256i *)src2);
+        my3a = _mm256_loadu_si256((const __m256i *)src3);
+        my4a = _mm256_loadu_si256((const __m256i *)src4);
+        mc6a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels + 32));
+        mc7a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels + 32));
+        mc8a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels + 32));
+        mc9a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels + 32));
+
+        //YUY2->YC48に変換
+        convert_range_y_yuy2_to_yc48(my1a, my1b);
+        convert_range_y_yuy2_to_yc48(my2a, my2b);
+        convert_range_y_yuy2_to_yc48(my3a, my3b);
+        convert_range_y_yuy2_to_yc48(my4a, my4b);
+        convert_range_c_yuy2_to_yc48(mc6a, mc6b);
+        convert_range_c_yuy2_to_yc48(mc7a, mc7b);
+        convert_range_c_yuy2_to_yc48(mc8a, mc8b);
+        convert_range_c_yuy2_to_yc48(mc9a, mc9b);
+
+        //輝度をまずブレンド
+        my0a = afs_mie_inter(my1a, my2a, my3a, my4a);
+        my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
+
+        //色差をブレンド
+        mc5a = afs_mie_inter(mc6a, mc7a, mc8a, mc9a);
+        mc5b = afs_mie_inter(mc6b, mc7b, mc8b, mc9b);
+
+        //UVは補間を行う
+        if (uv_upsample) {
+            mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+            mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
+            mc00 = mc0b;
+        } else {
+            mc1a = afs_uv_interp_linear(mc0a, mc0b);
+            mc1b = afs_uv_interp_linear(mc0b, mc5a);
+        }
+
+        //YC48を構築
+        afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+
+        mc0a = mc5a;
+        mc0b = mc5b;
+
+        //ずれ修正
+        int mod6 = dst_mod32 % 6;
+        int dw = (32 * (((mod6) ? mod6 : 6)>>1)-dst_mod32) / 6;
+        dst += dw;
+        src1 += dw;
+        src2 += dw;
+        src3 += dw;
+        src4 += dw;
+
+        mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+        mc2a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels));
+        mc3a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels));
+        mc4a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels));
+
+        convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+        convert_range_c_yuy2_to_yc48(mc2a, mc2b);
+        convert_range_c_yuy2_to_yc48(mc3a, mc3b);
+        convert_range_c_yuy2_to_yc48(mc4a, mc4b);
+
+        mc0a = afs_mie_inter(mc1a, mc2a, mc3a, mc4a);
+        mc0b = afs_mie_inter(mc1b, mc2b, mc3b, mc4b);
+        mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    }
+
+    for (; src1 < src1_fin; src1 += 32, src2 += 32, src3 += 32, src4 += 32, dst += 32) {
+        my1a = _mm256_loadu_si256((const __m256i *)src1);
+        my2a = _mm256_loadu_si256((const __m256i *)src2);
+        my3a = _mm256_loadu_si256((const __m256i *)src3);
+        my4a = _mm256_loadu_si256((const __m256i *)src4);
+        mc6a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels + 32));
+        mc7a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels + 32));
+        mc8a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels + 32));
+        mc9a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels + 32));
+
+        //YUY2->YC48に変換
+        convert_range_y_yuy2_to_yc48(my1a, my1b);
+        convert_range_y_yuy2_to_yc48(my2a, my2b);
+        convert_range_y_yuy2_to_yc48(my3a, my3b);
+        convert_range_y_yuy2_to_yc48(my4a, my4b);
+        convert_range_c_yuy2_to_yc48(mc6a, mc6b);
+        convert_range_c_yuy2_to_yc48(mc7a, mc7b);
+        convert_range_c_yuy2_to_yc48(mc8a, mc8b);
+        convert_range_c_yuy2_to_yc48(mc9a, mc9b);
+
+        //輝度をまずブレンド
+        my0a = afs_mie_inter(my1a, my2a, my3a, my4a);
+        my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
+
+        //色差をブレンド
+        mc5a = afs_mie_inter(mc6a, mc7a, mc8a, mc9a);
+        mc5b = afs_mie_inter(mc6b, mc7b, mc8b, mc9b);
+
+        //UVは補間を行う
+        if (uv_upsample) {
+            mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+            mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
+            mc00 = mc0b;
+        } else {
+            mc1a = afs_uv_interp_linear(mc0a, mc0b);
+            mc1b = afs_uv_interp_linear(mc0b, mc5a);
+        }
+
+        //YC48を構築
+        afs_pack_store_yc48<true>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+
+        mc0a = mc5a;
+        mc0b = mc5b;
+    }
+    //終端処理
+    if (src1_fin < src1) {
+        int offset = src1 - src1_fin;
+        src1 -= offset;
+        src2 -= offset;
+        src3 -= offset;
+        src4 -= offset;
+        dst  -= offset;
+
+        mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
+        mc2a = _mm256_loadu_si256((const __m256i *)(src2 + src_frame_pixels));
+        mc3a = _mm256_loadu_si256((const __m256i *)(src3 + src_frame_pixels));
+        mc4a = _mm256_loadu_si256((const __m256i *)(src4 + src_frame_pixels));
+
+        convert_range_c_yuy2_to_yc48(mc1a, mc1b);
+        convert_range_c_yuy2_to_yc48(mc2a, mc2b);
+        convert_range_c_yuy2_to_yc48(mc3a, mc3b);
+        convert_range_c_yuy2_to_yc48(mc4a, mc4b);
+
+        mc0a = afs_mie_inter(mc1a, mc2a, mc3a, mc4a);
+        mc0b = afs_mie_inter(mc1b, mc2b, mc3b, mc4b);
+        mc00 = _mm256_broadcastd_epi32(_mm256_castsi256_si128(mc0a));
+    }
+    my1a = _mm256_loadu_si256((const __m256i *)src1);
+    my2a = _mm256_loadu_si256((const __m256i *)src2);
+    my3a = _mm256_loadu_si256((const __m256i *)src3);
+    my4a = _mm256_loadu_si256((const __m256i *)src4);
+
+    //YUY2->YC48に変換
+    convert_range_y_yuy2_to_yc48(my1a, my1b);
+    convert_range_y_yuy2_to_yc48(my2a, my2b);
+    convert_range_y_yuy2_to_yc48(my3a, my3b);
+    convert_range_y_yuy2_to_yc48(my4a, my4b);
+    convert_range_c_yuy2_to_yc48(mc6a, mc6b);
+    convert_range_c_yuy2_to_yc48(mc7a, mc7b);
+    convert_range_c_yuy2_to_yc48(mc8a, mc8b);
+    convert_range_c_yuy2_to_yc48(mc9a, mc9b);
+
+    //輝度をまずブレンド
+    my0a = afs_mie_inter(my1a, my2a, my3a, my4a);
+    my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
+
+    ////色差をブレンド
+    mc5a = _mm256_permute4x64_epi64(_mm256_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3)), _MM_SHUFFLE(3, 3, 3, 3));
+
+    //UVは補間を行う
+    if (uv_upsample) {
+        mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
+        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
+        mc00 = mc0b;
+    } else {
+        mc1a = afs_uv_interp_linear(mc0a, mc0b);
+        mc1b = afs_uv_interp_linear(mc0b, mc5a);
+    }
+
+    //YC48を構築
+    afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+}
+
+void __stdcall afs_mie_inter_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels) {
+    afs_mie_inter_nv16<true>((PIXEL_YC *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)src4, w, src_frame_pixels);
+}
+
+void __stdcall afs_mie_inter_nv16_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels) {
+    afs_mie_inter_nv16<false>((PIXEL_YC *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)src4, w, src_frame_pixels);
+}
+
 template<bool uv_upsample>
 static __forceinline void afs_convert_nv16_yc48(PIXEL_YC *dst, uint8_t *src1, int w, int src_frame_pixels) {
     const uint8_t *src1_fin = src1 + w - 32;

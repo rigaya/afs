@@ -126,7 +126,7 @@ static const struct {
     DWORD simd;
     func_mie_spot mie_spot[4];
 } FUNC_MIE_SPOT_LIST[] = {
-    { AVX2|AVX,         { afs_mie_spot_avx2,  afs_mie_spot_avx2,  afs_mie_spot_nv16_avx,     afs_mie_spot_nv16_avx    } },
+    { AVX2|AVX,         { afs_mie_spot_avx2,  afs_mie_spot_avx2,  afs_mie_spot_nv16_avx2,    afs_mie_spot_nv16_avx2   } },
     { AVX|SSE2,         { afs_mie_spot_avx,   afs_mie_spot_avx,   afs_mie_spot_nv16_avx,     afs_mie_spot_nv16_avx    } },
     { SSE41|SSSE3|SSE2, { afs_mie_spot_sse2,  afs_mie_spot_sse2,  afs_mie_spot_nv16_sse4_1,  afs_mie_spot_nv16_sse4_1 } },
     { SSSE3|SSE2,       { afs_mie_spot_sse2,  afs_mie_spot_sse2,  afs_mie_spot_nv16_ssse3,   afs_mie_spot_nv16_ssse3  } },
@@ -138,7 +138,7 @@ static const struct {
     DWORD simd;
     func_mie_inter mie_inter[4];
 } FUNC_MIE_INTER_LIST[] = {
-    { AVX2|AVX,         { afs_mie_inter_avx2,  afs_mie_inter_avx2,  afs_mie_inter_nv16_avx,     afs_mie_inter_nv16_avx    } },
+    { AVX2|AVX,         { afs_mie_inter_avx2,  afs_mie_inter_avx2,  afs_mie_inter_nv16_avx2,    afs_mie_inter_nv16_avx2   } },
     { AVX|SSE2,         { afs_mie_inter_avx,   afs_mie_inter_avx,   afs_mie_inter_nv16_avx,     afs_mie_inter_nv16_avx    } },
     { SSE41|SSSE3|SSE2, { afs_mie_inter_sse2,  afs_mie_inter_sse2,  afs_mie_inter_nv16_sse4_1,  afs_mie_inter_nv16_sse4_1 } },
     { SSSE3|SSE2,       { afs_mie_inter_sse2,  afs_mie_inter_sse2,  afs_mie_inter_nv16_ssse3,   afs_mie_inter_nv16_ssse3  } },

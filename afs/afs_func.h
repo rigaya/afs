@@ -74,6 +74,8 @@ void __stdcall afs_mie_spot_sse2(void *dst, void *src1, void *src2, void *src3, 
 void __stdcall afs_mie_spot_avx(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 
+void __stdcall afs_mie_spot_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
+void __stdcall afs_mie_spot_nv16_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_nv16up_avx(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_nv16_avx(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_nv16up_sse4_1(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
@@ -87,6 +89,8 @@ void __stdcall afs_mie_inter_sse2(void *dst, void *src1, void *src2, void *src3,
 void __stdcall afs_mie_inter_avx(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 
+void __stdcall afs_mie_inter_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
+void __stdcall afs_mie_inter_nv16_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_nv16up_avx(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_nv16_avx(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_nv16up_sse4_1(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
