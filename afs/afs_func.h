@@ -113,6 +113,8 @@ void __stdcall afs_deint4_nv16up_ssse3(void *dst, void *src1, void *src3, void *
 void __stdcall afs_deint4_nv16_ssse3(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_nv16up_avx(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_nv16_avx(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+void __stdcall afs_deint4_nv16up_avx2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+void __stdcall afs_deint4_nv16_avx2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 
 void __stdcall afs_convert_nv16_yc48up_sse2(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_convert_nv16_yc48_sse2(void *dst, void *src1, int w, int src_frame_pixels);

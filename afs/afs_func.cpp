@@ -150,7 +150,7 @@ static const struct {
     DWORD simd;
     func_deint4 deint4[4];
 } FUNC_DEINT4_LIST[] = {
-    { AVX2|AVX,         { afs_deint4_avx2,  afs_deint4_avx2,  afs_deint4_nv16_avx,     afs_deint4_nv16_avx    } },
+    { AVX2|AVX,         { afs_deint4_avx2,  afs_deint4_avx2,  afs_deint4_nv16_avx2,    afs_deint4_nv16_avx2   } },
     { AVX|SSE2,         { afs_deint4_avx,   afs_deint4_avx,   afs_deint4_nv16_avx,     afs_deint4_nv16_avx    } },
     { SSE41|SSSE3|SSE2, { afs_deint4_sse2,  afs_deint4_sse2,  afs_deint4_nv16_sse4_1,  afs_deint4_nv16_sse4_1 } },
     { SSSE3|SSE2,       { afs_deint4_sse2,  afs_deint4_sse2,  afs_deint4_nv16_ssse3,   afs_deint4_nv16_ssse3  } },
