@@ -34,6 +34,7 @@ static inline AFS_SCAN_CLIP scan_clip(int top, int bottom, int left, int right) 
 }
 
 typedef struct {
+    int afs_mode;
     int type;
     unsigned char *dst;
     void *p0;
@@ -109,6 +110,7 @@ typedef struct AFS_SUB_THREAD {
     YUY2UPSAMPLE_TASK yuy2up_task;
     MERGE_SCAN_TASK merge_scan_task;
     SYNTHESIZE_TASK synthesize_task;
+    int afs_mode;
     int thread_sub_n;
     BOOL thread_sub_abort;
     HANDLE hThread_sub[AFS_SUB_WORKER_MAX-1];
@@ -143,7 +145,7 @@ typedef struct AFS_CONTEXT {
 
     int cache_nv16;
     // インタレース解除フィルタ用ソースキャッシュ
-    unsigned int mode;
+    unsigned int afs_mode;
     int source_frame_n;
     int source_w;
     int source_h;

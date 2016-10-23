@@ -50,13 +50,13 @@ AFS_FUNC afs_func = { 0 };
 #define scanp(x)   (g_afs.scan_array  +((x)&(AFS_SCAN_CACHE_NUM-1)))
 #define stripep(x) (g_afs.stripe_array+((x)&(AFS_STRIPE_CACHE_NUM-1)))
 
-static inline int afs_cache_nv16() {
+static inline int afs_cache_nv16(unsigned int afs_mode) {
     static_assert(AFS_MODE_CACHE_NV16 == 0x02, "AFS_MODE_CACHE_NV16 is not 0x02, afs_cache_nv16() will fail.");
-    return (g_afs.mode & AFS_MODE_CACHE_NV16) >> 1;
+    return (afs_mode & AFS_MODE_CACHE_NV16) >> 1;
 }
 
-static inline int si_pitch(int x) {
-    int align_minus_one = afs_func.analyze[afs_cache_nv16()].align_minus_one;
+static inline int si_pitch(int x, unsigned int afs_mode) {
+    int align_minus_one = afs_func.analyze[afs_cache_nv16(afs_mode)].align_minus_one;
     return (x + align_minus_one) & (~align_minus_one);
 }
 
@@ -298,7 +298,7 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int cache_nv16) {
 void __stdcall yuy2up(int thread_id) {
     const int y_start = (g_afs.sub_thread.yuy2up_task.height *  thread_id   ) / g_afs.sub_thread.thread_sub_n;
     const int y_end   = (g_afs.sub_thread.yuy2up_task.height * (thread_id+1)) / g_afs.sub_thread.thread_sub_n;
-    afs_func.yuy2up[g_afs.mode](g_afs.sub_thread.yuy2up_task.dst, g_afs.sub_thread.yuy2up_task.dst_pitch, g_afs.sub_thread.yuy2up_task.dst_pitch * g_afs.sub_thread.yuy2up_task.max_h,
+    afs_func.yuy2up[g_afs.sub_thread.afs_mode](g_afs.sub_thread.yuy2up_task.dst, g_afs.sub_thread.yuy2up_task.dst_pitch, g_afs.sub_thread.yuy2up_task.dst_pitch * g_afs.sub_thread.yuy2up_task.max_h,
         g_afs.sub_thread.yuy2up_task.src, g_afs.sub_thread.yuy2up_task.width, g_afs.sub_thread.yuy2up_task.src_pitch, y_start, y_end);
 }
 #endif
@@ -322,7 +322,7 @@ void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int h, int *hi
 
     void *dst = srp->map;
     void *src = fp->exfunc->get_ycp_source_cache(editp, frame, 0);
-    if (g_afs.mode & AFS_MODE_YUY2UP || ((g_afs.mode & AFS_MODE_CACHE_NV16) && !(g_afs.mode & AFS_MODE_AVIUTL_YUY2))) {
+    if (g_afs.afs_mode & AFS_MODE_YUY2UP || ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) && !(g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2))) {
 #if SIMD_DEBUG
         PIXEL_YC *test_buf = (PIXEL_YC *)get_debug_buffer(sizeof(PIXEL_YC) * g_afs.source_w * (h + 2));
         afs_yuy2up_frame_mmx(test_buf, src, w, g_afs.source_w, 0, h);
@@ -338,6 +338,7 @@ void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int h, int *hi
         g_afs.sub_thread.yuy2up_task.width = w;
         g_afs.sub_thread.yuy2up_task.src_pitch = g_afs.source_w;
         g_afs.sub_thread.yuy2up_task.height = h;
+        g_afs.sub_thread.afs_mode = g_afs.afs_mode;
         g_afs.sub_thread.sub_task = TASK_YUY2UP;
         
         //g_afs.sub_thread.thread_sub_nは総スレッド数
@@ -358,7 +359,7 @@ void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int h, int *hi
         afs_func.yuy2up(dst, src, w, g_afs.source_w, h, 0, h);
 #endif //ENABLE_SUB_THREADS
     } else {
-        memcpy(dst, src, g_afs.source_w * g_afs.source_h * ((g_afs.mode & AFS_MODE_CACHE_NV16) ? 2 : 6));
+        memcpy(dst, src, g_afs.source_w * g_afs.source_h * ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) ? 2 : 6));
     }
 
     srp->status = 1;
@@ -706,7 +707,7 @@ BOOL func_save_end(FILTER *fp, void *editp) {
 // 解析関数ワーカースレッド
 template<typename SCR_TYPE>
 void thread_func_analyze_frame(const int id) {
-    const AFS_FUNC_ANALYZE func_analyze = afs_func.analyze[afs_cache_nv16()];
+    const AFS_FUNC_ANALYZE func_analyze = afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
     const int min_analyze_cycle = func_analyze.min_cycle;
     const int max_block_size = func_analyze.max_block_size;
     int analyze_block = min_analyze_cycle;
@@ -785,7 +786,7 @@ unsigned __stdcall thread_func(LPVOID worker_id) {
     WaitForSingleObject(g_afs.hEvent_worker_awake[id], INFINITE);
     while (g_afs.scan_arg.type >= 0) {
         avx2_dummy_if_avail();
-        (g_afs.mode & AFS_MODE_CACHE_NV16) ? thread_func_analyze_frame<uint8_t>(id) : thread_func_analyze_frame<PIXEL_YC>(id);
+        (g_afs.scan_arg.afs_mode & AFS_MODE_CACHE_NV16) ? thread_func_analyze_frame<uint8_t>(id) : thread_func_analyze_frame<PIXEL_YC>(id);
         SetEvent(g_afs.hEvent_worker_sleep[id]);
         WaitForSingleObject(g_afs.hEvent_worker_awake[id], INFINITE);
     }
@@ -799,14 +800,15 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int max_w, 
 #if SIMD_DEBUG
     afs_analyze_set_threshold_mmx(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
 #endif
-    afs_func.analyze[afs_cache_nv16()].set_threshold(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
+    afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].set_threshold(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
     g_afs.scan_arg.type     = type;
+    g_afs.scan_arg.afs_mode = g_afs.afs_mode;
     g_afs.scan_arg.dst      = sp->map;
     g_afs.scan_arg.p0       = p0;
     g_afs.scan_arg.p1       = p1;
     g_afs.scan_arg.tb_order = sp->tb_order;
     g_afs.scan_arg.max_w    = max_w;
-    g_afs.scan_arg.si_pitch = si_pitch(g_afs.scan_w);
+    g_afs.scan_arg.si_pitch = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     g_afs.scan_arg.clip     = mc_clip;
     for (int i = 0; i < g_afs.scan_worker_n; i++)
         SetEvent(g_afs.hEvent_worker_awake[i]);
@@ -830,8 +832,8 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int max_w, 
 
 // 縞・動きキャッシュ＆ワークメモリ確保
 
-BOOL check_scan_cache(int frame_n, int w, int h, int worker_n) {
-    const int si_w = si_pitch(w);
+BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
+    const int si_w = si_pitch(w, afs_mode);
     const int size = si_w * (h + 2);
 
     if (g_afs.analyze_cachep[0] != NULL) {
@@ -841,7 +843,7 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n) {
     }
 
     if (g_afs.analyze_cachep[0] == NULL) {
-        if (afs_func.analyze[afs_cache_nv16()].shrink_info || SIMD_DEBUG) {
+        if (afs_func.analyze[afs_cache_nv16(afs_mode)].shrink_info || SIMD_DEBUG) {
             if (nullptr == (g_afs.scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64))) {
                 return FALSE;
             }
@@ -893,7 +895,7 @@ BOOL check_scan_cache(int frame_n, int w, int h, int worker_n) {
 
 void scan_frame(int frame, int force, int max_w, void *p1, void *p0,
                 int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip) {
-    const int si_w = si_pitch(g_afs.scan_w);
+    const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     AFS_SCAN_DATA *sp = scanp(frame);
     if (!force && sp->status > 0 && sp->frame == frame && sp->tb_order == tb_order && sp->thre_shift == thre_shift &&
         ((mode == 0 ) ||
@@ -918,7 +920,7 @@ void scan_frame(int frame, int force, int max_w, void *p1, void *p0,
 // フィールドごとに動きピクセル数計算
 
 void count_motion(int frame, AFS_SCAN_CLIP *mc_clip) {
-    const int si_w = si_pitch(g_afs.scan_w);
+    const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     AFS_SCAN_DATA *sp = scanp(frame);
     
     if (0 == memcmp(&sp->clip, mc_clip, sizeof(mc_clip[0])))
@@ -947,7 +949,7 @@ void count_motion(int frame, AFS_SCAN_CLIP *mc_clip) {
     func_compare_debug(mc_debug, motion_count);
 #endif
     int *mc_ptr = motion_count;
-    if (afs_func.analyze[afs_cache_nv16()].mc_count && 0 == memcmp(&g_afs.scan_motion_clip[frame & 15], mc_clip, sizeof(mc_clip[0]))) {
+    if (afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].mc_count && 0 == memcmp(&g_afs.scan_motion_clip[frame & 15], mc_clip, sizeof(mc_clip[0]))) {
         mc_ptr = g_afs.scan_motion_count[frame & 15];
 #if SIMD_DEBUG
         func_compare_debug(mc_debug, mc_ptr);
@@ -965,7 +967,7 @@ void merge_scan(int thread_id) {
     AFS_SCAN_DATA *sp1 = g_afs.sub_thread.merge_scan_task.sp1;
     AFS_STRIPE_DATA *sp = g_afs.sub_thread.merge_scan_task.sp;
     const int si_w = g_afs.sub_thread.merge_scan_task.si_w;
-    const int min_analyze_cycle = afs_func.analyze[afs_cache_nv16()].min_cycle;
+    const int min_analyze_cycle = afs_func.analyze[afs_cache_nv16(g_afs.sub_thread.afs_mode)].min_cycle;
     const int x_start = (((si_w *  thread_id   ) / g_afs.sub_thread.thread_sub_n) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     const int x_fin   = (((si_w * (thread_id+1)) / g_afs.sub_thread.thread_sub_n) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, g_afs.scan_h, x_start, x_fin);
@@ -975,7 +977,7 @@ void merge_scan(int thread_id) {
 // 縞情報統合取得
 // mode = 0:判定結果のみ, 1:判定結果+解析マップ
 unsigned char* get_stripe_info(int frame, int mode) {
-    const int si_w = si_pitch(g_afs.scan_w);
+    const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
 
     AFS_STRIPE_DATA *sp = stripep(frame);
     if(sp->status > mode && sp->frame == frame)
@@ -993,6 +995,7 @@ unsigned char* get_stripe_info(int frame, int mode) {
 #endif
 
 #if ENABLE_SUB_THREADS
+    g_afs.sub_thread.afs_mode = g_afs.afs_mode;
     g_afs.sub_thread.merge_scan_task.sp = sp;
     g_afs.sub_thread.merge_scan_task.sp0 = sp0;
     g_afs.sub_thread.merge_scan_task.sp1 = sp1;
@@ -1122,9 +1125,9 @@ unsigned char analyze_frame(int frame, int drop, int smooth, int force24, int co
 
 // シーンチェンジ解析
 
-BOOL analyze_scene_change(unsigned char* sip, int tb_order, int max_w, int w, int h,
+BOOL analyze_scene_change(int afs_mode, unsigned char* sip, int tb_order, int max_w, int w, int h,
                           void *p0, void *p1, int top, int bottom, int left, int right) {
-    const int si_w = si_pitch(w);
+    const int si_w = si_pitch(w, afs_mode);
     //どうやらスタックに確保すると死ぬようなので、mallocする
     static int *hist3d[2] = { nullptr, nullptr };
     if (hist3d[0] == nullptr) {
@@ -1147,7 +1150,7 @@ BOOL analyze_scene_change(unsigned char* sip, int tb_order, int max_w, int w, in
 
     if (count0 < (count - count0) * 3) return FALSE;
 
-    if (g_afs.mode & AFS_MODE_CACHE_NV16) {
+    if (afs_mode & AFS_MODE_CACHE_NV16) {
         for (int pos_y = top; pos_y < h - bottom; pos_y++) {
             uint8_t *ptr0 = (uint8_t *)p0 + pos_y * max_w + (left & (~1));
             uint8_t *ptr1 = (uint8_t *)p1 + pos_y * max_w + (left & (~1));
@@ -1356,7 +1359,7 @@ void disp_status(PIXEL_YC *ycp, int *result_stat, int *assume_shift, int *revers
     const int w       = fpip->w; \
     const int h       = fpip->h; \
     const int src_frame_pixels = g_afs.source_w * g_afs.source_h; \
-    const func_copy_line copy_line = afs_func.copy_line[g_afs.mode];
+    const func_copy_line copy_line = afs_func.copy_line[g_afs.sub_thread.afs_mode];
 
 #define CHECK_Y_RANGE(y) ((DWORD)(y - y_start) < (DWORD)(y_end - y_start))
 
@@ -1496,7 +1499,7 @@ void synthesize_mode_4(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p04, *p05, *p06, *p07;
     SRC_TYPE *p11, *p12, *p13, *p14, *p15, *p16, *p17;
-    const func_deint4 deint4 = afs_func.deint4[g_afs.mode];
+    const func_deint4 deint4 = afs_func.deint4[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p05 = p0;
     p02 = p04 = p06 = p0 + max_w;
@@ -1538,7 +1541,7 @@ template<typename SRC_TYPE>
 void synthesize_mode_3(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
-    const func_blend blend = afs_func.blend[g_afs.mode];
+    const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + max_w, p12 = p1 + max_w;
@@ -1570,7 +1573,7 @@ template<typename SRC_TYPE>
 void synthesize_mode_2(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
-    const func_blend blend = afs_func.blend[g_afs.mode];
+    const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + max_w, p12 = p1 + max_w;
@@ -1606,13 +1609,13 @@ void synthesize_mode_1(int thread_id) {
     const int clip_l = g_afs.sub_thread.synthesize_task.clip.left;
     const int clip_r = g_afs.sub_thread.synthesize_task.clip.right;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
-    const func_mie_spot  mie_spot  = afs_func.mie_spot[g_afs.mode];
-    const func_mie_inter mie_inter = afs_func.mie_inter[g_afs.mode];
+    const func_mie_spot  mie_spot  = afs_func.mie_spot[g_afs.sub_thread.afs_mode];
+    const func_mie_inter mie_inter = afs_func.mie_inter[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + max_w, p12 = p1 + max_w;
     if (g_afs.sub_thread.synthesize_task.detect_sc && (~status & AFS_FLAG_SHIFT0))
-        if (analyze_scene_change(sip, tb_order, max_w, w, h, p0, p1, clip_t, clip_b, clip_l, clip_r))
+        if (analyze_scene_change(g_afs.sub_thread.afs_mode, sip, tb_order, max_w, w, h, p0, p1, clip_t, clip_b, clip_l, clip_r))
             p11 = p01, p12 = p02, p13 = p03;
     for (int pos_y = 0; pos_y < h; pos_y++) {
         p01 = p02, p11 = p12;
@@ -1666,7 +1669,7 @@ void synthesize(int thread_id) {
         { synthesize_mode_4<PIXEL_YC>, synthesize_mode_4<uint8_t> },
         { synthesize_mode_5<PIXEL_YC>, synthesize_mode_5<uint8_t> },
     };
-    func_list[g_afs.sub_thread.synthesize_task.mode][(g_afs.mode & AFS_MODE_CACHE_NV16) ? 1 : 0](thread_id);
+    func_list[g_afs.sub_thread.synthesize_task.mode][(g_afs.sub_thread.afs_mode & AFS_MODE_CACHE_NV16) ? 1 : 0](thread_id);
 }
 
 unsigned int __stdcall sub_thread(void *prm) {
@@ -1751,10 +1754,10 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     const int is_saving = fp->exfunc->is_saving(fpip->editp);
     const int is_editing = fp->exfunc->is_editing(fpip->editp);
     int tb_order = ((fpip->flag & FILTER_PROC_INFO_FLAG_INVERT_FIELD_ORDER) != 0);
-    g_afs.mode = 0x00;
-    g_afs.mode |= (fpip->yc_size == 6) ? AFS_MODE_AVIUTL_YC48 : AFS_MODE_AVIUTL_YUY2;
-    g_afs.mode |= (yuy2upsample) ? AFS_MODE_YUY2UP : 0x00;
-    g_afs.mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
+    g_afs.afs_mode = 0x00;
+    g_afs.afs_mode |= (fpip->yc_size == 6) ? AFS_MODE_AVIUTL_YC48 : AFS_MODE_AVIUTL_YUY2;
+    g_afs.afs_mode |= (yuy2upsample) ? AFS_MODE_YUY2UP : 0x00;
+    g_afs.afs_mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
 #ifdef AFSVF
     tb_order = fp->check[10] ? !tb_order : tb_order;
 
@@ -1805,7 +1808,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     }
 
     // 解析情報キャッシュ確保
-    if (!check_scan_cache(fpip->frame_n, fpip->w, fpip->h, num_thread)) {
+    if (!check_scan_cache(fpip->frame_n, fpip->w, fpip->h, num_thread, g_afs.afs_mode)) {
         fill_this_ycp(fp, fpip);
         error_modal(fp, fpip->editp, "解析用メモリが確保できません。");
         return TRUE;
@@ -1824,8 +1827,8 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         PIXEL_YC *ptr_dst = fpip->ycp_edit;
         int src_offset = 0;
         const int src_frame_pixels = g_afs.source_w * g_afs.source_h;
-        const func_copy_line copy_line = afs_func.copy_line[g_afs.mode];
-        const int source_w_byte = g_afs.source_w * ((g_afs.mode & AFS_MODE_CACHE_NV16) ? 1 : 6);
+        const func_copy_line copy_line = afs_func.copy_line[g_afs.afs_mode];
+        const int source_w_byte = g_afs.source_w * ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) ? 1 : 6);
         for (int pos_y = 0; pos_y < fpip->h; pos_y++, ptr_dst += fpip->max_w, src_offset += source_w_byte) {
             auto ptr_src = (uint8_t *)((is_latter_field(pos_y, tb_order) && reverse[0]) ? p1 : p0) + src_offset;
             copy_line(ptr_dst, ptr_src, fpip->w, src_frame_pixels);
@@ -1892,7 +1895,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     QPC_GET_COUNTER(QPC_ANALYZE_FRAME);
 
     sip = get_stripe_info(fpip->frame, 1);
-    const int si_w = si_pitch(fpip->w);
+    const int si_w = si_pitch(fpip->w, g_afs.afs_mode);
     QPC_GET_COUNTER(QPC_STRIP_COUNT);
 
     // 解析マップをフィルタ
@@ -1981,6 +1984,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             g_afs.sub_thread.synthesize_task.mode = analyze;
             g_afs.sub_thread.synthesize_task.detect_sc = detect_sc;
             g_afs.sub_thread.synthesize_task.clip = clip;
+            g_afs.sub_thread.afs_mode = g_afs.afs_mode;
 
             g_afs.sub_thread.sub_task = TASK_SYNTHESIZE;
             //g_afs.sub_thread.thread_sub_nは総スレッド数
