@@ -855,18 +855,16 @@ static __forceinline void afs_mie_spot_nv16_simd_base(PIXEL_YC *dst, uint8_t *sr
     my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
 
     ////色差をブレンド
-    //mc4a = afs_mie_spot(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
-    //mc4b = afs_mie_spot(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipa));
-    mc4a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc5a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
         mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
-        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc4a);
+        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
         mc00 = mc0b;
     } else {
         mc1a = afs_uv_interp_linear(mc0a, mc0b);
-        mc1b = afs_uv_interp_linear(mc0b, mc4a);
+        mc1b = afs_uv_interp_linear(mc0b, mc5a);
     }
 
     //YC48を構築
@@ -1024,18 +1022,16 @@ static __forceinline void afs_mie_inter_nv16_simd_base(PIXEL_YC *dst, uint8_t *s
     my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
 
     ////色差をブレンド
-    //mc4a = afs_mie_inter(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
-    //mc4b = afs_mie_inter(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipa));
-    mc4a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc5a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
         mc1a = afs_uv_interp_lanczos(mc00, mc0a, mc0b);
-        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc4a);
+        mc1b = afs_uv_interp_lanczos(mc0a, mc0b, mc5a);
         mc00 = mc0b;
     } else {
         mc1a = afs_uv_interp_linear(mc0a, mc0b);
-        mc1b = afs_uv_interp_linear(mc0b, mc4a);
+        mc1b = afs_uv_interp_linear(mc0b, mc5a);
     }
 
     //YC48を構築
