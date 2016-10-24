@@ -135,3 +135,12 @@ static void __forceinline __stdcall afs_yuy2up_frame_simd(PIXEL_YC *dst, int dst
         _mm_storeu_si128((__m128i*)(ptr_dst + 32), x5);
     }
 }
+
+static void __forceinline __stdcall afs_copy_yc48_frame_simd(PIXEL_YC *dst, int dst_pitch, PIXEL_YC *src, int width, int src_pitch, int y_start, int y_fin) {
+    src += y_start * src_pitch;
+    dst += y_start * dst_pitch;
+
+    for (int jh = y_start; jh < y_fin; jh++, src += src_pitch, dst += dst_pitch) {
+        memcpy_sse<false>(dst, src, width * sizeof(PIXEL_YC));
+    }
+}

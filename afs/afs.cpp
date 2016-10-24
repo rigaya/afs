@@ -50,6 +50,10 @@ AFS_FUNC afs_func = { 0 };
 #define scanp(x)   (g_afs.scan_array  +((x)&(AFS_SCAN_CACHE_NUM-1)))
 #define stripep(x) (g_afs.stripe_array+((x)&(AFS_STRIPE_CACHE_NUM-1)))
 
+static inline func_yuy2up get_func_copy_frame() {
+    return afs_func.yuy2up[g_afs.afs_mode & ~(AFS_MODE_YUY2UP|AFS_MODE_CACHE_NV16)];
+}
+
 static inline int afs_cache_nv16(unsigned int afs_mode) {
     static_assert(AFS_MODE_CACHE_NV16 == 0x02, "AFS_MODE_CACHE_NV16 is not 0x02, afs_cache_nv16() will fail.");
     return (afs_mode & AFS_MODE_CACHE_NV16) >> 1;
@@ -265,11 +269,13 @@ void free_source_cache(void) {
     }
 }
 
-BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int cache_nv16) {
-    const int size = max_w * max_h;
+BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
+    const int source_w = si_pitch(max_w, afs_mode);
+    const int cache_nv16 = (afs_mode & AFS_MODE_CACHE_NV16) != 0;
+    const int size = source_w * max_h;
 
     if (g_afs.source_array[0].map != NULL) {
-        if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w != max_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
+        if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w != source_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
             free_source_cache();
         }
     }
@@ -277,7 +283,7 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int cache_nv16) {
     const int frame_size_bytes = size * ((cache_nv16) ? 2 : 6);
     if (g_afs.source_array[0].map == NULL) {
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
-            if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, 32))) {
+            if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, 64))) {
                 free_source_cache();
                 return FALSE;
             }
@@ -287,7 +293,7 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int cache_nv16) {
     }
 
     if (frame_n > 0 || g_afs.source_frame_n < 0) g_afs.source_frame_n = frame_n;
-    g_afs.source_w = max_w;
+    g_afs.source_w = source_w;
     g_afs.source_h = max_h;
     g_afs.cache_nv16 = cache_nv16;
 
@@ -303,7 +309,7 @@ void __stdcall yuy2up(int thread_id) {
 }
 #endif
 
-void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int h, int *hit) {
+void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int max_w, int h, int *hit) {
     int file_id, video_number;
 #ifndef AFSNFS
     if (fp->exfunc->get_source_video_number(editp, frame, &file_id, &video_number) != TRUE)
@@ -322,45 +328,41 @@ void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int h, int *hi
 
     void *dst = srp->map;
     void *src = fp->exfunc->get_ycp_source_cache(editp, frame, 0);
-    if (g_afs.afs_mode & AFS_MODE_YUY2UP || ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) && !(g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2))) {
 #if SIMD_DEBUG
-        PIXEL_YC *test_buf = (PIXEL_YC *)get_debug_buffer(sizeof(PIXEL_YC) * g_afs.source_w * (h + 2));
-        afs_yuy2up_frame_mmx(test_buf, src, w, g_afs.source_w, 0, h);
-        afs_func.yuy2up(dst, src, w, g_afs.source_w, 0, h);
-        if (compare_frame(dst, test_buf, w, g_afs.source_w, h))
-            error_message_box(__LINE__, "afs_func.yuy2up");
+    PIXEL_YC *test_buf = (PIXEL_YC *)get_debug_buffer(sizeof(PIXEL_YC) * g_afs.source_w * (h + 2));
+    afs_yuy2up_frame_mmx(test_buf, g_afs.source_w, g_afs.source_w * g_afs.source_h, src, w, max_w, h, 0, h);
+    afs_func.yuy2up(dst, g_afs.source_w, g_afs.source_w * g_afs.source_h, src, w, max_w, h, 0, h);
+    if (compare_frame(dst, test_buf, w, g_afs.source_w, h))
+        error_message_box(__LINE__, "afs_func.yuy2up");
 #endif
 #if ENABLE_SUB_THREADS
-        g_afs.sub_thread.yuy2up_task.dst = dst;
-        g_afs.sub_thread.yuy2up_task.dst_pitch = g_afs.source_w;
-        g_afs.sub_thread.yuy2up_task.max_h = g_afs.source_h;
-        g_afs.sub_thread.yuy2up_task.src = src;
-        g_afs.sub_thread.yuy2up_task.width = w;
-        g_afs.sub_thread.yuy2up_task.src_pitch = g_afs.source_w;
-        g_afs.sub_thread.yuy2up_task.height = h;
-        g_afs.sub_thread.afs_mode = g_afs.afs_mode;
-        g_afs.sub_thread.sub_task = TASK_YUY2UP;
+    g_afs.sub_thread.yuy2up_task.dst = dst;
+    g_afs.sub_thread.yuy2up_task.dst_pitch = g_afs.source_w;
+    g_afs.sub_thread.yuy2up_task.max_h = g_afs.source_h;
+    g_afs.sub_thread.yuy2up_task.src = src;
+    g_afs.sub_thread.yuy2up_task.width = w;
+    g_afs.sub_thread.yuy2up_task.src_pitch = max_w;
+    g_afs.sub_thread.yuy2up_task.height = h;
+    g_afs.sub_thread.afs_mode = g_afs.afs_mode;
+    g_afs.sub_thread.sub_task = TASK_YUY2UP;
         
-        //g_afs.sub_thread.thread_sub_nは総スレッド数
-        //自分を除いた数を起動
-        for (int ith = 0; ith < g_afs.sub_thread.thread_sub_n - 1; ith++) {
-            SetEvent(g_afs.sub_thread.hEvent_sub_start[ith]);
-        }
-        //メインスレッド(自分)がスレッドID0を担当
-        yuy2up(0);
-        //1スレッド(つまり自スレッドのみなら同期は必要ない)
-        if (0 < g_afs.sub_thread.thread_sub_n - 1)
-            WaitForMultipleObjects(g_afs.sub_thread.thread_sub_n - 1, g_afs.sub_thread.hEvent_sub_fin, TRUE, INFINITE);
+    //g_afs.sub_thread.thread_sub_nは総スレッド数
+    //自分を除いた数を起動
+    for (int ith = 0; ith < g_afs.sub_thread.thread_sub_n - 1; ith++) {
+        SetEvent(g_afs.sub_thread.hEvent_sub_start[ith]);
+    }
+    //メインスレッド(自分)がスレッドID0を担当
+    yuy2up(0);
+    //1スレッド(つまり自スレッドのみなら同期は必要ない)
+    if (0 < g_afs.sub_thread.thread_sub_n - 1)
+        WaitForMultipleObjects(g_afs.sub_thread.thread_sub_n - 1, g_afs.sub_thread.hEvent_sub_fin, TRUE, INFINITE);
 #if SIMD_DEBUG
-        if (compare_frame(dst, test_buf, w, g_afs.source_w, h))
-            error_message_box(__LINE__, "afs_func.yuy2up_mt");
+    if (compare_frame(dst, test_buf, w, g_afs.source_w, h))
+        error_message_box(__LINE__, "afs_func.yuy2up_mt");
 #endif //SIMD_DEBUG
 #else //ENABLE_SUB_THREADS
-        afs_func.yuy2up(dst, src, w, g_afs.source_w, h, 0, h);
+    afs_func.yuy2up(dst, g_afs.source_w, g_afs.source_w * g_afs.source_h, src, w, max_w, h, 0, h);
 #endif //ENABLE_SUB_THREADS
-    } else {
-        memcpy(dst, src, g_afs.source_w * g_afs.source_h * ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) ? 2 : 6));
-    }
 
     srp->status = 1;
     srp->frame = frame;
@@ -380,7 +382,7 @@ void fill_this_ycp(FILTER *fp, FILTER_PROC_INFO *fpip) {
 #endif
 
     if (ycp != NULL)
-        memcpy(fpip->ycp_edit, ycp, fpip->yc_size * fpip->h * fpip->max_w);
+        memcpy_sse<true>(fpip->ycp_edit, ycp, fpip->yc_size * fpip->h * fpip->max_w);
     else
         error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
 
@@ -392,7 +394,7 @@ void* get_ycp_cache(FILTER *fp, FILTER_PROC_INFO *fpip, int frame, int *hit) {
     frame = max(0, min(frame, upper_limit));
 
 #ifndef AFSVF
-    return get_source_cache(fp, fpip->editp, frame, fpip->w, fpip->h, hit);
+    return get_source_cache(fp, fpip->editp, frame, fpip->w, fpip->max_w, fpip->h, hit);
 #else
     if (hit != NULL) *hit = 1;
     if (frame == fpip->frame)
@@ -512,7 +514,7 @@ void setup_sub_thread(int sub_thread_n) {
 #define TRACK_N 13
 TCHAR *track_name[] = { "上", "下", "左", "右", "切替点", "判定比", "縞(ｼﾌﾄ)", "縞(解除)", "Y動き", "C動き", "解除Lv", "ｽﾚｯﾄﾞ数",       "ｻﾌﾞｽﾚｯﾄﾞ" };
 int track_s[]       = {    0,    0,    0,    0,       0,        0,         0,          0,       0,       0,        0,         1,              1    };
-int track_default[] = {   16,   16,   32,   32,       0,      192,       128,         64,     128,     256,        4,         2,              4    };
+int track_default[] = {   16,   16,   32,   32,       0,      192,       128,         64,     128,     256,        4,         2,              2    };
 int track_e[]       = {  512,  512,  512,  512,     256,      256,      1024,       1024,    1024,    1024,        5, AFS_SCAN_WORKER_MAX, AFS_SUB_WORKER_MAX };
 #else
 #define TRACK_N 12
@@ -522,7 +524,11 @@ int track_default[] = {   16,   16,   32,   32,       0,      192,       128,   
 int track_e[]       = {  512,  512,  512,  512,     256,      256,      1024,       1024,    1024,    1024,        5, AFS_SCAN_WORKER_MAX };
 #endif
 
+#ifndef AFSVF
 #define CHECK_N 13
+#else
+#define CHECK_N 12
+#endif
 
 TCHAR *check_name[] = { "フィールドシフト",
     "間引き",
@@ -540,12 +546,14 @@ TCHAR *check_name[] = { "フィールドシフト",
     "フィールドオーダー反転",
 #endif
     "シフト・解除なし",
+#ifndef AFSVF
     "8bit高速処理モード"
+#endif
 };
 #ifndef AFSVF
 int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1 };
 #else
-int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 #endif
 
 
@@ -717,20 +725,20 @@ void thread_func_analyze_frame(const int id) {
     int pos_x = ((int)(g_afs.scan_w * id / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     int x_fin = ((int)(g_afs.scan_w * (id+1) / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     AFS_SCAN_CLIP clip_thread = *g_afs.scan_arg.clip;
-    int thread_mc_local[2] ={ 0 };
+    int thread_mc_local[2] = { 0 };
     if (id < g_afs.scan_worker_n - 1) {
         if (func_analyze.shrink_info) {
             for (; pos_x < x_fin; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.max_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; pos_x < x_fin; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.max_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
         }
     } else {
@@ -753,25 +761,25 @@ void thread_func_analyze_frame(const int id) {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.max_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
             if (pos_x < g_afs.scan_w) {
                 analyze_block = ((g_afs.scan_w - pos_x) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, pos_x - (g_afs.scan_w-analyze_block));
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.max_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.max_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
             if (pos_x < g_afs.scan_w) {
                 analyze_block = ((g_afs.scan_w - pos_x) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, pos_x - (g_afs.scan_w-analyze_block));
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.max_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
         }
     }
@@ -796,7 +804,7 @@ unsigned __stdcall thread_func(LPVOID worker_id) {
 
 // 解析関数ラッパー
 
-void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int max_w, AFS_SCAN_CLIP *mc_clip) {
+void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_w, AFS_SCAN_CLIP *mc_clip) {
 #if SIMD_DEBUG
     afs_analyze_set_threshold_mmx(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
 #endif
@@ -807,7 +815,7 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int max_w, 
     g_afs.scan_arg.p0       = p0;
     g_afs.scan_arg.p1       = p1;
     g_afs.scan_arg.tb_order = sp->tb_order;
-    g_afs.scan_arg.max_w    = max_w;
+    g_afs.scan_arg.source_w = source_w;
     g_afs.scan_arg.si_pitch = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     g_afs.scan_arg.clip     = mc_clip;
     for (int i = 0; i < g_afs.scan_worker_n; i++)
@@ -893,7 +901,7 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
 
 // 縞・動き解析
 
-void scan_frame(int frame, int force, int max_w, void *p1, void *p0,
+void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
                 int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip) {
     const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     AFS_SCAN_DATA *sp = scanp(frame);
@@ -912,7 +920,7 @@ void scan_frame(int frame, int force, int max_w, void *p1, void *p0,
     sp->thre_Ymotion = thre_Ymotion, sp->thre_Cmotion = thre_Cmotion;
     sp->clip.top = sp->clip.bottom = sp->clip.left = sp->clip.right = -1;
 
-    analyze_stripe((mode == 0), sp, p1, p0, max_w, mc_clip);
+    analyze_stripe((mode == 0), sp, p1, p0, source_w, mc_clip);
 
     return;
 }
@@ -1125,7 +1133,7 @@ unsigned char analyze_frame(int frame, int drop, int smooth, int force24, int co
 
 // シーンチェンジ解析
 
-BOOL analyze_scene_change(int afs_mode, unsigned char* sip, int tb_order, int max_w, int w, int h,
+BOOL analyze_scene_change(int afs_mode, unsigned char* sip, int tb_order, int source_w, int w, int h,
                           void *p0, void *p1, int top, int bottom, int left, int right) {
     const int si_w = si_pitch(w, afs_mode);
     //どうやらスタックに確保すると死ぬようなので、mallocする
@@ -1152,17 +1160,17 @@ BOOL analyze_scene_change(int afs_mode, unsigned char* sip, int tb_order, int ma
 
     if (afs_mode & AFS_MODE_CACHE_NV16) {
         for (int pos_y = top; pos_y < h - bottom; pos_y++) {
-            uint8_t *ptr0 = (uint8_t *)p0 + pos_y * max_w + (left & (~1));
-            uint8_t *ptr1 = (uint8_t *)p1 + pos_y * max_w + (left & (~1));
+            uint8_t *ptr0 = (uint8_t *)p0 + pos_y * source_w + (left & (~1));
+            uint8_t *ptr1 = (uint8_t *)p1 + pos_y * source_w + (left & (~1));
             for (int pos_x = left; pos_x < w - right; pos_x += 2, ptr0 += 2, ptr1 += 2) {
                 int y0_0 = ptr0[0];
                 int y0_1 = ptr0[1];
-                int u0   = (ptr0 + max_w * h)[0];
-                int v0   = (ptr0 + max_w * h)[0];
+                int u0   = (ptr0 + source_w * h)[0];
+                int v0   = (ptr0 + source_w * h)[0];
                 int y1_0 = ptr1[0];
                 int y1_1 = ptr1[1];
-                int u1   = (ptr1 + max_w * h)[0];
-                int v1   = (ptr1 + max_w * h)[0];
+                int u1   = (ptr1 + source_w * h)[0];
+                int v1   = (ptr1 + source_w * h)[0];
                 hist3d[0][(y0_0 & 0xf0) << 4 | (u0 & 0xf0) | (v0 & 0xf0) >> 4]++;
                 hist3d[0][(y0_1 & 0xf0) << 4 | (u0 & 0xf0) | (v0 & 0xf0) >> 4]++;
                 hist3d[1][(y1_0 & 0xf0) << 4 | (u1 & 0xf0) | (v1 & 0xf0) >> 4]++;
@@ -1171,8 +1179,8 @@ BOOL analyze_scene_change(int afs_mode, unsigned char* sip, int tb_order, int ma
         }
     } else {
         for (int pos_y = top; pos_y < h - bottom; pos_y++) {
-            PIXEL_YC *ycp0 = (PIXEL_YC *)p0 + pos_y * max_w + left;
-            PIXEL_YC *ycp1 = (PIXEL_YC *)p1 + pos_y * max_w + left;
+            PIXEL_YC *ycp0 = (PIXEL_YC *)p0 + pos_y * source_w + left;
+            PIXEL_YC *ycp1 = (PIXEL_YC *)p1 + pos_y * source_w + left;
             for (int pos_x = left; pos_x < w - right; pos_x++, ycp0++, ycp1++) {
                 hist3d[0][((ycp0->y + 128) & 0xf00) | (((ycp0->cr + 128) >> 4) & 0x0f0) | (((ycp0->cb + 128) >> 8) & 0x00f)]++;
                 hist3d[1][((ycp1->y + 128) & 0xf00) | (((ycp1->cr + 128) >> 4) & 0x0f0) | (((ycp1->cb + 128) >> 8) & 0x00f)]++;
@@ -1358,6 +1366,7 @@ void disp_status(PIXEL_YC *ycp, int *result_stat, int *assume_shift, int *revers
     const int max_w   = fpip->max_w; \
     const int w       = fpip->w; \
     const int h       = fpip->h; \
+    const int source_w = g_afs.source_w; \
     const int src_frame_pixels = g_afs.source_w * g_afs.source_h; \
     const func_copy_line copy_line = afs_func.copy_line[g_afs.sub_thread.afs_mode];
 
@@ -1387,7 +1396,7 @@ static inline PIXEL_YC getyc48(PIXEL_YC *ycp, int src_frame_pixels) {
     return *ycp;
 }
 static inline PIXEL_YC getyc48(uint8_t *ycp, int src_frame_pixels) {
-    uint8_t *ptr = (uint8_t *)((size_t)(ptr + src_frame_pixels) & (~1));
+    uint8_t *ptr = (uint8_t *)((size_t)(ycp + src_frame_pixels) & (~1));
     int y = *ycp;
     int u = ((size_t)ycp & 1) ? (ptr[0] + ptr[2] + 1) >> 1 : ptr[0];
     int v = ((size_t)ycp & 1) ? (ptr[1] + ptr[3] + 1) >> 1 : ptr[1];
@@ -1415,12 +1424,12 @@ void synthesize_mode_5(int thread_id) {
     SRC_TYPE *ycp01, *ycp02, *ycp03, *ycp11, *ycp12, *ycp13;
 
     p01 = p03 = p0,   p11 = p13 = p1;
-    p02 = p0 + max_w, p12 = p1 + max_w;
+    p02 = p0 + source_w, p12 = p1 + source_w;
     for (int pos_y = 0; pos_y < h; pos_y++) {
         p01 = p02, p11 = p12;
         p02 = p03, p12 = p13;
         if (pos_y < h - 1) {
-            p03 += max_w, p13 += max_w;
+            p03 += source_w, p13 += source_w;
         } else {
             p03 = p01, p13 = p11;
         }
@@ -1502,17 +1511,17 @@ void synthesize_mode_4(int thread_id) {
     const func_deint4 deint4 = afs_func.deint4[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p05 = p0;
-    p02 = p04 = p06 = p0 + max_w;
-    p07 = p0 + max_w * 2;
+    p02 = p04 = p06 = p0 + source_w;
+    p07 = p0 + source_w * 2;
     p11 = p13 = p15 = p1;
-    p12 = p14 = p16 = p1 + max_w;
-    p17 = p1 + max_w * 2;
+    p12 = p14 = p16 = p1 + source_w;
+    p17 = p1 + source_w * 2;
     for (int pos_y = 0; pos_y < h; pos_y++) {
         p01 = p02; p02 = p03; p03 = p04; p04 = p05; p05 = p06; p06 = p07;
         p11 = p12; p12 = p13; p13 = p14; p14 = p15; p15 = p16; p16 = p17;
         if (pos_y < h - 3) {
-            p07 += max_w;
-            p17 += max_w;
+            p07 += source_w;
+            p17 += source_w;
         } else {
             p07 = p05;
             p17 = p15;
@@ -1544,12 +1553,12 @@ void synthesize_mode_3(int thread_id) {
     const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p0,   p11 = p13 = p1;
-    p02 = p0 + max_w, p12 = p1 + max_w;
+    p02 = p0 + source_w, p12 = p1 + source_w;
     for (int pos_y = 0; pos_y < h; pos_y++) {
         p01 = p02, p11 = p12;
         p02 = p03, p12 = p13;
         if (pos_y < h - 1) {
-            p03 += max_w, p13 += max_w;
+            p03 += source_w, p13 += source_w;
         } else {
             p03 = p01, p13 = p11;
         }
@@ -1576,12 +1585,12 @@ void synthesize_mode_2(int thread_id) {
     const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p0,   p11 = p13 = p1;
-    p02 = p0 + max_w, p12 = p1 + max_w;
+    p02 = p0 + source_w, p12 = p1 + source_w;
     for (int pos_y = 0; pos_y < h; pos_y++) {
         p01 = p02, p11 = p12;
         p02 = p03, p12 = p13;
         if (pos_y < h - 1) {
-            p03 += max_w, p13 += max_w;
+            p03 += source_w, p13 += source_w;
         } else {
             p03 = p01, p13 = p11;
         }
@@ -1613,15 +1622,15 @@ void synthesize_mode_1(int thread_id) {
     const func_mie_inter mie_inter = afs_func.mie_inter[g_afs.sub_thread.afs_mode];
 
     p01 = p03 = p0,   p11 = p13 = p1;
-    p02 = p0 + max_w, p12 = p1 + max_w;
+    p02 = p0 + source_w, p12 = p1 + source_w;
     if (g_afs.sub_thread.synthesize_task.detect_sc && (~status & AFS_FLAG_SHIFT0))
-        if (analyze_scene_change(g_afs.sub_thread.afs_mode, sip, tb_order, max_w, w, h, p0, p1, clip_t, clip_b, clip_l, clip_r))
+        if (analyze_scene_change(g_afs.sub_thread.afs_mode, sip, tb_order, source_w, w, h, p0, p1, clip_t, clip_b, clip_l, clip_r))
             p11 = p01, p12 = p02, p13 = p03;
     for (int pos_y = 0; pos_y < h; pos_y++) {
         p01 = p02, p11 = p12;
         p02 = p03, p12 = p13;
         if(pos_y < h - 1) {
-            p03 += max_w, p13 += max_w;
+            p03 += source_w, p13 += source_w;
         } else {
             p03 = p01, p13 = p11;
         }
@@ -1649,8 +1658,8 @@ void synthesize_mode_0(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     for (int pos_y = y_start; pos_y < y_end; pos_y++) {
         PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
-        SRC_TYPE *ycp0 = p0 + pos_y * max_w;
-        SRC_TYPE *ycp1 = p1 + pos_y * max_w;
+        SRC_TYPE *ycp0 = p0 + pos_y * source_w;
+        SRC_TYPE *ycp1 = p1 + pos_y * source_w;
         if (is_latter_field(pos_y, tb_order) && (status & AFS_FLAG_SHIFT0))
             copy_line(ycp, ycp1, w, src_frame_pixels);
         else
@@ -1749,7 +1758,11 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     const int replay_mode = fp->check[9];
     const int yuy2upsample = fp->check[10] ? 1 : 0;
     const int through_mode = fp->check[11];
+#ifndef AFSVF
     const int cache_nv16_mode = fp->check[12] || fpip->yc_size < 6;
+#else
+    const int cache_nv16_mode = 0;
+#endif
 
     const int is_saving = fp->exfunc->is_saving(fpip->editp);
     const int is_editing = fp->exfunc->is_editing(fpip->editp);
@@ -1758,6 +1771,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     g_afs.afs_mode |= (fpip->yc_size == 6) ? AFS_MODE_AVIUTL_YC48 : AFS_MODE_AVIUTL_YUY2;
     g_afs.afs_mode |= (yuy2upsample) ? AFS_MODE_YUY2UP : 0x00;
     g_afs.afs_mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
+
 #ifdef AFSVF
     tb_order = fp->check[10] ? !tb_order : tb_order;
 
@@ -1794,11 +1808,14 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         return TRUE;
     }
 
-    if (set_source_cache_size(fpip->frame_n, fpip->max_w, fpip->max_h, cache_nv16_mode) != TRUE) {
+    if (set_source_cache_size(fpip->frame_n, fpip->max_w, fpip->max_h, g_afs.afs_mode) != TRUE) {
         fill_this_ycp(fp, fpip);
         error_modal(fp, fpip->editp, "フィルタキャッシュの確保に失敗しました。");
         return TRUE;
     };
+#else
+    g_afs.source_w = fpip->max_w;
+    g_afs.source_h = fpip->max_h;
 #endif
 
     p0 = get_ycp_cache(fp, fpip, fpip->frame, NULL);
@@ -1808,7 +1825,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     }
 
     // 解析情報キャッシュ確保
-    if (!check_scan_cache(fpip->frame_n, fpip->w, fpip->h, num_thread, g_afs.afs_mode)) {
+    if (!check_scan_cache(g_afs.afs_mode, fpip->frame_n, fpip->w, fpip->h, num_thread)) {
         fill_this_ycp(fp, fpip);
         error_modal(fp, fpip->editp, "解析用メモリが確保できません。");
         return TRUE;
@@ -1857,7 +1874,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             return TRUE;
         }
         QPC_GET_COUNTER(QPC_YCP_CACHE);
-        scan_frame(fpip->frame + i, (!prev_hit || !hit), fpip->max_w, ycp1, ycp0,
+        scan_frame(fpip->frame + i, (!prev_hit || !hit), g_afs.source_w, ycp1, ycp0,
             (analyze == 0 ? 0 : 1), tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, &clip);
         QPC_GET_COUNTER(QPC_SCAN_FRAME);
         count_motion(fpip->frame + i, &clip);
@@ -1926,7 +1943,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     }
     p1 = get_ycp_cache(fp, fpip, fpip->frame - 1, NULL);
     if (p1 == NULL) {
-        memcpy(fpip->ycp_edit, p0, sizeof(PIXEL_YC) * fpip-> h * fpip->max_w);
+        get_func_copy_frame()(fpip->ycp_edit, fpip->max_w, fpip->max_w * fpip->max_h, p0, fpip->w, g_afs.source_w, 0, fpip->h);
         error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
         return TRUE;
     }
@@ -2015,12 +2032,12 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             PIXEL_YC *ycp01, *ycp02, *ycp03, *ycp11, *ycp12, *ycp13;
 
             p01 = p03 = p0, p11 = p13 = p1;
-            p02 = p0 + fpip->max_w, p12 = p1 + fpip->max_w;
+            p02 = p0 + g_afs.source_w, p12 = p1 + g_afs.source_w;
             for (int pos_y = 0; pos_y <= fpip->h - 1; pos_y++) {
                 p01 = p02, p11 = p12;
                 p02 = p03, p12 = p13;
                 if (pos_y < fpip->h - 1) {
-                    p03 += fpip->max_w, p13 += fpip->max_w;
+                    p03 += g_afs.source_w, p13 += g_afs.source_w;
                 } else {
                     p03 = p01, p13 = p11;
                 }
@@ -2097,17 +2114,17 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             PIXEL_YC *p11, *p12, *p13, *p14, *p15, *p16, *p17;
 
             p01 = p03 = p05 = p0;
-            p02 = p04 = p06 = p0 + fpip->max_w;
-            p07 = p0 + fpip->max_w * 2;
+            p02 = p04 = p06 = p0 + g_afs.source_w;
+            p07 = p0 + g_afs.source_w * 2;
             p11 = p13 = p15 = p1;
-            p12 = p14 = p16 = p1 + fpip->max_w;
-            p17 = p1 + fpip->max_w * 2;
+            p12 = p14 = p16 = p1 + g_afs.source_w;
+            p17 = p1 + g_afs.source_w * 2;
             for (int pos_y = 0; pos_y <= fpip->h - 1; pos_y++) {
                 p01 = p02; p02 = p03; p03 = p04; p04 = p05; p05 = p06; p06 = p07;
                 p11 = p12; p12 = p13; p13 = p14; p14 = p15; p15 = p16; p16 = p17;
                 if (pos_y < fpip->h - 3) {
-                    p07 += fpip->max_w;
-                    p17 += fpip->max_w;
+                    p07 += g_afs.source_w;
+                    p17 += g_afs.source_w;
                 } else {
                     p07 = p05;
                     p17 = p15;
@@ -2137,12 +2154,12 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
 
             p01 = p03 = p0, p11 = p13 = p1;
-            p02 = p0 + fpip->max_w, p12 = p1 + fpip->max_w;
+            p02 = p0 + g_afs.source_w, p12 = p1 + g_afs.source_w;
             for (int pos_y = 0; pos_y <= fpip->h - 1; pos_y++) {
                 p01 = p02, p11 = p12;
                 p02 = p03, p12 = p13;
                 if (pos_y < fpip->h - 1) {
-                    p03 += fpip->max_w, p13 += fpip->max_w;
+                    p03 += g_afs.source_w, p13 += g_afs.source_w;
                 } else {
                     p03 = p01, p13 = p11;
                 }
@@ -2166,12 +2183,12 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
 
             p01 = p03 = p0, p11 = p13 = p1;
-            p02 = p0 + fpip->max_w, p12 = p1 + fpip->max_w;
+            p02 = p0 + g_afs.source_w, p12 = p1 + g_afs.source_w;
             for (int pos_y = 0; pos_y <= fpip->h - 1; pos_y++) {
                 p01 = p02, p11 = p12;
                 p02 = p03, p12 = p13;
                 if (pos_y < fpip->h - 1) {
-                    p03 += fpip->max_w, p13 += fpip->max_w;
+                    p03 += g_afs.source_w, p13 += g_afs.source_w;
                 } else {
                     p03 = p01, p13 = p11;
                 }
@@ -2195,15 +2212,15 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             PIXEL_YC *p01, *p02, *p03, *p11, *p12, *p13;
 
             p01 = p03 = p0, p11 = p13 = p1;
-            p02 = p0 + fpip->max_w, p12 = p1 + fpip->max_w;
+            p02 = p0 + g_afs.source_w, p12 = p1 + g_afs.source_w;
             if (detect_sc && (~status & AFS_FLAG_SHIFT0))
-                if (analyze_scene_change(sip, tb_order, fpip->max_w, fpip->w, fpip->h, p0, p1, clip.top, clip.bottom, clip.left, clip.right))
+                if (analyze_scene_change(g_afs.mode, sip, tb_order, g_afs.source_w, fpip->w, fpip->h, p0, p1, clip.top, clip.bottom, clip.left, clip.right))
                     p11 = p01, p12 = p02, p13 = p03;
             for (int pos_y = 0; pos_y <= fpip->h - 1; pos_y++) {
                 p01 = p02, p11 = p12;
                 p02 = p03, p12 = p13;
                 if (pos_y < fpip->h - 1) {
-                    p03 += fpip->max_w, p13 += fpip->max_w;
+                    p03 += g_afs.source_w, p13 += g_afs.source_w;
                 } else {
                     p03 = p01, p13 = p11;
                 }
@@ -2232,8 +2249,8 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
                 const int offset = pos_y * fpip->max_w;
                 ycp = fpip->ycp_edit + offset;
                 _SD(sdp = test_synthesize + offset);
-                ycp0 = p0 + offset;
-                ycp1 = p1 + offset;
+                ycp0 = p0 + pos_y * g_afs.source_w;
+                ycp1 = p1 + pos_y * g_afs.source_w;
                 if (is_latter_field(pos_y, tb_order) && (status & AFS_FLAG_SHIFT0)) {
                     memcpy(ycp, ycp1, sizeof(PIXEL_YC) * fpip->w);
                     _SD(memcpy(sdp, ycp1, sizeof(PIXEL_YC) * fpip->w));

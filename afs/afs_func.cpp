@@ -194,12 +194,12 @@ static const struct {
     DWORD simd;
     func_yuy2up yuy2up[4];
 } FUNC_YUY2UP_LIST[] = {
-    { AVX2|AVX,             { afs_yuy2up_frame_avx2,   afs_yuy2up_frame_avx2,   afs_convert_yc48_to_nv16_avx2,   afs_convert_yc48_to_nv16_avx2   } },
-    { AVX|SSE41|SSSE3|SSE2, { afs_yuy2up_frame_avx,    afs_yuy2up_frame_avx,    afs_convert_yc48_to_nv16_avx,    afs_convert_yc48_to_nv16_avx    } },
-    { SSE41|SSSE3|SSE2,     { afs_yuy2up_frame_sse4_1, afs_yuy2up_frame_sse4_1, afs_convert_yc48_to_nv16_sse4_1, afs_convert_yc48_to_nv16_sse4_1 } },
-    { SSSE3|SSE2,           { afs_yuy2up_frame_sse2,   afs_yuy2up_frame_sse2,   afs_convert_yc48_to_nv16_ssse3,  afs_convert_yc48_to_nv16_ssse3  } },
-    { SSE2,                 { afs_yuy2up_frame_sse2,   afs_yuy2up_frame_sse2,   afs_convert_yc48_to_nv16_sse2,   afs_convert_yc48_to_nv16_sse2   } },
-    { NONE,                 { afs_yuy2up_frame_mmx,    afs_yuy2up_frame_mmx,    afs_convert_yc48_to_nv16_sse2,   afs_convert_yc48_to_nv16_sse2   } }
+    { AVX2|AVX,             { afs_copy_yc48_frame_sse2, afs_yuy2up_frame_avx2,   afs_convert_yc48_to_nv16_avx2,   afs_convert_yc48_to_nv16_avx2   } },
+    { AVX|SSE41|SSSE3|SSE2, { afs_copy_yc48_frame_sse2, afs_yuy2up_frame_avx,    afs_convert_yc48_to_nv16_avx,    afs_convert_yc48_to_nv16_avx    } },
+    { SSE41|SSSE3|SSE2,     { afs_copy_yc48_frame_sse2, afs_yuy2up_frame_sse4_1, afs_convert_yc48_to_nv16_sse4_1, afs_convert_yc48_to_nv16_sse4_1 } },
+    { SSSE3|SSE2,           { afs_copy_yc48_frame_sse2, afs_yuy2up_frame_sse2,   afs_convert_yc48_to_nv16_ssse3,  afs_convert_yc48_to_nv16_ssse3  } },
+    { SSE2,                 { afs_copy_yc48_frame_sse2, afs_yuy2up_frame_sse2,   afs_convert_yc48_to_nv16_sse2,   afs_convert_yc48_to_nv16_sse2   } },
+    { NONE,                 { afs_copy_yc48_frame_sse2, afs_yuy2up_frame_mmx,    afs_convert_yc48_to_nv16_sse2,   afs_convert_yc48_to_nv16_sse2   } }
 };
 
 static const struct {

@@ -40,7 +40,7 @@ typedef struct {
     void *p0;
     void *p1;
     int tb_order;
-    int max_w;
+    int source_w;
     int si_pitch;
     AFS_SCAN_CLIP *clip;
 } AFS_SCAN_ARG;

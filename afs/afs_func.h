@@ -202,6 +202,8 @@ void __stdcall afs_yuy2up_frame_sse4_1(void *pixel, int dst_pitch, int dst_frame
 void __stdcall afs_yuy2up_frame_avx(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 void __stdcall afs_yuy2up_frame_avx2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 
+void __stdcall afs_copy_yc48_frame_sse2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
+
 void __stdcall afs_convert_yc48_to_nv16_sse2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 void __stdcall afs_convert_yc48_to_nv16_ssse3(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 void __stdcall afs_convert_yc48_to_nv16_sse4_1(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);

@@ -33,6 +33,10 @@ void __stdcall afs_yuy2up_frame_sse2(void *pixel, int dst_pitch, int dst_frame_p
     afs_yuy2up_frame_simd((PIXEL_YC *)pixel, dst_pitch, (PIXEL_YC *)src, width, src_pitch, y_start, y_fin);
 }
 
+void __stdcall afs_copy_yc48_frame_sse2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin) {
+    afs_copy_yc48_frame_simd((PIXEL_YC *)pixel, dst_pitch, (PIXEL_YC *)src, width, src_pitch, y_start, y_fin);
+}
+
 #include "afs_filter_simd.h"
 
 void __stdcall afs_merge_scan_sse2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
