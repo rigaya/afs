@@ -1424,7 +1424,7 @@ static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t 
 
         //色差をブレンド
         mc2a = afs_deint4(mc6a, mc8a, mc9a, mcaa, mcca, afs_mask_for_uv_16(msipa));
-        mc2b = afs_deint4(mc6b, mc8b, mc9b, mcaa, mcca, afs_mask_for_uv_16(msipb));
+        mc2b = afs_deint4(mc6b, mc8b, mc9b, mcab, mccb, afs_mask_for_uv_16(msipb));
 
         //UVは補間を行う
         if (uv_upsample) {
@@ -1506,7 +1506,7 @@ static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t 
 
         //色差をブレンド
         mc2a = afs_deint4(mc6a, mc8a, mc9a, mcaa, mcca, afs_mask_for_uv_16(msipa));
-        mc2b = afs_deint4(mc6b, mc8b, mc9b, mcaa, mcca, afs_mask_for_uv_16(msipb));
+        mc2b = afs_deint4(mc6b, mc8b, mc9b, mcab, mccb, afs_mask_for_uv_16(msipb));
 
         //UVは補間を行う
         if (uv_upsample) {
