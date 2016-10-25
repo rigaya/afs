@@ -897,6 +897,7 @@ static __forceinline void afs_blend_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *
 
     //YC48を構築
     afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+    _mm256_zeroupper();
 }
 
 void __stdcall afs_blend_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels) {
@@ -1130,6 +1131,7 @@ static __forceinline void afs_mie_spot_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_
 
     //YC48を構築
     afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+    _mm256_zeroupper();
 }
 
 void __stdcall afs_mie_spot_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels) {
@@ -1341,6 +1343,7 @@ static __forceinline void afs_mie_inter_nv16(PIXEL_YC *dst, uint8_t *src1, uint8
 
     //YC48を構築
     afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+    _mm256_zeroupper();
 }
 
 void __stdcall afs_mie_inter_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels) {
@@ -1594,6 +1597,7 @@ static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t 
 
     //YC48を構築
     afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+    _mm256_zeroupper();
 }
 
 void __stdcall afs_deint4_nv16up_avx2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels) {
@@ -1737,6 +1741,7 @@ static __forceinline void afs_convert_nv16_yc48(PIXEL_YC *dst, uint8_t *src1, in
 
     //YC48を構築
     afs_pack_store_yc48<false>((uint8_t *)dst, my0a, my0b, mc0a, mc0b, mc1a, mc1b);
+    _mm256_zeroupper();
 }
 
 void __stdcall afs_convert_nv16_yc48up_avx2(void *dst, void *src1, int w, int src_frame_pixels) {
