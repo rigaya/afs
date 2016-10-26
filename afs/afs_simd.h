@@ -1373,3 +1373,355 @@ static void __forceinline __stdcall afs_convert_nv16_yc48up_simd(PIXEL_YC *dst, 
 static void __forceinline __stdcall afs_convert_nv16_yc48_simd(PIXEL_YC *dst, uint8_t *src1, int w, int src_frame_pixels) {
     afs_convert_nv16_yc48<false>(dst, src1, w, src_frame_pixels);
 }
+
+static void __forceinline __stdcall afs_convert_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, int w, int src_frame_pixels) {
+    __m128i x0, x1;
+    const uint8_t *src1_fin = src1 + w - 16;
+    for (; src1 < src1_fin; src1 += 16, dst += 32) {
+        x0 = _mm_load_si128((__m128i *)(src1));
+        x1 = _mm_load_si128((__m128i *)(src1 + src_frame_pixels));
+
+        _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(x0, x1));
+        _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(x0, x1));
+    }
+    if (w & 15) {
+        src1 -= (16 - (w & 15));
+        dst  -= (16 - (w & 15)) * 2;
+    }
+    x0 = _mm_load_si128((__m128i *)(src1));
+    x1 = _mm_load_si128((__m128i *)(src1 + src_frame_pixels));
+
+    _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(x0, x1));
+    _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(x0, x1));
+}
+
+static __forceinline void convert_8bit_to_16bit(__m128i& x0, __m128i& x1) {
+    x1 = _mm_unpackhi_epi8(x0, _mm_setzero_si128());
+    x0 = _mm_unpacklo_epi8(x0, _mm_setzero_si128());
+}
+
+static __forceinline void afs_blend_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *sip, unsigned int mask, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 16;
+    const __m128i mmask = _mm_set1_epi8(mask);
+    __m128i mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b;
+    __m128i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b;
+
+    for (; src1 < src1_fin; src1 += 16, src2 += 16, src3 += 16, dst += 32, sip += 16) {
+        my1a = _mm_loadu_si128((const __m128i *)src1);
+        my2a = _mm_loadu_si128((const __m128i *)src2);
+        my3a = _mm_loadu_si128((const __m128i *)src3);
+        mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+        mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
+        mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+
+        __m128i msipa, msipb;
+        afs_mask_extend16(msipa, msipb, mmask, sip);
+
+        //YUY2->YC48に変換
+        convert_8bit_to_16bit(my1a, my1b);
+        convert_8bit_to_16bit(my2a, my2b);
+        convert_8bit_to_16bit(my3a, my3b);
+        convert_8bit_to_16bit(mc1a, mc1b);
+        convert_8bit_to_16bit(mc2a, mc2b);
+        convert_8bit_to_16bit(mc3a, mc3b);
+
+        //輝度をまずブレンド
+        my0a = afs_blend(my1a, my2a, my3a, msipa);
+        my0b = afs_blend(my1b, my2b, my3b, msipb);
+        my0a = _mm_packus_epi16(my0a, my0b);
+
+        //色差をブレンド
+        mc0a = afs_blend(mc1a, mc2a, mc3a, afs_mask_for_uv_16(msipa));
+        mc0b = afs_blend(mc1b, mc2b, mc3b, afs_mask_for_uv_16(msipb));
+        mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+        _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+        _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+    }
+    //終端処理
+    if (w & 15) {
+        src1 -= (16 - (w & 15));
+        dst  -= (16 - (w & 15)) * 2;
+    }
+    my1a = _mm_loadu_si128((const __m128i *)src1);
+    my2a = _mm_loadu_si128((const __m128i *)src2);
+    my3a = _mm_loadu_si128((const __m128i *)src3);
+    mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+    mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
+    mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+
+    __m128i msipa, msipb;
+    afs_mask_extend16(msipa, msipb, mmask, sip);
+
+    //YUY2->YC48に変換
+    convert_8bit_to_16bit(my1a, my1b);
+    convert_8bit_to_16bit(my2a, my2b);
+    convert_8bit_to_16bit(my3a, my3b);
+    convert_8bit_to_16bit(mc1a, mc1b);
+    convert_8bit_to_16bit(mc2a, mc2b);
+    convert_8bit_to_16bit(mc3a, mc3b);
+
+    //輝度をまずブレンド
+    my0a = afs_blend(my1a, my2a, my3a, msipa);
+    my0b = afs_blend(my1b, my2b, my3b, msipb);
+    my0a = _mm_packus_epi16(my0a, my0b);
+
+    //色差をブレンド
+    mc0a = afs_blend(mc1a, mc2a, mc3a, afs_mask_for_uv_16(msipa));
+    mc0b = afs_blend(mc1b, mc2b, mc3b, afs_mask_for_uv_16(msipb));
+    mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+    _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+    _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+}
+
+static __forceinline void afs_mie_spot_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *src4, uint8_t *src_spot, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 16;
+    __m128i mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b, mc4a, mc4b, mcsa, mcsb;
+    __m128i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b, my4a, my4b, mysa, mysb;
+
+    for (; src1 < src1_fin; src1 += 16, src2 += 16, src3 += 16, src4 += 16, src_spot += 16, dst += 32) {
+        my1a = _mm_loadu_si128((const __m128i *)src1);
+        my2a = _mm_loadu_si128((const __m128i *)src2);
+        my3a = _mm_loadu_si128((const __m128i *)src3);
+        my4a = _mm_loadu_si128((const __m128i *)src4);
+        mysa = _mm_loadu_si128((const __m128i *)src_spot);
+        mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+        mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
+        mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+        mc4a = _mm_loadu_si128((const __m128i *)(src4 + src_frame_pixels));
+        mcsa = _mm_loadu_si128((const __m128i *)(src_spot + src_frame_pixels));
+
+        //YUY2->YC48に変換
+        convert_8bit_to_16bit(my1a, my1b);
+        convert_8bit_to_16bit(my2a, my2b);
+        convert_8bit_to_16bit(my3a, my3b);
+        convert_8bit_to_16bit(my4a, my4b);
+        convert_8bit_to_16bit(mysa, mysb);
+        convert_8bit_to_16bit(mc1a, mc1b);
+        convert_8bit_to_16bit(mc2a, mc2b);
+        convert_8bit_to_16bit(mc3a, mc3b);
+        convert_8bit_to_16bit(mc4a, mc4b);
+        convert_8bit_to_16bit(mcsa, mcsb);
+
+        //輝度をまずブレンド
+        my0a = afs_mie_spot(my1a, my2a, my3a, my4a, mysa);
+        my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
+        my0a = _mm_packus_epi16(my0a, my0b);
+
+        //色差をブレンド
+        mc0a = afs_mie_spot(mc1a, mc2a, mc3a, mc4a, mcsa);
+        mc0b = afs_mie_spot(mc1b, mc2b, mc3b, mc4b, mcsb);
+        mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+        _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+        _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+    }
+    //終端処理
+    if (w & 15) {
+        src1 -= (16 - (w & 15));
+        dst  -= (16 - (w & 15)) * 2;
+    }
+    my1a = _mm_loadu_si128((const __m128i *)src1);
+    my2a = _mm_loadu_si128((const __m128i *)src2);
+    my3a = _mm_loadu_si128((const __m128i *)src3);
+    my4a = _mm_loadu_si128((const __m128i *)src4);
+    mysa = _mm_loadu_si128((const __m128i *)src_spot);
+    mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+    mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
+    mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+    mc4a = _mm_loadu_si128((const __m128i *)(src4 + src_frame_pixels));
+    mcsa = _mm_loadu_si128((const __m128i *)(src_spot + src_frame_pixels));
+
+    //YUY2->YC48に変換
+    convert_8bit_to_16bit(my1a, my1b);
+    convert_8bit_to_16bit(my2a, my2b);
+    convert_8bit_to_16bit(my3a, my3b);
+    convert_8bit_to_16bit(my4a, my4b);
+    convert_8bit_to_16bit(mysa, mysb);
+    convert_8bit_to_16bit(mc1a, mc1b);
+    convert_8bit_to_16bit(mc2a, mc2b);
+    convert_8bit_to_16bit(mc3a, mc3b);
+    convert_8bit_to_16bit(mc4a, mc4b);
+    convert_8bit_to_16bit(mcsa, mcsb);
+
+    //輝度をまずブレンド
+    my0a = afs_mie_spot(my1a, my2a, my3a, my4a, mysa);
+    my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
+    my0a = _mm_packus_epi16(my0a, my0b);
+
+    //色差をブレンド
+    mc0a = afs_mie_spot(mc1a, mc2a, mc3a, mc4a, mcsa);
+    mc0b = afs_mie_spot(mc1b, mc2b, mc3b, mc4b, mcsb);
+    mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+    _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+    _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+}
+
+static __forceinline void afs_mie_inter_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *src4, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 16;
+    __m128i mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b, mc4a, mc4b;
+    __m128i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b, my4a, my4b;
+
+    for (; src1 < src1_fin; src1 += 16, src2 += 16, src3 += 16, src4 += 16, dst += 32) {
+        my1a = _mm_loadu_si128((const __m128i *)src1);
+        my2a = _mm_loadu_si128((const __m128i *)src2);
+        my3a = _mm_loadu_si128((const __m128i *)src3);
+        my4a = _mm_loadu_si128((const __m128i *)src4);
+        mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+        mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
+        mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+        mc4a = _mm_loadu_si128((const __m128i *)(src4 + src_frame_pixels));
+
+        //YUY2->YC48に変換
+        convert_8bit_to_16bit(my1a, my1b);
+        convert_8bit_to_16bit(my2a, my2b);
+        convert_8bit_to_16bit(my3a, my3b);
+        convert_8bit_to_16bit(my4a, my4b);
+        convert_8bit_to_16bit(mc1a, mc1b);
+        convert_8bit_to_16bit(mc2a, mc2b);
+        convert_8bit_to_16bit(mc3a, mc3b);
+        convert_8bit_to_16bit(mc4a, mc4b);
+
+        //輝度をまずブレンド
+        my0a = afs_mie_inter(my1a, my2a, my3a, my4a);
+        my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
+        my0a = _mm_packus_epi16(my0a, my0b);
+
+        //色差をブレンド
+        mc0a = afs_mie_inter(mc1a, mc2a, mc3a, mc4a);
+        mc0b = afs_mie_inter(mc1b, mc2b, mc3b, mc4b);
+        mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+        _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+        _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+    }
+    //終端処理
+    if (w & 15) {
+        src1 -= (16 - (w & 15));
+        dst  -= (16 - (w & 15)) * 2;
+    }
+    my1a = _mm_loadu_si128((const __m128i *)src1);
+    my2a = _mm_loadu_si128((const __m128i *)src2);
+    my3a = _mm_loadu_si128((const __m128i *)src3);
+    my4a = _mm_loadu_si128((const __m128i *)src4);
+    mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+    mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
+    mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+    mc4a = _mm_loadu_si128((const __m128i *)(src4 + src_frame_pixels));
+
+    //YUY2->YC48に変換
+    convert_8bit_to_16bit(my1a, my1b);
+    convert_8bit_to_16bit(my2a, my2b);
+    convert_8bit_to_16bit(my3a, my3b);
+    convert_8bit_to_16bit(my4a, my4b);
+    convert_8bit_to_16bit(mc1a, mc1b);
+    convert_8bit_to_16bit(mc2a, mc2b);
+    convert_8bit_to_16bit(mc3a, mc3b);
+    convert_8bit_to_16bit(mc4a, mc4b);
+
+    //輝度をまずブレンド
+    my0a = afs_mie_inter(my1a, my2a, my3a, my4a);
+    my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
+    my0a = _mm_packus_epi16(my0a, my0b);
+
+    //色差をブレンド
+    mc0a = afs_mie_inter(mc1a, mc2a, mc3a, mc4a);
+    mc0b = afs_mie_inter(mc1b, mc2b, mc3b, mc4b);
+    mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+    _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+    _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+}
+
+static __forceinline void afs_deint4_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, uint8_t *src3, uint8_t *src4, uint8_t *src5, uint8_t *src7, uint8_t *sip, unsigned int mask, int w, int src_frame_pixels) {
+    const uint8_t *src1_fin = src1 + w - 16;
+    const __m128i mmask = _mm_set1_epi8(mask);
+    __m128i mc0a, mc0b, mc1a, mc1b, mc3a, mc3b, mc4a, mc4b, mc5a, mc5b, mc7a, mc7b;
+    __m128i my0a, my0b, my1a, my1b, my3a, my3b, my4a, my4b, my5a, my5b, my7a, my7b;
+
+    for (; src1 < src1_fin; src1 += 16, src3 += 16, src4 += 16, src5 += 16, src7 += 16, dst += 32, sip += 16) {
+        my1a = _mm_loadu_si128((const __m128i *)src1);
+        my3a = _mm_loadu_si128((const __m128i *)src3);
+        my4a = _mm_loadu_si128((const __m128i *)src4);
+        my5a = _mm_loadu_si128((const __m128i *)src5);
+        my7a = _mm_loadu_si128((const __m128i *)src7);
+        mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+        mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+        mc4a = _mm_loadu_si128((const __m128i *)(src4 + src_frame_pixels));
+        mc5a = _mm_loadu_si128((const __m128i *)(src5 + src_frame_pixels));
+        mc7a = _mm_loadu_si128((const __m128i *)(src7 + src_frame_pixels));
+
+        __m128i msipa, msipb;
+        afs_mask_extend16(msipa, msipb, mmask, sip);
+
+        //YUY2->YC48に変換
+        convert_8bit_to_16bit(my1a, my1b);
+        convert_8bit_to_16bit(my3a, my3b);
+        convert_8bit_to_16bit(my4a, my4b);
+        convert_8bit_to_16bit(my5a, my5b);
+        convert_8bit_to_16bit(my7a, my7b);
+        convert_8bit_to_16bit(mc1a, mc1b);
+        convert_8bit_to_16bit(mc3a, mc3b);
+        convert_8bit_to_16bit(mc4a, mc4b);
+        convert_8bit_to_16bit(mc5a, mc5b);
+        convert_8bit_to_16bit(mc7a, mc7b);
+
+        //輝度をまずブレンド
+        my0a = afs_deint4(my1a, my3a, my4a, my5a, my7a, msipa);
+        my0b = afs_deint4(my1b, my3b, my4b, my5b, my7b, msipb);
+        my0a = _mm_packus_epi16(my0a, my0b);
+
+        //色差をブレンド
+        mc0a = afs_deint4(mc1a, mc3a, mc4a, mc5a, mc7a, afs_mask_for_uv_16(msipa));
+        mc0b = afs_deint4(mc1b, mc3b, mc4b, mc5b, mc7b, afs_mask_for_uv_16(msipb));
+        mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+        _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+        _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+    }
+    //終端処理
+    if (w & 15) {
+        src1 -= (16 - (w & 15));
+        dst  -= (16 - (w & 15)) * 2;
+    }
+    my1a = _mm_loadu_si128((const __m128i *)src1);
+    my3a = _mm_loadu_si128((const __m128i *)src3);
+    my4a = _mm_loadu_si128((const __m128i *)src4);
+    my5a = _mm_loadu_si128((const __m128i *)src5);
+    my7a = _mm_loadu_si128((const __m128i *)src7);
+    mc1a = _mm_loadu_si128((const __m128i *)(src1 + src_frame_pixels));
+    mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
+    mc4a = _mm_loadu_si128((const __m128i *)(src4 + src_frame_pixels));
+    mc5a = _mm_loadu_si128((const __m128i *)(src5 + src_frame_pixels));
+    mc7a = _mm_loadu_si128((const __m128i *)(src7 + src_frame_pixels));
+
+    __m128i msipa, msipb;
+    afs_mask_extend16(msipa, msipb, mmask, sip);
+
+    //YUY2->YC48に変換
+    convert_8bit_to_16bit(my1a, my1b);
+    convert_8bit_to_16bit(my3a, my3b);
+    convert_8bit_to_16bit(my4a, my4b);
+    convert_8bit_to_16bit(my5a, my5b);
+    convert_8bit_to_16bit(my7a, my7b);
+    convert_8bit_to_16bit(mc1a, mc1b);
+    convert_8bit_to_16bit(mc3a, mc3b);
+    convert_8bit_to_16bit(mc4a, mc4b);
+    convert_8bit_to_16bit(mc5a, mc5b);
+    convert_8bit_to_16bit(mc7a, mc7b);
+
+    //輝度をまずブレンド
+    my0a = afs_deint4(my1a, my3a, my4a, my5a, my7a, msipa);
+    my0b = afs_deint4(my1b, my3b, my4b, my5b, my7b, msipb);
+    my0a = _mm_packus_epi16(my0a, my0b);
+
+    //色差をブレンド
+    mc0a = afs_deint4(mc1a, mc3a, mc4a, mc5a, mc7a, afs_mask_for_uv_16(msipa));
+    mc0b = afs_deint4(mc1b, mc3b, mc4b, mc5b, mc7b, afs_mask_for_uv_16(msipb));
+    mc0a = _mm_packus_epi16(mc0a, mc0b);
+
+    _mm_storeu_si128((__m128i *)(dst +  0), _mm_unpacklo_epi8(my0a, mc0a));
+    _mm_storeu_si128((__m128i *)(dst + 16), _mm_unpackhi_epi8(my0a, mc0a));
+}

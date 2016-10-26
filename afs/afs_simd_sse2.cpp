@@ -105,6 +105,22 @@ void __stdcall afs_deint4_nv16_sse2(void *dst, void *src1, void *src3, void *src
     afs_deint4_nv16_simd((PIXEL_YC *)dst, (uint8_t *)src1, (uint8_t *)src3, (uint8_t *)src4, (uint8_t *)src5, (uint8_t *)src7, (uint8_t *)sip, mask, w, src_frame_pixels);
 }
 
+void __stdcall afs_blend_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels) {
+    afs_blend_nv16_yuy2_simd((uint8_t *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)sip, mask, w, src_frame_pixels);
+}
+
+void __stdcall afs_mie_spot_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels) {
+    afs_mie_spot_nv16_yuy2_simd((uint8_t *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)src4, (uint8_t *)src_spot, w, src_frame_pixels);
+}
+
+void __stdcall afs_mie_inter_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels) {
+    afs_mie_inter_nv16_yuy2_simd((uint8_t *)dst, (uint8_t *)src1, (uint8_t *)src2, (uint8_t *)src3, (uint8_t *)src4, w, src_frame_pixels);
+}
+
+void __stdcall afs_deint4_nv16_yuy2_sse2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels) {
+    afs_deint4_nv16_yuy2_simd((uint8_t *)dst, (uint8_t *)src1, (uint8_t *)src3, (uint8_t *)src4, (uint8_t *)src5, (uint8_t *)src7, sip, mask, w, src_frame_pixels);
+}
+
 void __stdcall afs_get_stripe_count_sse2(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h) {
     afs_get_stripe_count_simd(count, sp0, sp1, sp, si_w, scan_w, scan_h);
 }
@@ -119,6 +135,10 @@ void __stdcall afs_convert_yc48_to_nv16_sse2(void *pixel, int dst_pitch, int dst
     afs_convert_yc48_to_nv16_simd(pixel, dst_pitch, dst_frame_pixels, (PIXEL_YC *)src, width, src_pitch, y_start, y_fin);
 }
 
+void __stdcall afs_copy_yuy2_nv16_sse2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin) {
+    afs_copy_yuy2_nv16_simd(pixel, dst_pitch, dst_frame_pixels, (uint8_t *)src, width, src_pitch, y_start, y_fin);
+}
+
 #include "afs_simd.h"
 
 void __stdcall afs_convert_nv16_yc48up_sse2(void *dst, void *src1, int w, int src_frame_pixels) {
@@ -127,6 +147,10 @@ void __stdcall afs_convert_nv16_yc48up_sse2(void *dst, void *src1, int w, int sr
 
 void __stdcall afs_convert_nv16_yc48_sse2(void *dst, void *src1, int w, int src_frame_pixels) {
     afs_convert_nv16_yc48_simd((PIXEL_YC *)dst, (uint8_t *)src1, w, src_frame_pixels);
+}
+
+void __stdcall afs_convert_nv16_yuy2_sse2(void *dst, void *src1, int w, int src_frame_pixels) {
+    afs_convert_nv16_yuy2_simd((uint8_t *)dst, (uint8_t *)src1, w, src_frame_pixels);
 }
 
 void __stdcall afs_copy_yc48_line_sse(void *dst, void *src1, int w, int src_frame_pixels) {

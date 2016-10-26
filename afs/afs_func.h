@@ -34,18 +34,18 @@ typedef struct {
 
 typedef struct {
     //afs
-    func_blend                 blend[4];
-    func_mie_spot              mie_spot[4];
-    func_mie_inter             mie_inter[4];
-    func_deint4                deint4[4];
-    func_copy_line             copy_line[4];
+    func_blend                 blend[8];
+    func_mie_spot              mie_spot[8];
+    func_mie_inter             mie_inter[8];
+    func_deint4                deint4[8];
+    func_copy_line             copy_line[8];
     //analyze
     AFS_FUNC_ANALYZE           analyze[2];
     //filter
     func_analyzemap_filter     analyzemap_filter;
     func_merge_scan            merge_scan;
     //yuy2up
-    func_yuy2up                yuy2up[4];
+    func_yuy2up                yuy2up[8];
     //get count
     AFS_FUNC_GET_COUNT         get_count;
     //simd avail
@@ -70,6 +70,8 @@ void __stdcall afs_blend_nv16_avx(void *dst, void *src1, void *src2, void *src3,
 void __stdcall afs_blend_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_nv16_avx2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 
+void __stdcall afs_blend_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+
 void __stdcall afs_mie_spot_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_avx(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
@@ -84,6 +86,8 @@ void __stdcall afs_mie_spot_nv16up_ssse3(void *dst, void *src1, void *src2, void
 void __stdcall afs_mie_spot_nv16_ssse3(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_nv16up_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_nv16_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
+
+void __stdcall afs_mie_spot_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 
 void __stdcall afs_mie_inter_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_avx(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
@@ -100,6 +104,8 @@ void __stdcall afs_mie_inter_nv16_ssse3(void *dst, void *src1, void *src2, void 
 void __stdcall afs_mie_inter_nv16up_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_nv16_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 
+void __stdcall afs_mie_inter_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
+
 void __stdcall afs_deint4_sse2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_sse4_1(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_avx(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
@@ -115,6 +121,8 @@ void __stdcall afs_deint4_nv16up_avx(void *dst, void *src1, void *src3, void *sr
 void __stdcall afs_deint4_nv16_avx(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_nv16up_avx2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_nv16_avx2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+
+void __stdcall afs_deint4_nv16_yuy2_sse2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 
 void __stdcall afs_convert_nv16_yc48up_sse2(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_convert_nv16_yc48_sse2(void *dst, void *src1, int w, int src_frame_pixels);
@@ -209,3 +217,8 @@ void __stdcall afs_convert_yc48_to_nv16_ssse3(void *pixel, int dst_pitch, int ds
 void __stdcall afs_convert_yc48_to_nv16_sse4_1(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 void __stdcall afs_convert_yc48_to_nv16_avx(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 void __stdcall afs_convert_yc48_to_nv16_avx2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
+
+void __stdcall afs_copy_yuy2_nv16_sse2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
+void __stdcall afs_copy_yuy2_nv16_avx2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *_src, int width, int src_pitch, int y_start, int y_fin);
+
+void __stdcall afs_convert_nv16_yuy2_sse2(void *dst, void *src1, int w, int src_frame_pixels);

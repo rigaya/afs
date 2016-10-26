@@ -596,6 +596,12 @@ EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTable(void) {
     return &filter;
 }
 
+#ifndef AFSVF
+EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTableYUY2(void) {
+    return &filter;
+}
+#endif
+
 BOOL func_init(FILTER*) {
     memset(&g_afs, 0, sizeof(g_afs));
     g_afs.source_frame_n = -1;
@@ -1372,6 +1378,13 @@ void disp_status(PIXEL_YC *ycp, int *result_stat, int *assume_shift, int *revers
 
 #define CHECK_Y_RANGE(y) ((DWORD)(y - y_start) < (DWORD)(y_end - y_start))
 
+PIXEL_YUV to_yuv(PIXEL_YC ycp) {
+    PIXEL_YUV p;
+    p.y = (BYTE) (((ycp.y         * 219 + 383)>>12) + 16);
+    p.u = (BYTE)((((ycp.cb + 2048)*   7 +  66)>> 7) + 16);
+    p.v = (BYTE)((((ycp.cr + 2048)*   7 +  66)>> 7) + 16);
+    return p;
+}
 static inline short gety(PIXEL_YC *ycp) {
     return ycp->y;
 }
@@ -1392,16 +1405,6 @@ static inline PIXEL_YC getyc48(int y, int u, int v) {
     ycp.cb = ((v - 128) * 4681 + 164) >> 8;
     return ycp;
 }
-static inline PIXEL_YC getyc48(PIXEL_YC *ycp, int src_frame_pixels) {
-    return *ycp;
-}
-static inline PIXEL_YC getyc48(uint8_t *ycp, int src_frame_pixels) {
-    uint8_t *ptr = (uint8_t *)((size_t)(ycp + src_frame_pixels) & (~1));
-    int y = *ycp;
-    int u = ((size_t)ycp & 1) ? (ptr[0] + ptr[2] + 1) >> 1 : ptr[0];
-    int v = ((size_t)ycp & 1) ? (ptr[1] + ptr[3] + 1) >> 1 : ptr[1];
-    return getyc48(y, u, v);
-}
 static inline PIXEL_YC getavg(uint8_t *ycpa, uint8_t *ycpb, int pos_x, int src_frame_pixels) {
     int uv_offset = (pos_x & 1) ? -2 : 0;
     int y = (*ycpa + *ycpb + 1) >> 1;
@@ -1416,13 +1419,36 @@ static inline PIXEL_YC getavg(uint8_t *ycpa, uint8_t *ycpb, int pos_x, int src_f
     int v = (va + vb + 2) >> 2;
     return getyc48(y, u, v);
 }
+static inline PIXEL_YC getyc48(PIXEL_YC *ycp, int src_frame_pixels) {
+    return *ycp;
+}
+static inline PIXEL_YC getyc48(uint8_t *ycp, int src_frame_pixels) {
+    uint8_t *ptr = (uint8_t *)((size_t)(ycp + src_frame_pixels) & (~1));
+    int y = *ycp;
+    int u = ((size_t)ycp & 1) ? (ptr[0] + ptr[2] + 1) >> 1 : ptr[0];
+    int v = ((size_t)ycp & 1) ? (ptr[1] + ptr[3] + 1) >> 1 : ptr[1];
+    return getyc48(y, u, v);
+}
+void store_pixel_yc(uint16_t *_ptr, PIXEL_YC ycp, int pos_x) {
+    PIXEL_YUV yuv_temp = to_yuv(ycp);
+    BYTE *ptr = (BYTE *)_ptr;
+    if (pos_x & 1) {
+        ptr[0] = yuv_temp.y;
+    } else {
+        ptr[0] = yuv_temp.y;
+        ptr[1] = yuv_temp.v;
+        ptr[3] = yuv_temp.u;
+    }
+}
+void store_pixel_yc(PIXEL_YC *ptr, PIXEL_YC ycp, int pos_x) {
+    *(PIXEL_YC *)ptr = ycp;
+}
 
-template<typename SRC_TYPE>
+template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_5(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
     SRC_TYPE *ycp01, *ycp02, *ycp03, *ycp11, *ycp12, *ycp13;
-
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + source_w, p12 = p1 + source_w;
     for (int pos_y = 0; pos_y < h; pos_y++) {
@@ -1434,12 +1460,13 @@ void synthesize_mode_5(int thread_id) {
             p03 = p01, p13 = p11;
         }
         if (CHECK_Y_RANGE(pos_y)) {
-            PIXEL_YC *ycp  = fpip->ycp_edit + pos_y * max_w;
+            DST_TYPE *ycp  = (DST_TYPE *)fpip->ycp_edit + pos_y * max_w;
             unsigned char *sip0 = sip + pos_y * si_w;
             if (status & AFS_FLAG_SHIFT0) {
                 if (!is_latter_field(pos_y, tb_order)) {
                     ycp02 = p02, ycp11 = p11, ycp12 = p12, ycp13 = p13;
                     for (int pos_x = 0; pos_x < w; pos_x++) {
+                        PIXEL_YC ycp_temp;
                         if (!(*sip0 & 0x06)) {
                             SRC_TYPE *pix1, *pix2;
                             if (pos_x >= 2 && pos_x < w - 2){
@@ -1458,10 +1485,11 @@ void synthesize_mode_5(int thread_id) {
                             } else {
                                 pix1 = ycp11, pix2 = ycp13;
                             }
-                            *ycp = getavg(pix1, pix2, pos_x, src_frame_pixels);
+                            ycp_temp = getavg(pix1, pix2, pos_x, src_frame_pixels);
                         } else {
-                            *ycp = getyc48(ycp02, src_frame_pixels);
+                            ycp_temp = getyc48(ycp02, src_frame_pixels);
                         }
+                        store_pixel_yc(ycp, ycp_temp, pos_x);
                         ycp++, ycp02++, ycp11++, ycp12++, ycp13++, sip0++;
                     }
                 } else {
@@ -1471,6 +1499,7 @@ void synthesize_mode_5(int thread_id) {
                 if (is_latter_field(pos_y, tb_order)) {
                     ycp01 = p01, ycp02 = p02, ycp03 = p03, ycp12 = p12;
                     for (int pos_x = 0; pos_x < w; pos_x++) {
+                        PIXEL_YC ycp_temp;
                         if (!(*sip0 & 0x05)) {
                             SRC_TYPE *pix1, *pix2;
                             if (pos_x >= 2 && pos_x < w - 2) {
@@ -1489,10 +1518,11 @@ void synthesize_mode_5(int thread_id) {
                             } else {
                                 pix1 = ycp01, pix2 = ycp03;
                             }
-                            *ycp = getavg(pix1, pix2, pos_x, src_frame_pixels);
+                            ycp_temp = getavg(pix1, pix2, pos_x, src_frame_pixels);
                         } else {
-                            *ycp = getyc48(ycp02, src_frame_pixels);
+                            ycp_temp = getyc48(ycp02, src_frame_pixels);
                         }
+                        store_pixel_yc(ycp, ycp_temp, pos_x);
                         ycp++, ycp01++, ycp02++, ycp03++, ycp12++, sip0++;
                     }
                 } else {
@@ -1503,7 +1533,7 @@ void synthesize_mode_5(int thread_id) {
     }
 }
 
-template<typename SRC_TYPE>
+template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_4(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p04, *p05, *p06, *p07;
@@ -1527,7 +1557,7 @@ void synthesize_mode_4(int thread_id) {
             p17 = p15;
         }
         if (CHECK_Y_RANGE(pos_y)) {
-            PIXEL_YC *ycp  = fpip->ycp_edit + pos_y * max_w;
+            DST_TYPE *ycp  = (DST_TYPE *)fpip->ycp_edit + pos_y * max_w;
             unsigned char *sip0 = sip + pos_y * si_w;
             if (status & AFS_FLAG_SHIFT0) {
                 if (!is_latter_field(pos_y, tb_order)) {
@@ -1546,7 +1576,7 @@ void synthesize_mode_4(int thread_id) {
     }
 }
 
-template<typename SRC_TYPE>
+template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_3(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
@@ -1563,7 +1593,7 @@ void synthesize_mode_3(int thread_id) {
             p03 = p01, p13 = p11;
         }
         if (CHECK_Y_RANGE(pos_y)) {
-            PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+            DST_TYPE *ycp = (DST_TYPE *)fpip->ycp_edit + pos_y * max_w;
             unsigned char *sip0 = sip + pos_y * si_w;
             if (status & AFS_FLAG_SHIFT0) {
                 if (!is_latter_field(pos_y, tb_order)) {
@@ -1578,7 +1608,7 @@ void synthesize_mode_3(int thread_id) {
     }
 }
 
-template<typename SRC_TYPE>
+template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_2(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
@@ -1595,7 +1625,7 @@ void synthesize_mode_2(int thread_id) {
             p03 = p01, p13 = p11;
         }
         if (CHECK_Y_RANGE(pos_y)) {
-            PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+            DST_TYPE *ycp = (DST_TYPE *)fpip->ycp_edit + pos_y * max_w;
             unsigned char *sip0 = sip + pos_y * si_w;
             if (status & AFS_FLAG_SHIFT0) {
                 if (!is_latter_field(pos_y, tb_order)) {
@@ -1610,7 +1640,7 @@ void synthesize_mode_2(int thread_id) {
     }
 }
 
-template<typename SRC_TYPE>
+template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_1(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     const int clip_t = g_afs.sub_thread.synthesize_task.clip.top;
@@ -1635,7 +1665,7 @@ void synthesize_mode_1(int thread_id) {
             p03 = p01, p13 = p11;
         }
         if (CHECK_Y_RANGE(pos_y)) {
-            PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+            DST_TYPE *ycp = (DST_TYPE *)fpip->ycp_edit + pos_y * max_w;
             if (status & AFS_FLAG_SHIFT0) {
                 if (!is_latter_field(pos_y, tb_order)) {
                     mie_inter(ycp, p02, p11, p12, p13, w, src_frame_pixels);
@@ -1653,11 +1683,11 @@ void synthesize_mode_1(int thread_id) {
     }
 }
 
-template<typename SRC_TYPE>
+template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_0(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     for (int pos_y = y_start; pos_y < y_end; pos_y++) {
-        PIXEL_YC *ycp = fpip->ycp_edit + pos_y * max_w;
+        DST_TYPE *ycp = (DST_TYPE *)fpip->ycp_edit + pos_y * max_w;
         SRC_TYPE *ycp0 = p0 + pos_y * source_w;
         SRC_TYPE *ycp1 = p1 + pos_y * source_w;
         if (is_latter_field(pos_y, tb_order) && (status & AFS_FLAG_SHIFT0))
@@ -1670,15 +1700,17 @@ void synthesize_mode_0(int thread_id) {
 typedef void(*func_synthesize)(int thread_id);
 
 void synthesize(int thread_id) {
-    func_synthesize func_list[][2] = {
-        { synthesize_mode_0<PIXEL_YC>, synthesize_mode_0<uint8_t> },
-        { synthesize_mode_1<PIXEL_YC>, synthesize_mode_1<uint8_t> },
-        { synthesize_mode_2<PIXEL_YC>, synthesize_mode_2<uint8_t> },
-        { synthesize_mode_3<PIXEL_YC>, synthesize_mode_3<uint8_t> },
-        { synthesize_mode_4<PIXEL_YC>, synthesize_mode_4<uint8_t> },
-        { synthesize_mode_5<PIXEL_YC>, synthesize_mode_5<uint8_t> },
+    func_synthesize func_list[][4] = {
+        { synthesize_mode_0<PIXEL_YC, PIXEL_YC>, synthesize_mode_0<PIXEL_YC, uint8_t>, nullptr, synthesize_mode_0<uint16_t, uint8_t> },
+        { synthesize_mode_1<PIXEL_YC, PIXEL_YC>, synthesize_mode_1<PIXEL_YC, uint8_t>, nullptr, synthesize_mode_1<uint16_t, uint8_t> },
+        { synthesize_mode_2<PIXEL_YC, PIXEL_YC>, synthesize_mode_2<PIXEL_YC, uint8_t>, nullptr, synthesize_mode_2<uint16_t, uint8_t> },
+        { synthesize_mode_3<PIXEL_YC, PIXEL_YC>, synthesize_mode_3<PIXEL_YC, uint8_t>, nullptr, synthesize_mode_3<uint16_t, uint8_t> },
+        { synthesize_mode_4<PIXEL_YC, PIXEL_YC>, synthesize_mode_4<PIXEL_YC, uint8_t>, nullptr, synthesize_mode_4<uint16_t, uint8_t> },
+        { synthesize_mode_5<PIXEL_YC, PIXEL_YC>, synthesize_mode_5<PIXEL_YC, uint8_t>, nullptr, synthesize_mode_5<uint16_t, uint8_t> },
     };
-    func_list[g_afs.sub_thread.synthesize_task.mode][(g_afs.sub_thread.afs_mode & AFS_MODE_CACHE_NV16) ? 1 : 0](thread_id);
+    static_assert(AFS_MODE_AVIUTL_YUY2 == 0x04, "AFS_MODE_AVIUTL_YUY2 is not 0x04, synthesize() will fail.");
+    static_assert(AFS_MODE_CACHE_NV16  == 0x02, "AFS_MODE_CACHE_NV16  is not 0x02, synthesize() will fail.");
+    func_list[g_afs.sub_thread.synthesize_task.mode][g_afs.sub_thread.afs_mode >> 1](thread_id);
 }
 
 unsigned int __stdcall sub_thread(void *prm) {
@@ -1702,6 +1734,111 @@ unsigned int __stdcall sub_thread(void *prm) {
     return 0;
 }
 #endif
+
+static void set_frame_tune_mode(FILTER_PROC_INFO *fpip, BYTE *sip, int si_w, int status) {
+    const int h = fpip->h;
+    static const PIXEL_YC YC48_BLACK      = { 0,       0,     0 };
+    static const PIXEL_YC YC48_GREY       = { 1536,    0,     0 };
+    static const PIXEL_YC YC48_BLUE       = { 467,  2048,  -322 };
+    static const PIXEL_YC YC48_LIGHT_BLUE = { 2871,  692, -2048 };
+    if (g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2) {
+        static const PIXEL_YUV YUY2_BLACK      = to_yuv(YC48_BLACK);
+        static const PIXEL_YUV YUY2_GREY       = to_yuv(YC48_GREY);
+        static const PIXEL_YUV YUY2_BLUE       = to_yuv(YC48_BLUE);
+        static const PIXEL_YUV YUY2_LIGHT_BLUE = to_yuv(YC48_LIGHT_BLUE);
+        for (int pos_y = 0; pos_y < h; pos_y++) {
+            BYTE *ptr_yuv = (BYTE *)fpip->ycp_edit + pos_y * fpip->max_w * 2;
+            BYTE *sip0 = sip + pos_y * si_w;
+            const int w = fpip->w;
+            if (status & AFS_FLAG_SHIFT0) {
+                for (int pos_x = 0; pos_x < w; pos_x += 2, ptr_yuv += 4, sip0 += 2) {
+                    PIXEL_YUV yuv0, yuv1;
+                    BYTE temp = sip[0];
+                    if (!(temp & 0x06))
+                        yuv0 = YUY2_LIGHT_BLUE;
+                    else if (~temp & 0x02)
+                        yuv0 = YUY2_GREY;
+                    else if (~temp & 0x04)
+                        yuv0 = YUY2_BLUE;
+                    else
+                        yuv0 = YUY2_BLACK;
+
+                    temp = sip[1];
+                    if (!(temp & 0x06))
+                        yuv1 = YUY2_LIGHT_BLUE;
+                    else if (~temp & 0x02)
+                        yuv1 = YUY2_GREY;
+                    else if (~temp & 0x04)
+                        yuv1 = YUY2_BLUE;
+                    else
+                        yuv1 = YUY2_BLACK;
+
+                    ptr_yuv[0] = yuv0.y;
+                    ptr_yuv[1] = (yuv0.u + yuv1.u + 1) >> 1;
+                    ptr_yuv[2] = yuv1.y;
+                    ptr_yuv[3] = (yuv0.v + yuv1.v + 1) >> 1;
+                }
+            } else {
+                for (int pos_x = 0; pos_x < w; pos_x += 2, ptr_yuv += 4, sip0 += 2) {
+                    PIXEL_YUV yuv0, yuv1;
+                    BYTE temp = sip[0];
+                    if (!(*sip0 & 0x05))
+                        yuv0 = YUY2_LIGHT_BLUE;
+                    else if (~*sip0 & 0x01)
+                        yuv0 = YUY2_GREY;
+                    else if (~*sip0 & 0x04)
+                        yuv0 = YUY2_BLUE;
+                    else
+                        yuv0 = YUY2_BLACK;
+
+                    temp = sip[1];
+                    if (!(temp & 0x06))
+                        yuv1 = YUY2_LIGHT_BLUE;
+                    else if (~temp & 0x02)
+                        yuv1 = YUY2_GREY;
+                    else if (~temp & 0x04)
+                        yuv1 = YUY2_BLUE;
+                    else
+                        yuv1 = YUY2_BLACK;
+
+                    ptr_yuv[0] = yuv0.y;
+                    ptr_yuv[1] = (yuv0.u + yuv1.u + 1) >> 1;
+                    ptr_yuv[2] = yuv1.y;
+                    ptr_yuv[3] = (yuv0.v + yuv1.v + 1) >> 1;
+                }
+            }
+        }
+    } else {
+        for (int pos_y = 0; pos_y < h; pos_y++) {
+            PIXEL_YC *ptr_yc  = fpip->ycp_edit + pos_y * fpip->max_w;
+            BYTE *sip0 = sip + pos_y * si_w;
+            const int w = fpip->w;
+            if (status & AFS_FLAG_SHIFT0) {
+                for (int pos_x = 0; pos_x < w; pos_x++, ptr_yc++, sip0++) {
+                    if (!(*sip0 & 0x06))
+                        *ptr_yc = YC48_LIGHT_BLUE;
+                    else if (~*sip0 & 0x02)
+                        *ptr_yc = YC48_GREY;
+                    else if (~*sip0 & 0x04)
+                        *ptr_yc = YC48_BLUE;
+                    else
+                        *ptr_yc = YC48_BLACK;
+                }
+            } else {
+                for (int pos_x = 0; pos_x < w; pos_x++, ptr_yc++, sip0++) {
+                    if (!(*sip0 & 0x05))
+                        *ptr_yc = YC48_LIGHT_BLUE;
+                    else if (~*sip0 & 0x01)
+                        *ptr_yc = YC48_GREY;
+                    else if (~*sip0 & 0x04)
+                        *ptr_yc = YC48_BLUE;
+                    else
+                        *ptr_yc = YC48_BLACK;
+                }
+            }
+        }
+    }
+}
 
 BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 {
@@ -1768,8 +1905,8 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     const int is_editing = fp->exfunc->is_editing(fpip->editp);
     int tb_order = ((fpip->flag & FILTER_PROC_INFO_FLAG_INVERT_FIELD_ORDER) != 0);
     g_afs.afs_mode = 0x00;
-    g_afs.afs_mode |= (fpip->yc_size == 6) ? AFS_MODE_AVIUTL_YC48 : AFS_MODE_AVIUTL_YUY2;
-    g_afs.afs_mode |= (yuy2upsample) ? AFS_MODE_YUY2UP : 0x00;
+    g_afs.afs_mode |= (fpip->yc_size == 2) ? AFS_MODE_AVIUTL_YUY2 : AFS_MODE_AVIUTL_YC48;
+    g_afs.afs_mode |= (yuy2upsample & (fpip->yc_size != 2)) ? AFS_MODE_YUY2UP : 0x00;
     g_afs.afs_mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
 
 #ifdef AFSVF
@@ -1841,12 +1978,13 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             return TRUE;
         }
 
-        PIXEL_YC *ptr_dst = fpip->ycp_edit;
+        uint8_t *ptr_dst = (uint8_t *)fpip->ycp_edit;
         int src_offset = 0;
         const int src_frame_pixels = g_afs.source_w * g_afs.source_h;
         const func_copy_line copy_line = afs_func.copy_line[g_afs.afs_mode];
+        const int dst_w_byte = fpip->max_w * ((g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2) ? 2 : 6);
         const int source_w_byte = g_afs.source_w * ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) ? 1 : 6);
-        for (int pos_y = 0; pos_y < fpip->h; pos_y++, ptr_dst += fpip->max_w, src_offset += source_w_byte) {
+        for (int pos_y = 0; pos_y < fpip->h; pos_y++, ptr_dst += dst_w_byte, src_offset += source_w_byte) {
             auto ptr_src = (uint8_t *)((is_latter_field(pos_y, tb_order) && reverse[0]) ? p1 : p0) + src_offset;
             copy_line(ptr_dst, ptr_src, fpip->w, src_frame_pixels);
         }
@@ -1943,7 +2081,9 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     }
     p1 = get_ycp_cache(fp, fpip, fpip->frame - 1, NULL);
     if (p1 == NULL) {
-        get_func_copy_frame()(fpip->ycp_edit, fpip->max_w, fpip->max_w * fpip->max_h, p0, fpip->w, g_afs.source_w, 0, fpip->h);
+        if ((g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2) == 0) {
+            get_func_copy_frame()(fpip->ycp_edit, fpip->max_w, fpip->max_w * fpip->max_h, p0, fpip->w, g_afs.source_w, 0, fpip->h);
+        }
         error_modal(fp, fpip->editp, "ソース画像の読み込みに失敗しました。");
         return TRUE;
     }
@@ -1951,39 +2091,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_MAP_FILTER);
 
     if (tune_mode) {
-        static const PIXEL_YC YC48_BLACK      = {    0,    0,     0 };
-        static const PIXEL_YC YC48_GREY       = { 1536,    0,     0 };
-        static const PIXEL_YC YC48_BLUE       = {  467, 2048,  -322 };
-        static const PIXEL_YC YC48_LIGHT_BLUE = { 2871,  692, -2048 };
-        const int h = fpip->h;
-        for (int pos_y = 0; pos_y < h; pos_y++) {
-            PIXEL_YC *ptr_yc  = fpip->ycp_edit + pos_y * fpip->max_w;
-            sip0 = sip + pos_y * si_w;
-            const int w = fpip->w;
-            if (status & AFS_FLAG_SHIFT0) {
-                for (int pos_x = 0; pos_x < w; pos_x++, ptr_yc++, sip0++) {
-                    if (!(*sip0 & 0x06))
-                        *ptr_yc = YC48_LIGHT_BLUE;
-                    else if (~*sip0 & 0x02)
-                        *ptr_yc = YC48_GREY;
-                    else if (~*sip0 & 0x04)
-                        *ptr_yc = YC48_BLUE;
-                    else
-                        *ptr_yc = YC48_BLACK;
-                }
-            } else {
-                for (int pos_x = 0; pos_x < w; pos_x++, ptr_yc++, sip0++) {
-                    if (!(*sip0 & 0x05))
-                        *ptr_yc = YC48_LIGHT_BLUE;
-                    else if (~*sip0 & 0x01)
-                        *ptr_yc = YC48_GREY;
-                    else if (~*sip0 & 0x04)
-                        *ptr_yc = YC48_BLUE;
-                    else
-                        *ptr_yc = YC48_BLACK;
-                }
-            }
-        }
+        set_frame_tune_mode(fpip, sip, si_w, status);
     } else {
 #if SIMD_DEBUG
         PIXEL_YC *test_synthesize = (PIXEL_YC *)get_debug_buffer(sizeof(PIXEL_YC) * fpip->max_w * fpip->max_h * 2);

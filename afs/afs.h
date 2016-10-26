@@ -21,6 +21,10 @@ enum {
 };
 
 typedef struct {
+    BYTE y, u, v;
+} PIXEL_YUV;
+
+typedef struct {
     int top, bottom, left, right;
 } AFS_SCAN_CLIP;
 
@@ -65,7 +69,7 @@ static inline BOOL is_latter_field(int pos_y, int tb_order) {
 const int BLOCK_SIZE_YCP = 256;
 
 #define ENABLE_SUB_THREADS 1 //サブスレッドを有効にする
-#define NUM_SUB_THREAD     1 //サブスレッド数の指定 0でトラックバーによる設定が可能に
+#define NUM_SUB_THREAD     0 //サブスレッド数の指定 0でトラックバーによる設定が可能に
 #define SCAN_BACKGROUND    0 //scan処理をバックグラウンドで行う (バグってるので使用中止)
 #define ANALYZE_BACKGROUND (0 & SCAN_BACKGROUND) //analyze処理をバックグラウンドで行う (バグってるので使用中止)
 #define BACKGROUND_THREAD_BELOW_NORMAL 0 //バックグラウンドスレッドの優先度を下げる

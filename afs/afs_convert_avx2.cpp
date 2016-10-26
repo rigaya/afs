@@ -180,3 +180,46 @@ void __stdcall afs_convert_yc48_to_nv16_avx2(void *pixel, int dst_pitch, int dst
     }
     _mm256_zeroupper();
 }
+
+void __stdcall afs_copy_yuy2_nv16_avx2(void *pixel, int dst_pitch, int dst_frame_pixels, const void *_src, int width, int src_pitch, int y_start, int y_fin) {
+    const uint8_t *src = (const uint8_t *)_src;
+    uint8_t *dst = (uint8_t *)pixel;
+    src_pitch *= 2;
+    src += y_start * src_pitch;
+    dst += y_start * dst_pitch;
+
+    for (int jh = y_start; jh < y_fin; jh++, src += src_pitch, dst += dst_pitch) {
+        __m256i y0, y1, y2, y3;
+        BYTE *ptr_src = (BYTE *)src;
+        BYTE *ptr_dst = (BYTE *)dst;
+        BYTE *ptr_fin = (BYTE *)ptr_dst + width - 16;
+        for (; ptr_dst <= ptr_fin; ptr_src += 64, ptr_dst += 32) {
+            y0 = _mm256_loadu2_m128i((__m128i *)(ptr_src + 32), (__m128i *)(ptr_src +  0));
+            y1 = _mm256_loadu2_m128i((__m128i *)(ptr_src + 48), (__m128i *)(ptr_src + 16));
+
+            y2 = _mm256_and_si256(y0, _mm256_set1_epi16(0x00ff));
+            y3 = _mm256_and_si256(y1, _mm256_set1_epi16(0x00ff));
+
+            y0 = _mm256_srli_epi16(y0, 8);
+            y1 = _mm256_srli_epi16(y1, 8);
+
+            _mm256_storeu_si256((__m256i *)(ptr_dst +                0), _mm256_packus_epi16(y2, y3));
+            _mm256_storeu_si256((__m256i *)(ptr_dst + dst_frame_pixels), _mm256_packus_epi16(y0, y1));
+        }
+        if (width & 31) {
+            ptr_src -= (32 - (width & 31)) * 2;
+            ptr_dst -=  32 - (width & 31);
+        }
+        y0 = _mm256_loadu2_m128i((__m128i *)(ptr_src + 32), (__m128i *)(ptr_src +  0));
+        y1 = _mm256_loadu2_m128i((__m128i *)(ptr_src + 48), (__m128i *)(ptr_src + 16));
+
+        y2 = _mm256_and_si256(y0, _mm256_set1_epi16(0x00ff));
+        y3 = _mm256_and_si256(y1, _mm256_set1_epi16(0x00ff));
+
+        y0 = _mm256_srli_epi16(y0, 8);
+        y1 = _mm256_srli_epi16(y1, 8);
+
+        _mm256_storeu_si256((__m256i *)(ptr_dst +                0), _mm256_packus_epi16(y2, y3));
+        _mm256_storeu_si256((__m256i *)(ptr_dst + dst_frame_pixels), _mm256_packus_epi16(y0, y1));
+    }
+}
