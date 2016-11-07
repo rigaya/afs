@@ -628,7 +628,7 @@ static __forceinline void afs_mask_extend16(__m256i& msipa, __m256i& msipb, cons
     msipa = _mm256_loadu_si256((const __m256i *)sip);
     msipa = _mm256_permute4x64_epi64(msipa, _MM_SHUFFLE(3, 1, 2, 0));
     msipa = _mm256_and_si256(msipa, mmask8);
-    msipa = _mm256_cmpeq_epi8(msipa, mmask8);
+    msipa = _mm256_cmpeq_epi8(msipa, _mm256_setzero_si256());
     msipb = _mm256_unpackhi_epi8(msipa, msipa);
     msipa = _mm256_unpacklo_epi8(msipa, msipa);
 }
@@ -705,7 +705,7 @@ static __forceinline void afs_pack_store_yc48(uint8_t *dst, const __m256i& my0a,
 template<bool uv_upsample>
 static __forceinline void afs_blend_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *sip, unsigned int mask, int w, int src_frame_pixels) {
     const uint8_t *src1_fin = src1 + w - 32;
-    const __m256i mmask = _mm256_set1_epi8(mask);
+    const __m256i mmask = _mm256_set1_epi32(mask);
     //コンパイラ頑張れ
     __m256i mc00, mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b;
     __m256i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b;
@@ -1369,7 +1369,7 @@ static __forceinline __m256i afs_deint4(const __m256i& msrc1, const __m256i& msr
 template<bool uv_upsample>
 static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *src3, uint8_t *src4, uint8_t *src5, uint8_t *src7, uint8_t *sip, unsigned int mask, int w, int src_frame_pixels) {
     const uint8_t *src1_fin = src1 + w - 32;
-    const __m256i mmask = _mm256_set1_epi8(mask);
+    const __m256i mmask = _mm256_set1_epi32(mask);
     //コンパイラ頑張れ
     __m256i mc00, mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b;
     __m256i my0a, my0b, my1a, my1b, my3a, my3b, my4a, my4b, my5a, my5b, my7a, my7b;

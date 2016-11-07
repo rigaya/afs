@@ -460,7 +460,7 @@ static __forceinline __m128i afs_blend(const __m128i& msrc1, const __m128i& msrc
 static __forceinline void afs_mask_extend16(__m128i& msipa, __m128i& msipb, const __m128i& mmask8, uint8_t *sip) {
     msipa = _mm_load_si128((const __m128i *)sip);
     msipa = _mm_and_si128(msipa, mmask8);
-    msipa = _mm_cmpeq_epi8(msipa, mmask8);
+    msipa = _mm_cmpeq_epi8(msipa, _mm_setzero_si128());
     msipb = _mm_unpackhi_epi8(msipa, msipa);
     msipa = _mm_unpacklo_epi8(msipa, msipa);
 }
@@ -1402,7 +1402,7 @@ static __forceinline void convert_8bit_to_16bit(__m128i& x0, __m128i& x1) {
 
 static __forceinline void afs_blend_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *sip, unsigned int mask, int w, int src_frame_pixels) {
     const uint8_t *src1_fin = src1 + w - 16;
-    const __m128i mmask = _mm_set1_epi8(mask);
+    const __m128i mmask = _mm_set1_epi32(mask);
     __m128i mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b;
     __m128i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b;
 
@@ -1637,7 +1637,7 @@ static __forceinline void afs_mie_inter_nv16_yuy2_simd(uint8_t *dst, uint8_t *sr
 
 static __forceinline void afs_deint4_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, uint8_t *src3, uint8_t *src4, uint8_t *src5, uint8_t *src7, uint8_t *sip, unsigned int mask, int w, int src_frame_pixels) {
     const uint8_t *src1_fin = src1 + w - 16;
-    const __m128i mmask = _mm_set1_epi8(mask);
+    const __m128i mmask = _mm_set1_epi32(mask);
     __m128i mc0a, mc0b, mc1a, mc1b, mc3a, mc3b, mc4a, mc4b, mc5a, mc5b, mc7a, mc7b;
     __m128i my0a, my0b, my1a, my1b, my3a, my3b, my4a, my4b, my5a, my5b, my7a, my7b;
 
