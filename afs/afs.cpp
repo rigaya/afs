@@ -524,11 +524,7 @@ int track_default[] = {   16,   16,   32,   32,       0,      192,       128,   
 int track_e[]       = {  512,  512,  512,  512,     256,      256,      1024,       1024,    1024,    1024,        5, AFS_SCAN_WORKER_MAX };
 #endif
 
-#ifndef AFSVF
-#define CHECK_N 13
-#else
 #define CHECK_N 12
-#endif
 
 TCHAR *check_name[] = { "フィールドシフト",
     "間引き",
@@ -545,25 +541,19 @@ TCHAR *check_name[] = { "フィールドシフト",
 #else
     "フィールドオーダー反転",
 #endif
-    "シフト・解除なし",
-#ifndef AFSVF
-    "8bit高速処理モード"
-#endif
+    "シフト・解除なし"
 };
-#ifndef AFSVF
-int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1 };
-#else
-int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-#endif
+int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
 
 
 FILTER_DLL filter = {
 #ifndef AFSVF
-    FILTER_FLAG_INTERLACE_FILTER|FILTER_FLAG_EX_INFORMATION,
+    FILTER_FLAG_INTERLACE_FILTER|FILTER_FLAG_EX_INFORMATION|FILTER_FLAG_WINDOW_SIZE|FILTER_FLAG_EX_DATA,
+    320,616, //window size
 #else
     FILTER_FLAG_NO_INIT_DATA|FILTER_FLAG_EX_INFORMATION,
-#endif
     0,0, //window size
+#endif
     filter_name,
     TRACK_N,
     track_name,
@@ -578,8 +568,8 @@ FILTER_DLL filter = {
     func_update,
     func_WndProc,
     NULL,NULL, //system reserved
-    NULL, //ex_data_ptr
-    NULL, //ex_data_size
+    &g_afs.ex_data, //ex_data_ptr
+    sizeof(g_afs.ex_data), //ex_data_size
     filter_name_ex,
     func_save_start,
     func_save_end,
@@ -607,6 +597,7 @@ BOOL func_init(FILTER*) {
     g_afs.source_frame_n = -1;
     g_afs.scan_worker_n = -1;
     g_afs.scan_frame_n = -1;
+    g_afs.ex_data.proc_mode = AFS_MODE_CACHE_NV16;
 #if ENABLE_SUB_THREADS
     g_afs.sub_thread.thread_sub_n = -1;
 #endif
@@ -1896,7 +1887,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     const int yuy2upsample = fp->check[10] ? 1 : 0;
     const int through_mode = fp->check[11];
 #ifndef AFSVF
-    const int cache_nv16_mode = fp->check[12] || fpip->yc_size < 6;
+    const int cache_nv16_mode = (g_afs.ex_data.proc_mode & AFS_MODE_CACHE_NV16) || fpip->yc_size < 6;
 #else
     const int cache_nv16_mode = 0;
 #endif
@@ -2472,11 +2463,13 @@ BOOL func_is_saveframe(FILTER *fp, void *editp, int saveno, int frame, int fps, 
 #define ID_BUTTON_STRIPE   40009
 #define ID_BUTTON_MOTION   40010
 #define ID_BUTTON_HDTV     40011
+#define ID_LABEL_PROC_MODE 40012
+#define ID_COMBO_PROC_MODE 40013
 
 HFONT b_font;
-HWND b_default, b_lv1, b_lv2, b_lv3, b_lv4, b_24fps, b_24fps_hd, b_30fps, b_stripe, b_motion, b_hdtv;
+HWND b_default, b_lv1, b_lv2, b_lv3, b_lv4, b_24fps, b_24fps_hd, b_30fps, b_stripe, b_motion, b_hdtv, lb_proc_mode, cx_proc_mode;
 
-static void init_dialog(HWND hwnd, HINSTANCE hinst);
+static void init_dialog(HWND hwnd, FILTER *fp);
 static void on_lvdefault_button(FILTER *fp);
 static void on_lv1_button(FILTER *fp);
 static void on_lv2_button(FILTER *fp);
@@ -2488,6 +2481,9 @@ static void on_30fps_button(FILTER *fp);
 static void on_stripe_button(FILTER *fp);
 static void on_motion_button(FILTER *fp);
 static void on_hdtv_button(FILTER *fp);
+static int set_combo_item(void *string, int data);
+static void change_cx_param();
+static void update_cx(int proc_mode);
 
 BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, FILTER *fp) {
     switch (message) {
@@ -2501,8 +2497,12 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
         free_analyze_cache();
         break;
     case WM_FILTER_INIT:
-        init_dialog(hwnd, fp->dll_hinst);
+        init_dialog(hwnd, fp);
         return TRUE;
+    case WM_FILTER_UPDATE: // フィルタ更新
+    case WM_FILTER_SAVE_END: // セーブ終了
+        update_cx(g_afs.ex_data.proc_mode);
+        break;
     case WM_COMMAND:
         switch(LOWORD(wparam)) {
         case ID_BUTTON_DEFAULT:
@@ -2538,6 +2538,14 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
         case ID_BUTTON_HDTV:
             on_hdtv_button(fp);
             break;
+#ifndef AFSVF
+        case ID_COMBO_PROC_MODE: // コンボボックス
+            switch (HIWORD(wparam)) {
+            case CBN_SELCHANGE: // 選択変更
+                change_cx_param();
+            }
+            break;
+#endif
         default:
             return FALSE;
         }
@@ -2556,10 +2564,11 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
     return FALSE;
 }
 
-static void init_dialog(HWND hwnd, HINSTANCE hinst) {
+static void init_dialog(HWND hwnd, FILTER *fp) {
     int top = 330;
+    HINSTANCE hinst = fp->dll_hinst;
 
-    b_font = CreateFont(12, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "ＭＳ Ｐゴシック");
+    b_font = CreateFont(14, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "Meiryo UI");
 
     b_default = CreateWindow("BUTTON", "デフォルト", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top, 90, 18, hwnd, (HMENU)ID_BUTTON_DEFAULT, hinst, NULL);
     SendMessage(b_default, WM_SETFONT, (WPARAM)b_font, 0);
@@ -2593,6 +2602,19 @@ static void init_dialog(HWND hwnd, HINSTANCE hinst) {
 
     b_hdtv   = CreateWindow("BUTTON", "解除Lv0(HD)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+200, 90, 18, hwnd, (HMENU)ID_BUTTON_HDTV, hinst, NULL);
     SendMessage(b_hdtv, WM_SETFONT, (WPARAM)b_font, 0);
+
+#ifndef AFSVF
+    lb_proc_mode = CreateWindow("static", "", SS_SIMPLE|WS_CHILD|WS_VISIBLE, 8, top+238, 60, 24, hwnd, (HMENU)ID_LABEL_PROC_MODE, hinst, NULL);
+    SendMessage(lb_proc_mode, WM_SETFONT, (WPARAM)b_font, 0);
+    SendMessage(lb_proc_mode, WM_SETTEXT, 0, (LPARAM)"解析モード");
+
+    cx_proc_mode = CreateWindow("COMBOBOX", "", WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL, 70, top+234, 234, 100, hwnd, (HMENU)ID_COMBO_PROC_MODE, hinst, NULL);
+    SendMessage(cx_proc_mode, WM_SETFONT, (WPARAM)b_font, 0);
+
+    set_combo_item("フル解析",     AFS_MODE_CACHE_YC48);
+    set_combo_item("簡易高速解析", AFS_MODE_CACHE_NV16);
+    SendMessage(cx_proc_mode, CB_SETCURSEL, 0, 0);
+#endif
 }
 
 static void on_lvdefault_button(FILTER *fp) {
@@ -2792,4 +2814,37 @@ static void on_hdtv_button(FILTER *fp) {
     fp->check[9]  = 0;
     fp->check[11] = 0;
     fp->exfunc->filter_window_update(fp);
+}
+
+static void change_cx_param() {
+    LRESULT ret;
+
+    // 選択番号取得
+    ret = SendMessage(cx_proc_mode, CB_GETCURSEL, 0, 0);
+    ret = SendMessage(cx_proc_mode, CB_GETITEMDATA, ret, 0);
+
+    if (ret != CB_ERR) {
+        g_afs.ex_data.proc_mode = ret;
+    }
+}
+
+static int set_combo_item(void *string, int data) {
+    // コンボボックスアイテム数
+    int num = SendMessage(cx_proc_mode, CB_GETCOUNT, 0, 0);
+
+    // 最後尾に追加
+    SendMessage(cx_proc_mode, CB_INSERTSTRING, num, (LPARAM)string);
+    SendMessage(cx_proc_mode, CB_SETITEMDATA, num, (LPARAM)data);
+
+    return num;
+}
+
+static void update_cx(int proc_mode) {
+    const int num = SendMessage(cx_proc_mode, CB_GETCOUNT, 0, 0);
+    // コンボボックス検索
+    for (int i = 0; i < num; i++) {
+        if (proc_mode == SendMessage(cx_proc_mode, CB_GETITEMDATA, i, 0)) {
+            SendMessage(cx_proc_mode, CB_SETCURSEL, i, 0); // カーソルセット
+        }
+    }
 }

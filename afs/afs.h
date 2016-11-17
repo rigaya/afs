@@ -20,6 +20,13 @@ enum {
     AFS_MODE_YC48_NV16   = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_NV16,
 };
 
+#pragma pack(push,1)
+typedef struct {
+    int proc_mode;
+    char reserved[1020];
+} AFS_EX_DATA;
+#pragma pack(pop)
+
 typedef struct {
     BYTE y, u, v;
 } PIXEL_YUV;
@@ -173,6 +180,8 @@ typedef struct AFS_CONTEXT {
     AFS_SCAN_CLIP scan_motion_clip[AFS_SCAN_CACHE_NUM];
 
     AFS_STRIPE_DATA stripe_array[AFS_STRIPE_CACHE_NUM];
+
+    AFS_EX_DATA ex_data;
 } AFS_CONTEXT;
 
 enum {
