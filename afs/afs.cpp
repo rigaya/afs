@@ -1747,6 +1747,7 @@ unsigned int __stdcall sub_thread(void *prm) {
 
 static void set_frame_tune_mode(FILTER_PROC_INFO *fpip, BYTE *sip, int si_w, int status) {
     const int h = fpip->h;
+    const int w = fpip->w;
     static const PIXEL_YC YC48_BLACK      = { 0,       0,     0 };
     static const PIXEL_YC YC48_GREY       = { 1536,    0,     0 };
     static const PIXEL_YC YC48_BLUE       = { 467,  2048,  -322 };
@@ -1759,11 +1760,10 @@ static void set_frame_tune_mode(FILTER_PROC_INFO *fpip, BYTE *sip, int si_w, int
         for (int pos_y = 0; pos_y < h; pos_y++) {
             BYTE *ptr_yuv = (BYTE *)fpip->ycp_edit + pos_y * fpip->max_w * 2;
             BYTE *sip0 = sip + pos_y * si_w;
-            const int w = fpip->w;
             if (status & AFS_FLAG_SHIFT0) {
                 for (int pos_x = 0; pos_x < w; pos_x += 2, ptr_yuv += 4, sip0 += 2) {
                     PIXEL_YUV yuv0, yuv1;
-                    BYTE temp = sip[0];
+                    BYTE temp = sip0[0];
                     if (!(temp & 0x06))
                         yuv0 = YUY2_LIGHT_BLUE;
                     else if (~temp & 0x02)
@@ -1773,7 +1773,7 @@ static void set_frame_tune_mode(FILTER_PROC_INFO *fpip, BYTE *sip, int si_w, int
                     else
                         yuv0 = YUY2_BLACK;
 
-                    temp = sip[1];
+                    temp = sip0[1];
                     if (!(temp & 0x06))
                         yuv1 = YUY2_LIGHT_BLUE;
                     else if (~temp & 0x02)
@@ -1791,20 +1791,20 @@ static void set_frame_tune_mode(FILTER_PROC_INFO *fpip, BYTE *sip, int si_w, int
             } else {
                 for (int pos_x = 0; pos_x < w; pos_x += 2, ptr_yuv += 4, sip0 += 2) {
                     PIXEL_YUV yuv0, yuv1;
-                    BYTE temp = sip[0];
-                    if (!(*sip0 & 0x05))
+                    BYTE temp = sip0[0];
+                    if (!(temp & 0x05))
                         yuv0 = YUY2_LIGHT_BLUE;
-                    else if (~*sip0 & 0x01)
+                    else if (~temp & 0x01)
                         yuv0 = YUY2_GREY;
-                    else if (~*sip0 & 0x04)
+                    else if (~temp & 0x04)
                         yuv0 = YUY2_BLUE;
                     else
                         yuv0 = YUY2_BLACK;
 
-                    temp = sip[1];
-                    if (!(temp & 0x06))
+                    temp = sip0[1];
+                    if (!(temp & 0x05))
                         yuv1 = YUY2_LIGHT_BLUE;
-                    else if (~temp & 0x02)
+                    else if (~temp & 0x01)
                         yuv1 = YUY2_GREY;
                     else if (~temp & 0x04)
                         yuv1 = YUY2_BLUE;
@@ -1822,7 +1822,6 @@ static void set_frame_tune_mode(FILTER_PROC_INFO *fpip, BYTE *sip, int si_w, int
         for (int pos_y = 0; pos_y < h; pos_y++) {
             PIXEL_YC *ptr_yc  = fpip->ycp_edit + pos_y * fpip->max_w;
             BYTE *sip0 = sip + pos_y * si_w;
-            const int w = fpip->w;
             if (status & AFS_FLAG_SHIFT0) {
                 for (int pos_x = 0; pos_x < w; pos_x++, ptr_yc++, sip0++) {
                     if (!(*sip0 & 0x06))
