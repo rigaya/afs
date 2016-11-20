@@ -45,6 +45,7 @@ static TCHAR filter_name_ex[] = "自動フィールドシフト ビデオフィ�
 #define max3(x,y,z) (max2((x),max2((y),(z))))
 #define absdiff(x,y) (((x)>=(y))?(x)-(y):(y)-(x))
 
+static bool g_yuy2_table_called;
 AFS_CONTEXT g_afs;
 AFS_FUNC afs_func = { 0 };
 #define sourcep(x) (g_afs.source_array+((x)&(AFS_SOURCE_CACHE_NUM-1)))
@@ -605,6 +606,7 @@ EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTable(void) {
 #ifndef AFSVF
 EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTableYUY2(void) {
     set_auto_threads();
+    g_yuy2_table_called = true;
     return &filter;
 }
 #endif
@@ -2498,7 +2500,8 @@ static void on_30fps_button(FILTER *fp);
 static void on_stripe_button(FILTER *fp);
 static void on_motion_button(FILTER *fp);
 static void on_hdtv_button(FILTER *fp);
-static int set_combo_item(void *string, int data);
+static int  set_combo_item(void *string, int data);
+static void del_combo_item(void *string);
 static void change_cx_param();
 static void update_cx(int proc_mode);
 
@@ -2628,7 +2631,9 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
     cx_proc_mode = CreateWindow("COMBOBOX", "", WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL, 70, top+234, 234, 100, hwnd, (HMENU)ID_COMBO_PROC_MODE, hinst, NULL);
     SendMessage(cx_proc_mode, WM_SETFONT, (WPARAM)b_font, 0);
 
-    set_combo_item("フル解析",     AFS_MODE_CACHE_YC48);
+    if (!g_yuy2_table_called) {
+        set_combo_item("フル解析", AFS_MODE_CACHE_YC48);
+    }
     set_combo_item("簡易高速解析", AFS_MODE_CACHE_NV16);
     SendMessage(cx_proc_mode, CB_SETCURSEL, 0, 0);
 #endif
@@ -2647,6 +2652,10 @@ static void on_lvdefault_button(FILTER *fp) {
     fp->track[8]  = track_default[8];
     fp->track[9]  = track_default[9];
     fp->track[10] = track_default[10];
+    fp->track[11] = track_default[11];
+    if (TRACK_N > 12) {
+        fp->track[12] = track_default[12];
+    }
     fp->check[0]  = check_default[0];
     fp->check[1]  = check_default[1];
     fp->check[2]  = check_default[2];
@@ -2854,6 +2863,13 @@ static int set_combo_item(void *string, int data) {
     SendMessage(cx_proc_mode, CB_SETITEMDATA, num, (LPARAM)data);
 
     return num;
+}
+
+static void del_combo_item(void *string) {
+    int num = SendMessage(cx_proc_mode, CB_FINDSTRING, (WPARAM)-1, (WPARAM)string);
+    if (num >= 0) {
+        SendMessage(cx_proc_mode, CB_DELETESTRING, num, 0);
+    }
 }
 
 static void update_cx(int proc_mode) {
