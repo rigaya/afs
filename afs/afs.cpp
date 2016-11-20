@@ -23,6 +23,7 @@
 #include "afs_yuy2up_mmx.h"
 #include "afs_yuy2up_simd.h"
 
+#include "cpu_info.h"
 
 #ifndef AFSVF
 static TCHAR filter_name[] = "自動フィールドシフト";
@@ -582,12 +583,28 @@ FILTER_DLL filter = {
 #endif
 };
 
+#define PARAM_THREADS (11)
+#define PARAM_SUB_THREADS (12)
+
+void set_auto_threads() {
+    cpu_info_t info;
+    get_cpu_info(&info);
+    filter.track_default[PARAM_THREADS] = CLAMP((int)info.logical_cores * 2, filter.track_s[PARAM_THREADS], filter.track_e[PARAM_THREADS]);
+    if (TRACK_N > PARAM_SUB_THREADS) {
+        int value = (info.logical_cores > 8u) ? 4 : (info.logical_cores >= 4u) ? 2 : 1;
+        filter.track_default[PARAM_SUB_THREADS] = CLAMP(value, filter.track_s[PARAM_SUB_THREADS], filter.track_e[PARAM_SUB_THREADS]);
+    }
+}
+
 EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTable(void) {
+    set_auto_threads();
+    g_yuy2_table_called = false;
     return &filter;
 }
 
 #ifndef AFSVF
 EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTableYUY2(void) {
+    set_auto_threads();
     return &filter;
 }
 #endif

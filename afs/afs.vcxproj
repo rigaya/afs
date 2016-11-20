@@ -351,6 +351,7 @@
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
+    <ClCompile Include="cpu_info.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="afs.h" />
@@ -366,6 +367,7 @@
     <ClInclude Include="afs_simd.h" />
     <ClInclude Include="afs_yuy2up_mmx.h" />
     <ClInclude Include="afs_yuy2up_simd.h" />
+    <ClInclude Include="cpu_info.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="simd_util.h" />
   </ItemGroup>
