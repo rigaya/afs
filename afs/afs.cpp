@@ -1212,6 +1212,73 @@ BOOL analyze_scene_change(int afs_mode, unsigned char* sip, int tb_order, int so
     return (count0 < count);
 }
 
+//YUY2フィルタサポート用関数
+PIXEL_YUV to_yuv(PIXEL_YC ycp) {
+    PIXEL_YUV p;
+    p.y = (BYTE)(((ycp.y          * 219 + 383)>>12) + 16);
+    p.u = (BYTE)((((ycp.cb + 2048)*   7 +  66)>> 7) + 16);
+    p.v = (BYTE)((((ycp.cr + 2048)*   7 +  66)>> 7) + 16);
+    return p;
+}
+static inline short gety(PIXEL_YC *ycp) {
+    return ycp->y;
+}
+static inline uint8_t gety(uint8_t *ycp) {
+    return *ycp;
+}
+static inline PIXEL_YC getavg(PIXEL_YC *ycpa, PIXEL_YC *ycpb, int pos_x, int src_frame_pixels) {
+    PIXEL_YC ycp;
+    ycp.y  = (ycpa->y  + ycpb->y  + 1) >> 1;
+    ycp.cr = (ycpa->cr + ycpb->cr + 1) >> 1;
+    ycp.cb = (ycpa->cb + ycpb->cb + 1) >> 1;
+    return ycp;
+}
+static inline PIXEL_YC getyc48(int y, int u, int v) {
+    PIXEL_YC ycp;
+    ycp.y  = ((y * 1197) >> 6) - 299;
+    ycp.cr = ((u - 128) * 4681 + 164) >> 8;
+    ycp.cb = ((v - 128) * 4681 + 164) >> 8;
+    return ycp;
+}
+static inline PIXEL_YC getavg(uint8_t *ycpa, uint8_t *ycpb, int pos_x, int src_frame_pixels) {
+    int uv_offset = (pos_x & 1) ? -2 : 0;
+    int y = (*ycpa + *ycpb + 1) >> 1;
+
+    uint8_t *ptrua = (uint8_t *)((size_t)(ycpa + src_frame_pixels) & (~1));
+    uint8_t *ptrub = (uint8_t *)((size_t)(ycpb + src_frame_pixels) & (~1));
+    int ua = ((size_t)ycpa & 1) ? ptrua[0] + ptrua[2] + 1 : (ptrua[0] << 1);
+    int va = ((size_t)ycpa & 1) ? ptrua[1] + ptrua[3] + 1 : (ptrua[1] << 1);
+    int ub = ((size_t)ycpb & 1) ? ptrub[0] + ptrub[2] + 1 : (ptrub[0] << 1);
+    int vb = ((size_t)ycpb & 1) ? ptrub[1] + ptrub[3] + 1 : (ptrub[1] << 1);
+    int u = (ua + ub + 2) >> 2;
+    int v = (va + vb + 2) >> 2;
+    return getyc48(y, u, v);
+}
+static inline PIXEL_YC getyc48(PIXEL_YC *ycp, int src_frame_pixels) {
+    return *ycp;
+}
+static inline PIXEL_YC getyc48(uint8_t *ycp, int src_frame_pixels) {
+    uint8_t *ptr = (uint8_t *)((size_t)(ycp + src_frame_pixels) & (~1));
+    int y = *ycp;
+    int u = ((size_t)ycp & 1) ? (ptr[0] + ptr[2] + 1) >> 1 : ptr[0];
+    int v = ((size_t)ycp & 1) ? (ptr[1] + ptr[3] + 1) >> 1 : ptr[1];
+    return getyc48(y, u, v);
+}
+void store_pixel_yc(uint16_t *_ptr, PIXEL_YC ycp, int pos_x) {
+    PIXEL_YUV yuv_temp = to_yuv(ycp);
+    BYTE *ptr = (BYTE *)_ptr;
+    if (pos_x & 1) {
+        ptr[0] = yuv_temp.y;
+    } else {
+        ptr[0] = yuv_temp.y;
+        ptr[1] = yuv_temp.v;
+        ptr[3] = yuv_temp.u;
+    }
+}
+void store_pixel_yc(PIXEL_YC *ptr, PIXEL_YC ycp, int pos_x) {
+    *(PIXEL_YC *)ptr = ycp;
+}
+
 // 結果表示
 
 DWORD icon_hantei[] = {
@@ -1253,6 +1320,14 @@ DWORD icon_arrow_thin[] = {
 static PIXEL_YC icon_color[6] = {
     {4096,0,0}, {2038,0,0}, {1225,-692,2048}, {460,-260,768}, {467,2048,-332}, {233,1024,-166},
 };
+static PIXEL_YUV icon_color_yuv[6] = {
+    to_yuv(icon_color[0]),
+    to_yuv(icon_color[1]),
+    to_yuv(icon_color[2]),
+    to_yuv(icon_color[3]),
+    to_yuv(icon_color[4]),
+    to_yuv(icon_color[5])
+};
 
 enum {
     YC48_WHITE,
@@ -1263,23 +1338,48 @@ enum {
     YC48_DARKBLUE
 };
 
-void __declspec(noinline) dot_yc48(PIXEL_YC *ycp, int color, int max_w, int width, int height, int x, int y) {
+template<typename SRC_TYPE>
+void __declspec(noinline) dot_yc48(SRC_TYPE *ycp, int color, int max_w, int width, int height, int x, int y) {
     if (x < 0 || x >= width || y < 0 || y >= height) return;
 
-    ycp[y * max_w + x] = icon_color[color];
+    ycp += y * max_w + x;
+    if (sizeof(SRC_TYPE) == 2) {
+        BYTE *ptr = (BYTE *)ycp;
+        if (x & 1) {
+            ptr[0] = icon_color_yuv[color].y;
+        } else {
+            ptr[0] = icon_color_yuv[color].y;
+            ptr[1] = icon_color_yuv[color].u;
+            ptr[3] = icon_color_yuv[color].v;
+        }
+    } else {
+        memcpy(ycp, &icon_color[color], sizeof(SRC_TYPE));
+    }
     return;
 }
 
-void __declspec(noinline) disp_icon(PIXEL_YC *ycp, int max_w, int width, int height, DWORD* icon, int x, int y, int lines, int color) {
+template<typename SRC_TYPE>
+void __declspec(noinline) disp_icon(SRC_TYPE *ycp, int max_w, int width, int height, DWORD* icon, int x, int y, int lines, int color) {
     ycp += y * max_w + x;
-    PIXEL_YC *colorp = &icon_color[color];
-    for (int pos_y = y; pos_y < y + lines; pos_y++) {
+    PIXEL_YC  colorp    = icon_color[color];
+    PIXEL_YUV colorpyuv = icon_color_yuv[color];
+    for (int pos_y = y; pos_y < y + lines; pos_y++, ycp += max_w) {
         DWORD pixbits = *icon++;
-        PIXEL_YC *ycp_temp = ycp;
-        ycp += max_w;
+        SRC_TYPE *ycp_temp = ycp;
         for (int pos_x = x; pos_x < x + 32; pos_x++) {
             if (pos_x >= 0 && pos_x < width && pos_y >= 0 && y < height && (pixbits & 1)) {
-                *ycp_temp = *colorp;
+                if (sizeof(SRC_TYPE) == 2) {
+                    BYTE *ptr = (BYTE *)ycp_temp;
+                    if (pos_x & 1) {
+                        ptr[0] = colorpyuv.y;
+                    } else {
+                        ptr[0] = colorpyuv.y;
+                        ptr[1] = colorpyuv.u;
+                        ptr[3] = colorpyuv.v;
+                    }
+                } else {
+                    memcpy(ycp_temp, &colorp, sizeof(SRC_TYPE));
+                }
             }
             pixbits >>= 1;
             ycp_temp++;
@@ -1287,13 +1387,16 @@ void __declspec(noinline) disp_icon(PIXEL_YC *ycp, int max_w, int width, int hei
     }
 }
 
-void __declspec(noinline) disp_icon2(PIXEL_YC *ycp, int max_w, int width, int height, DWORD* icon, int x, int y, int lines, int color) {
+template<typename SRC_TYPE>
+void __declspec(noinline) disp_icon2(SRC_TYPE *ycp, int max_w, int width, int height, DWORD* icon, int x, int y, int lines, int color) {
     disp_icon(ycp, max_w, width, height, icon, x+1, y+1, lines, 1);
     disp_icon(ycp, max_w, width, height, icon, x, y, lines, color);
 }
 
-void disp_status(PIXEL_YC *ycp, int *result_stat, int *assume_shift, int *reverse,
+template<typename SRC_TYPE>
+void disp_status(void *_ycp, int *result_stat, int *assume_shift, int *reverse,
                  int max_w, int width, int height, int top, int bottom, int left, int right) {
+    SRC_TYPE *ycp = (SRC_TYPE *)_ycp;
     for (int pos_y = top; pos_y < top + 80; pos_y++) {
         dot_yc48(ycp, YC48_GREY, max_w, width, height, left +  48, pos_y);
         dot_yc48(ycp, YC48_GREY, max_w, width, height, left +  80, pos_y);
@@ -1387,72 +1490,6 @@ void disp_status(PIXEL_YC *ycp, int *result_stat, int *assume_shift, int *revers
     const func_copy_line copy_line = afs_func.copy_line[g_afs.sub_thread.afs_mode];
 
 #define CHECK_Y_RANGE(y) ((DWORD)(y - y_start) < (DWORD)(y_end - y_start))
-
-PIXEL_YUV to_yuv(PIXEL_YC ycp) {
-    PIXEL_YUV p;
-    p.y = (BYTE) (((ycp.y         * 219 + 383)>>12) + 16);
-    p.u = (BYTE)((((ycp.cb + 2048)*   7 +  66)>> 7) + 16);
-    p.v = (BYTE)((((ycp.cr + 2048)*   7 +  66)>> 7) + 16);
-    return p;
-}
-static inline short gety(PIXEL_YC *ycp) {
-    return ycp->y;
-}
-static inline uint8_t gety(uint8_t *ycp) {
-    return *ycp;
-}
-static inline PIXEL_YC getavg(PIXEL_YC *ycpa, PIXEL_YC *ycpb, int pos_x, int src_frame_pixels) {
-    PIXEL_YC ycp;
-    ycp.y  = (ycpa->y  + ycpb->y  + 1) >> 1;
-    ycp.cr = (ycpa->cr + ycpb->cr + 1) >> 1;
-    ycp.cb = (ycpa->cb + ycpb->cb + 1) >> 1;
-    return ycp;
-}
-static inline PIXEL_YC getyc48(int y, int u, int v) {
-    PIXEL_YC ycp;
-    ycp.y  = ((y * 1197) >> 6) - 299;
-    ycp.cr = ((u - 128) * 4681 + 164) >> 8;
-    ycp.cb = ((v - 128) * 4681 + 164) >> 8;
-    return ycp;
-}
-static inline PIXEL_YC getavg(uint8_t *ycpa, uint8_t *ycpb, int pos_x, int src_frame_pixels) {
-    int uv_offset = (pos_x & 1) ? -2 : 0;
-    int y = (*ycpa + *ycpb + 1) >> 1;
-
-    uint8_t *ptrua = (uint8_t *)((size_t)(ycpa + src_frame_pixels) & (~1));
-    uint8_t *ptrub = (uint8_t *)((size_t)(ycpb + src_frame_pixels) & (~1));
-    int ua = ((size_t)ycpa & 1) ? ptrua[0] + ptrua[2] + 1 : (ptrua[0] << 1);
-    int va = ((size_t)ycpa & 1) ? ptrua[1] + ptrua[3] + 1 : (ptrua[1] << 1);
-    int ub = ((size_t)ycpb & 1) ? ptrub[0] + ptrub[2] + 1 : (ptrub[0] << 1);
-    int vb = ((size_t)ycpb & 1) ? ptrub[1] + ptrub[3] + 1 : (ptrub[1] << 1);
-    int u = (ua + ub + 2) >> 2;
-    int v = (va + vb + 2) >> 2;
-    return getyc48(y, u, v);
-}
-static inline PIXEL_YC getyc48(PIXEL_YC *ycp, int src_frame_pixels) {
-    return *ycp;
-}
-static inline PIXEL_YC getyc48(uint8_t *ycp, int src_frame_pixels) {
-    uint8_t *ptr = (uint8_t *)((size_t)(ycp + src_frame_pixels) & (~1));
-    int y = *ycp;
-    int u = ((size_t)ycp & 1) ? (ptr[0] + ptr[2] + 1) >> 1 : ptr[0];
-    int v = ((size_t)ycp & 1) ? (ptr[1] + ptr[3] + 1) >> 1 : ptr[1];
-    return getyc48(y, u, v);
-}
-void store_pixel_yc(uint16_t *_ptr, PIXEL_YC ycp, int pos_x) {
-    PIXEL_YUV yuv_temp = to_yuv(ycp);
-    BYTE *ptr = (BYTE *)_ptr;
-    if (pos_x & 1) {
-        ptr[0] = yuv_temp.y;
-    } else {
-        ptr[0] = yuv_temp.y;
-        ptr[1] = yuv_temp.v;
-        ptr[3] = yuv_temp.u;
-    }
-}
-void store_pixel_yc(PIXEL_YC *ptr, PIXEL_YC ycp, int pos_x) {
-    *(PIXEL_YC *)ptr = ycp;
-}
 
 template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_5(int thread_id) {
@@ -2390,9 +2427,11 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 #endif
     }
     // 解析結果表示
-    if (edit_mode)
-        disp_status(fpip->ycp_edit, result_stat, assume_shift, reverse,
-        fpip->max_w, fpip->w, fpip->h, clip.top, clip.bottom, clip.left, clip.right);
+    if (edit_mode) {
+        decltype(disp_status<PIXEL_YC>)* disp_func[] = { disp_status<PIXEL_YC>, disp_status<uint16_t> };
+        disp_func[(g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2) ? 1 : 0](fpip->ycp_edit, result_stat, assume_shift, reverse,
+            fpip->max_w, fpip->w, fpip->h, clip.top, clip.bottom, clip.left, clip.right);
+    }
     
     QPC_GET_COUNTER(QPC_BLEND);
     QPC_ADD(QPC_BLEND, QPC_BLEND, QPC_YCP_CACHE);
