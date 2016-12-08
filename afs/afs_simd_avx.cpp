@@ -3,6 +3,8 @@
 #define USE_SSSE3 1
 #define USE_SSE41 1
 #define USE_POPCNT 1
+#include "simd_util.h"
+#include "afs_convert_const.h"
 
 // arch:AVXでコンパイルすることで、128bit-AVX命令を生成
 // ごくわずかだが高速

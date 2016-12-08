@@ -8,6 +8,8 @@
 #define AFS_STRIPE_CACHE_NUM  8
 #define AFS_SUB_WORKER_MAX    4
 
+#include "afs_opencl.h"
+
 enum {
     AFS_MODE_YUY2UP      = 0x01,
     AFS_MODE_CACHE_YC48  = 0x00,
@@ -18,6 +20,7 @@ enum {
     AFS_MODE_YC48_YC48   = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_YC48,
     AFS_MODE_YC48_NV16UP = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_NV16 | AFS_MODE_YUY2UP,
     AFS_MODE_YC48_NV16   = AFS_MODE_AVIUTL_YC48 | AFS_MODE_CACHE_NV16,
+    AFS_MODE_OPENCL      = 0x08,
 };
 
 #pragma pack(push,1)
@@ -180,6 +183,7 @@ typedef struct AFS_CONTEXT {
     AFS_SCAN_CLIP scan_motion_clip[AFS_SCAN_CACHE_NUM];
 
     AFS_STRIPE_DATA stripe_array[AFS_STRIPE_CACHE_NUM];
+    AFS_OPENCL opencl;
 
     AFS_EX_DATA ex_data;
 } AFS_CONTEXT;

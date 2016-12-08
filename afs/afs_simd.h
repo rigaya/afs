@@ -5,7 +5,6 @@
 #include "filter.h"
 
 #include "simd_util.h"
-#include "afs.h"
 
 static const _declspec(align(16)) USHORT pw_round_fix1[8] = {
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,

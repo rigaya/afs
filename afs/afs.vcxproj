@@ -53,18 +53,23 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\IntelOpenCL.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\opencl.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\opencl.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\opencl.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\opencl.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -109,6 +114,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <ModuleDefinitionFile>afs.def</ModuleDefinitionFile>
+      <DelayLoadDLLs>opencl.dll</DelayLoadDLLs>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -122,6 +128,11 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <ResourceCompile>
+      <NullTerminateStrings>true</NullTerminateStrings>
+      <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">
     <ClCompile>
@@ -139,6 +150,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <ModuleDefinitionFile>afsvf.def</ModuleDefinitionFile>
+      <DelayLoadDLLs>opencl.dll</DelayLoadDLLs>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -152,6 +164,11 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <ResourceCompile>
+      <NullTerminateStrings>true</NullTerminateStrings>
+      <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -183,6 +200,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <ModuleDefinitionFile>afs.def</ModuleDefinitionFile>
+      <DelayLoadDLLs>opencl.dll</DelayLoadDLLs>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -196,6 +214,11 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <ResourceCompile>
+      <NullTerminateStrings>true</NullTerminateStrings>
+      <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">
     <ClCompile>
@@ -226,6 +249,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <ModuleDefinitionFile>afsvf.def</ModuleDefinitionFile>
+      <DelayLoadDLLs>opencl.dll</DelayLoadDLLs>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -239,6 +263,11 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <ResourceCompile>
+      <NullTerminateStrings>true</NullTerminateStrings>
+      <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="afs.def" />
@@ -303,6 +332,12 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">$(OutDir)%(Filename).asm.obj</Outputs>
     </CustomBuild>
     <None Include="afsvf.def" />
+    <Intel_OpenCL_Build_Rules Include="afs_opencl.cl">
+      <Device Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">1</Device>
+      <Device Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">1</Device>
+      <Device Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">1</Device>
+      <Device Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">1</Device>
+    </Intel_OpenCL_Build_Rules>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="afs.cpp" />
@@ -312,6 +347,7 @@
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
+    <ClCompile Include="afs_opencl.cpp" />
     <ClCompile Include="afs_simd_avx.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>
@@ -363,15 +399,21 @@
     <ClInclude Include="afs_filter_simd.h" />
     <ClInclude Include="afs_func.h" />
     <ClInclude Include="afs_mmx.h" />
+    <ClInclude Include="afs_opencl.h" />
     <ClInclude Include="afs_server.h" />
     <ClInclude Include="afs_simd.h" />
+    <ClInclude Include="afs_version.h" />
     <ClInclude Include="afs_yuy2up_mmx.h" />
     <ClInclude Include="afs_yuy2up_simd.h" />
     <ClInclude Include="cpu_info.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="simd_util.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="afs.rc" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\IntelOpenCL.targets" />
   </ImportGroup>
 </Project>

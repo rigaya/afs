@@ -1,0 +1,433 @@
+﻿#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
+#include <Shlwapi.h>
+#include <vector>
+#include "afs.h"
+#pragma comment(lib, "opencl.lib")
+#pragma comment(lib, "shlwapi.lib")
+
+#include "afs_opencl.cl"
+
+using std::vector;
+
+#define ICEILDIV(x, div) (((x) + (div) - 1) / (div))
+#define ICEIL(x, div) (ICEILDIV((x), (div)) * (div))
+
+static inline const char *strichr(const char *str, int c) {
+    c = tolower(c);
+    for (; *str; str++)
+        if (c == tolower(*str))
+            return str;
+    return nullptr;
+}
+
+static inline const char *stristr(const char *str, const char *substr) {
+    size_t len = 0;
+    if (substr && (len = strlen(substr)) != 0)
+        for (; (str = strichr(str, substr[0])) != nullptr; str++)
+            if (_strnicmp(str, substr, len) == 0)
+                return str;
+    return nullptr;
+}
+
+void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
+    if (!afs->opencl.ctx) {
+        return;
+    }
+    for (int i = 0; i < _countof(afs->opencl.source_mem); i++) {
+        afs_opencl_source_buffer_unmap(afs, i);
+        if (afs->opencl.source_mem[i]) {
+            clReleaseMemObject(afs->opencl.source_mem[i]);
+        }
+    }
+    for (int i = 0; i < _countof(afs->opencl.scan_mem); i++) {
+        unsigned char *ptr = afs->scan_array[i].map;
+        afs_opencl_scan_buffer_unmap(afs, i);
+        if (afs->opencl.scan_mem[i]) {
+            clReleaseMemObject(afs->opencl.scan_mem[i]);
+        }
+        afs->scan_array[i].status = 0;
+        afs->scan_array[i].map = ptr;
+    }
+    afs_opencl_count_motion_temp_unmap(afs);
+    if (afs->opencl.motion_count_temp) {
+        clReleaseMemObject(afs->opencl.motion_count_temp);
+    }
+    clFinish(afs->opencl.queue);
+    memset(afs->opencl.source_mem, 0, sizeof(afs->opencl.source_mem));
+    memset(afs->opencl.scan_mem,   0, sizeof(afs->opencl.scan_mem));
+}
+
+void afs_opencl_close(AFS_CONTEXT *afs) {
+    afs_opencl_release_buffer(afs);
+    if (afs->opencl.kernel) clReleaseKernel(afs->opencl.kernel);
+    if (afs->opencl.program) clReleaseProgram(afs->opencl.program);
+    if (afs->opencl.queue) clReleaseCommandQueue(afs->opencl.queue);
+    if (afs->opencl.ctx) clReleaseContext(afs->opencl.ctx);
+    int device_check = afs->opencl.device_check;
+    memset(&afs->opencl, 0, sizeof(afs->opencl));
+    afs->opencl.device_check = device_check;
+}
+
+cl_int afs_opencl_check_dll() {
+    HMODULE hdll = LoadLibrary("opencl.dll");
+    if (!hdll) {
+        return CL_INVALID_VALUE;
+    }
+    FreeLibrary(hdll);
+    return CL_SUCCESS;
+}
+
+static bool afs_opencl_check_vendor(const char *str, const char *vendor_name) {
+    if (nullptr != stristr(str, vendor_name))
+        return true;
+    return false;
+}
+
+static cl_int afs_opencl_get_device(const char *vendor_name, cl_int device_type, AFS_OPENCL *cl_data, int major = 0, int minor = 0) {
+    cl_uint size = 0;
+    cl_int ret = CL_SUCCESS;
+
+    if (CL_SUCCESS != (ret = clGetPlatformIDs(0, nullptr, &size))) {
+        return ret;
+    }
+
+    vector<cl_platform_id> platform_list(size);
+    if (CL_SUCCESS != (ret = clGetPlatformIDs(size, &platform_list[0], &size))) {
+        return ret;
+    }
+
+    auto checkPlatformForVendor = [vendor_name](cl_platform_id platform_id) {
+        char buf[1024] = { 0 };
+        return (CL_SUCCESS == clGetPlatformInfo(platform_id, CL_PLATFORM_VENDOR, _countof(buf), buf, nullptr)
+            && afs_opencl_check_vendor(buf, vendor_name));
+    };
+
+    for (auto platform : platform_list) {
+        if (checkPlatformForVendor(platform)) {
+            if (CL_SUCCESS != (ret = clGetDeviceIDs(platform, device_type, 0, nullptr, &size))) {
+                return ret;
+            }
+            vector<cl_device_id> device_list(size);
+            if (CL_SUCCESS != (ret = clGetDeviceIDs(platform, device_type, size, &device_list[0], &size))) {
+                return ret;
+            }
+            for (auto device : device_list) {
+                //cl_device_svm_capabilities svm_cap = { 0 };
+                //clGetDeviceInfo(device, CL_DEVICE_SVM_CAPABILITIES, sizeof(svm_cap), &svm_cap, nullptr);
+                //std::string str;
+                //if (svm_cap & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER) str += "CL_DEVICE_SVM_COARSE_GRAIN_BUFFER ";
+                //if (svm_cap & CL_DEVICE_SVM_FINE_GRAIN_BUFFER)   str += "CL_DEVICE_SVM_FINE_GRAIN_BUFFER ";
+                //if (svm_cap & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM)   str += "CL_DEVICE_SVM_FINE_GRAIN_SYSTEM ";
+                //if (svm_cap & CL_DEVICE_SVM_ATOMICS)             str += "CL_DEVICE_SVM_ATOMICS ";
+                char buf[1024] = { 0 };
+                if (CL_SUCCESS == (ret = clGetDeviceInfo(device, CL_DEVICE_VERSION, sizeof(buf), buf, nullptr))) {
+                    int dev_major, dev_minor;
+                    if (2 == sscanf_s(buf, "OpenCL %d.%d", &dev_major, &dev_minor)
+                        && ((dev_major > major) || (dev_major == major && dev_minor >= minor))) {
+                        cl_data->platform = platform;
+                        cl_data->device = device_list[0];
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    return ret;
+}
+
+static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
+    cl_int ret = CL_SUCCESS;
+    if (cl_data->ctx) {
+        return ret;
+    }
+    cl_data->ctx = clCreateContext(0, 1, &cl_data->device, nullptr, nullptr, &ret);
+    if (CL_SUCCESS != ret)
+        return ret;
+#if 0
+    cl_queue_properties qprop[] = {
+        CL_QUEUE_PROPERTIES, (cl_command_queue_properties)CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT, 0
+    };
+    cl_data->queue = clCreateCommandQueueWithProperties(cl_data->ctx, cl_data->device, qprop, &ret);
+#else
+    cl_data->queue = clCreateCommandQueueWithProperties(cl_data->ctx, cl_data->device, nullptr, &ret);
+#endif
+    if (CL_SUCCESS != ret)
+        return ret;
+
+    const char *BUILD_ERR_FILE = "afs_opencl_build_error.txt";
+    if (PathFileExists(BUILD_ERR_FILE)) {
+        DeleteFile(BUILD_ERR_FILE);
+    }
+    //OpenCLのカーネル用のコードはリソース埋め込みにしているので、それを呼び出し
+    HRSRC hResource = nullptr;
+    HGLOBAL hResourceData = nullptr;
+    const char *clSourceFile = nullptr;
+    size_t resourceSize = 0;
+    if (   nullptr == (hResource = FindResource(cl_data->hModuleDLL, "CLDATA", "KERNEL_DATA"))
+        || nullptr == (hResourceData = LoadResource(cl_data->hModuleDLL, hResource))
+        || nullptr == (clSourceFile = (const char *)LockResource(hResourceData))
+        || 0       == (resourceSize = SizeofResource(cl_data->hModuleDLL, hResource))) {
+        return 1;
+    }
+    cl_data->program = clCreateProgramWithSource(cl_data->ctx, 1, (const char**)&clSourceFile, &resourceSize, &ret);
+    if (CL_SUCCESS != ret)
+        return ret;
+
+    if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program, 1, &cl_data->device, nullptr, nullptr, nullptr))) {
+        std::vector<char> buffer(16 * 1024, '\0');
+        size_t length = 0;
+        clGetProgramBuildInfo(cl_data->program, cl_data->device, CL_PROGRAM_BUILD_LOG, buffer.size(), buffer.data(), &length);
+        FILE *fp = nullptr;
+        if (!fopen_s(&fp, BUILD_ERR_FILE, "w")) {
+            fprintf(fp, "%s\n", buffer.data());
+            fclose(fp);
+        }
+        return ret;
+    }
+    cl_data->kernel = clCreateKernel(cl_data->program, "afs_analyze_12_nv16_kernel", &ret);
+    if (CL_SUCCESS != ret)
+        return ret;
+
+    return ret;
+}
+
+int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL) {
+    if (afs->opencl.device_check == AFS_OPENCL_DEVICE_CHECK_FAIL) {
+        return 1;
+    }
+    afs_opencl_close(afs);
+    cl_int ret = CL_SUCCESS;
+    if (   CL_SUCCESS != (ret = afs_opencl_check_dll())
+        || CL_SUCCESS != (ret = afs_opencl_get_device("Intel", CL_DEVICE_TYPE_GPU, &afs->opencl, 1, 2))) {
+        afs->opencl.device_check = AFS_OPENCL_DEVICE_CHECK_FAIL;
+        afs_opencl_close(afs);
+        return 1;
+    }
+    if (hModuleDLL) {
+        afs->opencl.hModuleDLL = hModuleDLL;
+    }
+    return 0;
+}
+
+int afs_opencl_init(AFS_CONTEXT *afs) {
+    cl_int ret = CL_SUCCESS;
+    if (afs->opencl.device == nullptr) {
+        if (CL_SUCCESS != (ret = afs_opencl_open_device(afs, NULL))) {
+            return 1;
+        }
+    }
+    if (CL_SUCCESS != (ret = afs_opencl_create_kernel(&afs->opencl))) {
+        afs_opencl_close(afs);
+        return 1;
+    }
+    return 0;
+}
+
+cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs) {
+    return clFinish(afs->opencl.queue);
+}
+
+cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
+    cl_int ret = 0;
+    size_t origin[3] = { 0, 0, 0 };
+    size_t region[3] = { (size_t)afs->opencl.source_w, (size_t)afs->opencl.source_h, 2 };
+    size_t image_row_pitch = 0;
+    size_t image_slice_picth = 0;
+    afs->source_array[i].map = clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_mem[i], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+        origin, region, &image_row_pitch, &image_slice_picth, 0, NULL, NULL, &ret);
+    afs->source_w = image_row_pitch;
+    return ret;
+}
+
+cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i) {
+    if (afs->source_array[i].map == nullptr) {
+        return CL_SUCCESS;
+    }
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_mem[i], afs->source_array[i].map, 0, NULL, NULL);
+    if (ret == CL_SUCCESS) {
+        afs->source_array[i].map = nullptr;
+    }
+    return ret;
+}
+
+int afs_opencl_source_buffer_index(AFS_CONTEXT *afs, void *p0) {
+    for (int i = 0; i < _countof(afs->source_array); i++) {
+        if (afs->source_array[i].map == p0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
+    if (!afs->opencl.ctx) {
+        return 1;
+    }
+    cl_image_format format;
+    format.image_channel_order = CL_R;
+    format.image_channel_data_type = CL_UNSIGNED_INT32;
+    const int widthint32 = (w + 3) >> 2;
+    cl_image_desc img_desc;
+    img_desc.image_type = CL_MEM_OBJECT_IMAGE3D;
+    img_desc.image_width = widthint32;
+    img_desc.image_height = h;
+    img_desc.image_depth = 2;
+    img_desc.image_array_size = 0;
+    img_desc.image_row_pitch = 0;
+    img_desc.image_slice_pitch = 0;
+    img_desc.num_mip_levels = 0;
+    img_desc.num_samples = 0;
+    img_desc.buffer = 0;
+    afs->opencl.source_w = widthint32;
+    afs->opencl.source_h = h;
+    for (int i = 0; i < _countof(afs->source_array); i++) {
+        cl_int ret = CL_SUCCESS;
+        afs->opencl.source_mem[i] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, &format, &img_desc, nullptr, &ret);
+        if (ret != CL_SUCCESS) {
+            return 1;
+        }
+        afs_opencl_source_buffer_map(afs, i);
+        afs->source_array[i].status = 0;
+    }
+    clFinish(afs->opencl.queue);
+    return 0;
+}
+
+int afs_opencl_create_motion_count_temp(AFS_CONTEXT *afs, int w, int h) {
+    const int global_block_count = ICEILDIV(ICEILDIV((size_t)w, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
+    afs->opencl.motion_count_temp_max = (global_block_count + 63) & ~63;
+    cl_int ret = CL_SUCCESS;
+    afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, afs->opencl.motion_count_temp_max, nullptr, &ret);
+    if (ret != CL_SUCCESS) {
+        return 1;
+    }
+    afs_opencl_count_motion_temp_map(afs);
+    clFinish(afs->opencl.queue);
+    return 0;
+}
+
+cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs) {
+    cl_int ret = 0;
+    afs->opencl.motion_count_temp_map = (unsigned short *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.motion_count_temp, CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+        0, afs->opencl.motion_count_temp_max, 0, NULL, NULL, &ret);
+    return ret;
+}
+
+cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs) {
+    if (afs->opencl.motion_count_temp_map == nullptr) {
+        return CL_SUCCESS;
+    }
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.motion_count_temp, afs->opencl.motion_count_temp_map, 0, NULL, NULL);
+    if (ret == CL_SUCCESS) {
+        afs->opencl.motion_count_temp_map = nullptr;
+    }
+    return ret;
+}
+
+cl_int afs_opencl_scan_buffer_map(AFS_CONTEXT *afs, int i) {
+    cl_int ret = 0;
+    const int size = (afs->opencl.scan_w * afs->opencl.scan_h + 63) & ~63;
+    afs->scan_array[i].map = (unsigned char *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.scan_mem[i], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+        0, size, 0, NULL, NULL, &ret);
+    return ret;
+}
+
+cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i) {
+    if (afs->scan_array[i].map == nullptr) {
+        return CL_SUCCESS;
+    }
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.scan_mem[i], afs->scan_array[i].map, 0, NULL, NULL);
+    if (ret == CL_SUCCESS) {
+        afs->scan_array[i].map = nullptr;
+    }
+    return ret;
+}
+
+int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
+    const int size = (si_w * h + 63) & ~63;
+    afs->opencl.scan_w = si_w;
+    afs->opencl.scan_h = h;
+    for (int i = 0; i < _countof(afs->scan_array); i++) {
+        cl_int ret = CL_SUCCESS;
+        afs->opencl.scan_mem[i] = clCreateBuffer(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size, afs->scan_array[i].map, &ret);
+        if (ret != CL_SUCCESS) {
+            return 1;
+        }
+        afs_opencl_scan_buffer_map(afs, i);
+        afs->scan_array[i].status = 0;
+    }
+    clFinish(afs->opencl.queue);
+    return 0;
+}
+
+int afs_opencl_scan_buffer_index(AFS_CONTEXT *afs, void *p0) {
+    for (int i = 0; i < _countof(afs->scan_array); i++) {
+        if (afs->scan_array[i].map == p0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int afs_opencl_analyze_12_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int tb_order, int width, int si_pitch, int h, int max_h,
+    int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, const void *_scan_clip, int *global_block_count) {
+#define CLAMP(x, low, high) (((x) > (high))? (high) : ((x) < (low))? (low) : (x))
+    uint8_t thre_shift_yuy2   = CLAMP((thre_shift  *219 + 383)>>12, 0, 127);
+    uint8_t thre_deint_yuy2   = CLAMP((thre_deint  *219 + 383)>>12, 0, 127);
+    uint8_t thre_Ymotion_yuy2 = CLAMP((thre_Ymotion*219 + 383)>>12, 0, 127);
+    uint8_t thre_Cmotion_yuy2 = CLAMP((thre_Cmotion*  7 +  66)>> 7, 0, 127);
+#undef CLAMP
+    AFS_SCAN_CLIP *scan_clip = (AFS_SCAN_CLIP *)_scan_clip;
+    uint32_t scan_left   = scan_clip->left;
+    uint32_t scan_width  = width - scan_clip->left - scan_clip->right;
+    uint32_t scan_top    = scan_clip->top;
+    uint32_t scan_height = h - scan_clip->top - scan_clip->bottom;
+
+/*
+__global int *restrict ptr_dst,
+__global int *restrict ptr_count,
+__read_only image3d_t img_p0,
+__read_only image3d_t img_p1,
+int tb_order, int width_int, int si_pitch_int, int h,
+uchar thre_Ymotion, uchar thre_Cmotion, uchar thre_deint, uchar thre_shift,
+uint scan_left, uint scan_width, uint scan_top, uint scan_height)
+*/
+    const int width_int = width / sizeof(int);
+    const int si_pitch_int = afs->opencl.scan_w / sizeof(int);
+    // Set kernel arguments
+    cl_int ret = CL_SUCCESS;
+    if (   CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  2, sizeof(cl_mem),   &afs->opencl.source_mem[p0_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  3, sizeof(cl_mem),   &afs->opencl.source_mem[p1_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  4, sizeof(int),      &tb_order))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  5, sizeof(int),      &width_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  6, sizeof(int),      &si_pitch_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  7, sizeof(int),      &h))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  8, sizeof(uint8_t),  &thre_Ymotion_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  9, sizeof(uint8_t),  &thre_Cmotion_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 10, sizeof(uint8_t),  &thre_deint_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 11, sizeof(uint8_t),  &thre_shift_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 12, sizeof(uint32_t), &scan_left))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 13, sizeof(uint32_t), &scan_width))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 14, sizeof(uint32_t), &scan_top))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 15, sizeof(uint32_t), &scan_height))) {
+        return 1;
+    }
+    size_t global[3] = { ICEIL(ICEILDIV((size_t)width, 4), BLOCK_INT_X), ICEIL(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y), 1 };
+    size_t local[3]  = { BLOCK_INT_X, BLOCK_Y, 1 };
+    size_t local_size_max;
+    if (CL_SUCCESS != (ret = clGetKernelWorkGroupInfo(afs->opencl.kernel, afs->opencl.device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), (void *)&local_size_max, NULL))) {
+        return 1;
+    }
+
+    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, afs->opencl.kernel, 2, NULL, global, local, 0, NULL, NULL))) {
+        return 1;
+    }
+    *global_block_count = ICEILDIV(ICEILDIV((size_t)width, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
+    return 0;
+}

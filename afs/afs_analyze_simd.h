@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "simd_util.h"
 #include "afs.h"
 #include "afs_convert_const.h"
 
@@ -9,8 +10,6 @@ void __forceinline afs_analyze_get_local_scan_clip(AFS_SCAN_CLIP *clip_thread, c
     clip_thread->left  = max(0, left_clip) + left_additional_clip;
     clip_thread->right = max(0, right_clip);
 }
-
-#include "simd_util.h"
 
 static const _declspec(align(16)) BYTE pb_thre_count[16]       = { 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03 };
 

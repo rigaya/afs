@@ -12,6 +12,7 @@
 #include "afs_server.h"
 
 #include "afs.h"
+#include "afs_version.h"
 #include "afs_func.h"
 
 #include "afs_mmx.h"
@@ -22,22 +23,21 @@
 #include "afs_analyze_simd.h"
 #include "afs_yuy2up_mmx.h"
 #include "afs_yuy2up_simd.h"
-
 #include "cpu_info.h"
 
 #ifndef AFSVF
 static TCHAR filter_name[] = "自動フィールドシフト";
 #ifndef AFSNFS
-static TCHAR filter_name_ex[] = "自動フィールドシフト インタレース解除 ver7.5a+ by Aji";
+static TCHAR filter_name_ex[] = "自動フィールドシフト 高速化版 ver" VER_STR_FILEVERSION " by rigaya";
 #else
-static TCHAR filter_name_ex[] = "自動フィールドシフト インタレース解除 ver7.5a- by Aji";
+static TCHAR filter_name_ex[] = "自動フィールドシフト 高速化版 ver" VER_STR_FILEVERSION "- by rigaya";
 #endif
 #else // AFSVF
 static char filter_name[] = "自動フィールドシフトVF";
 #ifndef AFSNFS
-static TCHAR filter_name_ex[] = "自動フィールドシフト ビデオフィルタ ver7.5a+ by Aji";
+static TCHAR filter_name_ex[] = "自動フィールドシフトVF 高速化版 ver" VER_STR_FILEVERSION "by rigaya";
 #else
-static TCHAR filter_name_ex[] = "自動フィールドシフト ビデオフィルタ ver7.5a- by Aji";
+static TCHAR filter_name_ex[] = "自動フィールドシフトVF 高速化版 ver" VER_STR_FILEVERSION "- by rigaya";
 #endif
 #endif // AFSVF
 
@@ -261,41 +261,53 @@ void source_cache_expire(int frame) {
 
 void free_source_cache(void) {
     clear_source_cache();
+    if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+        afs_opencl_release_buffer(&g_afs);
+    }
     if (g_afs.source_array[0].map != NULL) {
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
             if (g_afs.source_array[i].map) {
                 _aligned_free(g_afs.source_array[i].map);
                 g_afs.source_array[i].map = NULL;
             }
+            g_afs.source_array[i].status = 0;
         }
     }
+    g_afs.source_w = 0;
+    g_afs.source_h = 0;
 }
 
 BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
-    const int source_w = si_pitch(max_w, afs_mode);
+    const int source_w = max(g_afs.source_w, si_pitch(max_w, afs_mode));
     const int cache_nv16 = (afs_mode & AFS_MODE_CACHE_NV16) != 0;
     const int size = source_w * max_h;
 
     if (g_afs.source_array[0].map != NULL) {
-        if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w != source_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
-            free_source_cache();
+        if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w < source_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
+            (g_afs.afs_mode & AFS_MODE_OPENCL) ? afs_opencl_release_buffer(&g_afs) : free_source_cache();
         }
     }
 
-    const int frame_size_bytes = size * ((cache_nv16) ? 2 : 6);
     if (g_afs.source_array[0].map == NULL) {
-        for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
-            if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, 64))) {
-                free_source_cache();
+        if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+            if (afs_opencl_create_source_buffer(&g_afs, source_w, max_h)
+                || afs_opencl_create_motion_count_temp(&g_afs, source_w, max_h)) {
                 return FALSE;
             }
-            ZeroMemory(g_afs.source_array[i].map, frame_size_bytes);
-            g_afs.source_array[i].status = 0;
+        } else {
+            const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + 63) & ~63;
+            for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
+                if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, 4096))) {
+                    free_source_cache();
+                    return FALSE;
+                }
+                ZeroMemory(g_afs.source_array[i].map, frame_size_bytes);
+                g_afs.source_array[i].status = 0;
+            }
+            g_afs.source_w = source_w;
         }
     }
-
     if (frame_n > 0 || g_afs.source_frame_n < 0) g_afs.source_frame_n = frame_n;
-    g_afs.source_w = source_w;
     g_afs.source_h = max_h;
     g_afs.cache_nv16 = cache_nv16;
 
@@ -306,7 +318,7 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
 void __stdcall yuy2up(int thread_id) {
     const int y_start = (g_afs.sub_thread.yuy2up_task.height *  thread_id   ) / g_afs.sub_thread.thread_sub_n;
     const int y_end   = (g_afs.sub_thread.yuy2up_task.height * (thread_id+1)) / g_afs.sub_thread.thread_sub_n;
-    afs_func.yuy2up[g_afs.sub_thread.afs_mode](g_afs.sub_thread.yuy2up_task.dst, g_afs.sub_thread.yuy2up_task.dst_pitch, g_afs.sub_thread.yuy2up_task.dst_pitch * g_afs.sub_thread.yuy2up_task.max_h,
+    afs_func.yuy2up[g_afs.sub_thread.afs_mode & 0x07](g_afs.sub_thread.yuy2up_task.dst, g_afs.sub_thread.yuy2up_task.dst_pitch, g_afs.sub_thread.yuy2up_task.dst_pitch * g_afs.sub_thread.yuy2up_task.max_h,
         g_afs.sub_thread.yuy2up_task.src, g_afs.sub_thread.yuy2up_task.width, g_afs.sub_thread.yuy2up_task.src_pitch, y_start, y_end);
 }
 #endif
@@ -858,7 +870,7 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
 
 BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
     const int si_w = si_pitch(w, afs_mode);
-    const int size = si_w * (h + 2);
+    const int size = si_w * (h + 2) + 4096;
 
     if (g_afs.analyze_cachep[0] != NULL) {
         if (g_afs.scan_frame_n != frame_n || g_afs.scan_w != w || g_afs.scan_h != h || g_afs.scan_worker_n != worker_n) {
@@ -885,7 +897,7 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
         }
         for (int i = 0; i < AFS_SCAN_CACHE_NUM; i++) {
             g_afs.scan_array[i].status = 0;
-            g_afs.scan_array[i].map = g_afs.analyze_cachep[i] + si_w;
+            g_afs.scan_array[i].map = (unsigned char *)((size_t)(g_afs.analyze_cachep[i] + si_w + 4095) & ~4095);
         }
 
         for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++) {
@@ -900,6 +912,10 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
             g_afs.worker_thread_priority[i] = THREAD_PRIORITY_NORMAL;
         }
         g_afs.scan_arg.type = -1;
+    }
+
+    if ((g_afs.afs_mode & AFS_MODE_OPENCL) && g_afs.opencl.scan_mem[0] == nullptr) {
+        afs_opencl_create_scan_buffer(&g_afs, si_w, h);
     }
 
     g_afs.scan_frame_n = frame_n;
@@ -936,8 +952,34 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
     sp->thre_Ymotion = thre_Ymotion, sp->thre_Cmotion = thre_Cmotion;
     sp->clip.top = sp->clip.bottom = sp->clip.left = sp->clip.right = -1;
 
-    analyze_stripe((mode == 0), sp, p1, p0, source_w, mc_clip);
+    if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+        const int p0_idx = afs_opencl_source_buffer_index(&g_afs, p0);
+        const int p1_idx = afs_opencl_source_buffer_index(&g_afs, p1);
+        const int sp_idx = afs_opencl_scan_buffer_index(&g_afs, sp->map);
+        afs_opencl_source_buffer_unmap(&g_afs, p0_idx);
+        afs_opencl_source_buffer_unmap(&g_afs, p1_idx);
+        afs_opencl_scan_buffer_unmap(&g_afs, sp_idx);
+        afs_opencl_count_motion_temp_unmap(&g_afs);
 
+        int global_block_count = 0;
+        afs_opencl_analyze_12_nv16(&g_afs, sp_idx, p0_idx, p1_idx, p0_idx, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, &global_block_count);
+
+        afs_opencl_source_buffer_map(&g_afs, p0_idx);
+        afs_opencl_source_buffer_map(&g_afs, p1_idx);
+        afs_opencl_scan_buffer_map(&g_afs, sp_idx);
+        afs_opencl_count_motion_temp_map(&g_afs);
+        afs_opencl_queue_finish(&g_afs);
+
+        int motion_count[2] = { 0 };
+        for (int i = 0; i < global_block_count; i++) {
+            motion_count[0] += g_afs.opencl.motion_count_temp_map[2*i+0];
+            motion_count[1] += g_afs.opencl.motion_count_temp_map[2*i+1];
+        }
+        int idx = sp - g_afs.scan_array;
+        memcpy(g_afs.scan_motion_count[idx], motion_count, sizeof(motion_count));
+    } else {
+        analyze_stripe((mode == 0), sp, p1, p0, source_w, mc_clip);
+    }
     return;
 }
 
@@ -1487,7 +1529,7 @@ void disp_status(void *_ycp, int *result_stat, int *assume_shift, int *reverse,
     const int h       = fpip->h; \
     const int source_w = g_afs.source_w; \
     const int src_frame_pixels = g_afs.source_w * g_afs.source_h; \
-    const func_copy_line copy_line = afs_func.copy_line[g_afs.sub_thread.afs_mode];
+    const func_copy_line copy_line = afs_func.copy_line[g_afs.sub_thread.afs_mode & 0x07];
 
 #define CHECK_Y_RANGE(y) ((DWORD)(y - y_start) < (DWORD)(y_end - y_start))
 
@@ -1585,7 +1627,7 @@ void synthesize_mode_4(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p04, *p05, *p06, *p07;
     SRC_TYPE *p11, *p12, *p13, *p14, *p15, *p16, *p17;
-    const func_deint4 deint4 = afs_func.deint4[g_afs.sub_thread.afs_mode];
+    const func_deint4 deint4 = afs_func.deint4[g_afs.sub_thread.afs_mode & 0x07];
 
     p01 = p03 = p05 = p0;
     p02 = p04 = p06 = p0 + source_w;
@@ -1627,7 +1669,7 @@ template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_3(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
-    const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode];
+    const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode & 0x07];
 
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + source_w, p12 = p1 + source_w;
@@ -1659,7 +1701,7 @@ template<typename DST_TYPE, typename SRC_TYPE>
 void synthesize_mode_2(int thread_id) {
     DEFINE_SYNTHESIZE_LOCAL;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
-    const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode];
+    const func_blend blend = afs_func.blend[g_afs.sub_thread.afs_mode & 0x07];
 
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + source_w, p12 = p1 + source_w;
@@ -1695,8 +1737,8 @@ void synthesize_mode_1(int thread_id) {
     const int clip_l = g_afs.sub_thread.synthesize_task.clip.left;
     const int clip_r = g_afs.sub_thread.synthesize_task.clip.right;
     SRC_TYPE *p01, *p02, *p03, *p11, *p12, *p13;
-    const func_mie_spot  mie_spot  = afs_func.mie_spot[g_afs.sub_thread.afs_mode];
-    const func_mie_inter mie_inter = afs_func.mie_inter[g_afs.sub_thread.afs_mode];
+    const func_mie_spot  mie_spot  = afs_func.mie_spot[g_afs.sub_thread.afs_mode & 0x07];
+    const func_mie_inter mie_inter = afs_func.mie_inter[g_afs.sub_thread.afs_mode & 0x07];
 
     p01 = p03 = p0,   p11 = p13 = p1;
     p02 = p0 + source_w, p12 = p1 + source_w;
@@ -1757,7 +1799,7 @@ void synthesize(int thread_id) {
     };
     static_assert(AFS_MODE_AVIUTL_YUY2 == 0x04, "AFS_MODE_AVIUTL_YUY2 is not 0x04, synthesize() will fail.");
     static_assert(AFS_MODE_CACHE_NV16  == 0x02, "AFS_MODE_CACHE_NV16  is not 0x02, synthesize() will fail.");
-    func_list[g_afs.sub_thread.synthesize_task.mode][g_afs.sub_thread.afs_mode >> 1](thread_id);
+    func_list[g_afs.sub_thread.synthesize_task.mode][(g_afs.sub_thread.afs_mode & 0x07) >> 1](thread_id);
 }
 
 unsigned int __stdcall sub_thread(void *prm) {
@@ -1943,9 +1985,15 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     const int through_mode = fp->check[11];
 #ifndef AFSVF
     const int cache_nv16_mode = (g_afs.ex_data.proc_mode & AFS_MODE_CACHE_NV16) || fpip->yc_size < 6;
+    const int use_opencl = cache_nv16_mode && (g_afs.ex_data.proc_mode & AFS_MODE_OPENCL);
 #else
     const int cache_nv16_mode = 0;
+    const int use_opencl = 0;
 #endif
+    if (((g_afs.afs_mode & AFS_MODE_OPENCL) != 0) != (use_opencl != 0)) {
+        free_source_cache();
+        free_analyze_cache();
+    }
 
     const int is_saving = fp->exfunc->is_saving(fpip->editp);
     const int is_editing = fp->exfunc->is_editing(fpip->editp);
@@ -1954,6 +2002,14 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     g_afs.afs_mode |= (fpip->yc_size == 2) ? AFS_MODE_AVIUTL_YUY2 : AFS_MODE_AVIUTL_YC48;
     g_afs.afs_mode |= (yuy2upsample & (fpip->yc_size != 2)) ? AFS_MODE_YUY2UP : 0x00;
     g_afs.afs_mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
+    g_afs.afs_mode |= (use_opencl) ? AFS_MODE_OPENCL : 0x00;
+
+    if (use_opencl) {
+        if (afs_opencl_init(&g_afs)) {
+            error_modal(fp, fpip->editp, "OpenCLの初期化に失敗しました。");
+            return TRUE;
+        }
+    }
 
 #ifdef AFSVF
     tb_order = fp->check[10] ? !tb_order : tb_order;
@@ -2673,6 +2729,9 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
         set_combo_item("フル解析", AFS_MODE_CACHE_YC48);
     }
     set_combo_item("簡易高速解析", AFS_MODE_CACHE_NV16);
+    if (0 == afs_opencl_open_device(&g_afs, fp->dll_hinst)) {
+        set_combo_item("簡易高速解析 (OpenCL)", AFS_MODE_CACHE_NV16 | AFS_MODE_OPENCL);
+    }
     SendMessage(cx_proc_mode, CB_SETCURSEL, 0, 0);
 #endif
 }
