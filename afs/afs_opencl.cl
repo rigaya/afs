@@ -3,7 +3,7 @@
 #define BLOCK_Y       (8) //work groupサイズ(y) = スレッド数/work group
 #define BLOCK_LOOP_Y (32) //work groupのy方向反復数
 
-#define SHARED_INT_X (32) //SLMの幅
+#define SHARED_INT_X (BLOCK_INT_X) //SLMの幅
 #define SHARED_Y     (16) //SLMの縦
 
 #ifdef __OPENCL_VERSION__
