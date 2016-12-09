@@ -133,6 +133,12 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <Intel_OpenCL_Build_Rules>
+      <Device>1</Device>
+    </Intel_OpenCL_Build_Rules>
+    <Intel_OpenCL_Build_Rules>
+      <OTHER>-D PREFER_SHORT4=1</OTHER>
+    </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">
     <ClCompile>
@@ -169,6 +175,12 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <Intel_OpenCL_Build_Rules>
+      <Device>1</Device>
+    </Intel_OpenCL_Build_Rules>
+    <Intel_OpenCL_Build_Rules>
+      <OTHER>-D PREFER_SHORT4=1</OTHER>
+    </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -219,6 +231,12 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <Intel_OpenCL_Build_Rules>
+      <Device>1</Device>
+    </Intel_OpenCL_Build_Rules>
+    <Intel_OpenCL_Build_Rules>
+      <OTHER>-D PREFER_SHORT4=1</OTHER>
+    </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">
     <ClCompile>
@@ -268,6 +286,12 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <Intel_OpenCL_Build_Rules>
+      <Device>1</Device>
+    </Intel_OpenCL_Build_Rules>
+    <Intel_OpenCL_Build_Rules>
+      <OTHER>-D PREFER_SHORT4=1</OTHER>
+    </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="afs.def" />

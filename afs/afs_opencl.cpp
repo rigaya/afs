@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <Shlwapi.h>
 #include <vector>
+#include <string>
 #include "afs.h"
 #pragma comment(lib, "opencl.lib")
 #pragma comment(lib, "shlwapi.lib")
@@ -177,7 +178,9 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
     if (CL_SUCCESS != ret)
         return ret;
 
-    if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program, 1, &cl_data->device, nullptr, nullptr, nullptr))) {
+    std::string sBuildOptions;
+    sBuildOptions += "-D PREFER_SHORT4=1";
+    if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program, 1, &cl_data->device, sBuildOptions.c_str(), nullptr, nullptr))) {
         std::vector<char> buffer(16 * 1024, '\0');
         size_t length = 0;
         clGetProgramBuildInfo(cl_data->program, cl_data->device, CL_PROGRAM_BUILD_LOG, buffer.size(), buffer.data(), &length);

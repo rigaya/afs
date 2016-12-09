@@ -25,6 +25,54 @@ __constant uchar shift_sign  = 0x04u;
 __constant uchar shift_shift = 0x02u;
 __constant uchar shift_deint = 0x01u;
 
+#if PREFER_SHORT4
+short4 analyze_motion(short4 p0, short4 p1, uchar thre_motion, uchar thre_shift) {
+    short4 absy = as_short4(abs(convert_short4(p1) - convert_short4(p0)));
+    short4 mask = 0;
+    mask |= ((short4)thre_motion > absy) ? (short4)motion_flag  : (short4)0;
+    mask |= ((short4)thre_shift  > absy) ? (short4)motion_shift : (short4)0;
+    return mask;
+}
+
+short4 analyze_stripe(short4 p0, short4 p1, uchar flag_sign, uchar flag_deint, uchar flag_shift, uchar thre_deint, uchar thre_shift) {
+    short4 new_sign = (p0 >= p1) ? (short4)flag_sign : (short4)0;
+    //short4 new_diff = (p1 > p0) ? p1 - p0 : p0 - p1;
+    short4 absy = as_short4(abs(convert_short4(p1) - convert_short4(p0)));
+    short4 mask = new_sign;
+    mask |= (absy > (short4)thre_deint) ? (short4)flag_deint : (short4)0;
+    mask |= (absy > (short4)thre_shift) ? (short4)flag_shift : (short4)0;
+    return mask;
+}
+
+uchar4 analyze(
+    __read_only image3d_t img_p0,
+    __read_only image3d_t img_p1,
+    int imgx, int imgy, int idepth, int tb_order,
+    uchar thre_motion, uchar thre_deint, uchar thre_shift) {
+    short4 p0, p1, mask = 0;
+    //motion
+    p0 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy,idepth,0)).x));
+    p1 = convert_short4(as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy,idepth,0)).x));
+    mask = analyze_motion(p0, p1, thre_motion, thre_shift);
+
+    if (imgy >= 1) {
+        //non-shift
+        p1 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy-1,idepth,0)).x));
+        mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
+
+        //shift
+        if ((tb_order + imgy) & 1) {
+            p0 = convert_short4(as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy-1,idepth,0)).x));
+            p1 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy,  idepth,0)).x));
+        } else {
+            p0 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy-1,idepth,0)).x));
+            p1 = convert_short4(as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy,  idepth,0)).x));
+        }
+        mask |= analyze_stripe(p0, p1, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
+    }
+    return convert_uchar4(mask);
+}
+#else
 uchar4 analyze_motion(uchar4 p0, uchar4 p1, uchar thre_motion, uchar thre_shift) {
     uchar4 absy = convert_uchar4(abs(convert_short4(p1) - convert_short4(p0)));
     uchar4 mask = 0;
@@ -72,6 +120,7 @@ uchar4 analyze(
     }
     return mask;
 }
+#endif
 
 int shared_int_idx(int x, int y, int dep) {
     return dep * SHARED_INT_X * SHARED_Y + (y&15) * SHARED_INT_X + x;
