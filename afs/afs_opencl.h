@@ -17,7 +17,7 @@ typedef struct _AFS_OPENCL {
     cl_program program;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem source_mem[AFS_SOURCE_CACHE_NUM];
+    cl_mem source_mem[AFS_SOURCE_CACHE_NUM][2];
     int source_w, source_h;
     cl_mem scan_mem[AFS_SCAN_CACHE_NUM];
     int scan_w, scan_h;
@@ -29,6 +29,8 @@ typedef struct _AFS_OPENCL {
 
 int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL);
 int afs_opencl_init(AFS_CONTEXT *afs);
+
+int afs_opencl_source_buffer_pitch(AFS_CONTEXT *afs, int w, int h, int *pitch, int *baseAddressAlign);
 
 int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h);
 int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h);

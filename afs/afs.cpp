@@ -278,9 +278,15 @@ void free_source_cache(void) {
 }
 
 BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
-    const int source_w = max(g_afs.source_w, si_pitch(max_w, afs_mode));
-    const int cache_nv16 = (afs_mode & AFS_MODE_CACHE_NV16) != 0;
+    int source_w = max(g_afs.source_w, si_pitch(max_w, afs_mode));
+    int baseAddressAlign = 64;
+    if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+        if (afs_opencl_source_buffer_pitch(&g_afs, source_w, max_h, &source_w, &baseAddressAlign)) {
+            return FALSE;
+        }
+    }
     const int size = source_w * max_h;
+    const int cache_nv16 = (afs_mode & AFS_MODE_CACHE_NV16) != 0;
 
     if (g_afs.source_array[0].map != NULL) {
         if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w < source_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
@@ -289,23 +295,24 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
     }
 
     if (g_afs.source_array[0].map == NULL) {
+        const int size = source_w * max_h;
+        const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + 63) & ~63;
+        for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
+            if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, baseAddressAlign))) {
+                free_source_cache();
+                return FALSE;
+            }
+            ZeroMemory(g_afs.source_array[i].map, frame_size_bytes);
+            g_afs.source_array[i].status = 0;
+        }
+        g_afs.source_w = source_w;
+
         if (g_afs.afs_mode & AFS_MODE_OPENCL) {
             if (afs_opencl_create_source_buffer(&g_afs, source_w, max_h)
                 || afs_opencl_create_motion_count_temp(&g_afs, source_w, max_h)) {
                 return FALSE;
             }
-        } else {
-            const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + 63) & ~63;
-            for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
-                if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, 4096))) {
-                    free_source_cache();
-                    return FALSE;
-                }
-                ZeroMemory(g_afs.source_array[i].map, frame_size_bytes);
-                g_afs.source_array[i].status = 0;
-            }
-            g_afs.source_w = source_w;
-        }
+        } 
     }
     if (frame_n > 0 || g_afs.source_frame_n < 0) g_afs.source_frame_n = frame_n;
     g_afs.source_h = max_h;

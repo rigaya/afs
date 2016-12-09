@@ -45,28 +45,28 @@ short4 analyze_stripe(short4 p0, short4 p1, uchar flag_sign, uchar flag_deint, u
 }
 
 uchar4 analyze(
-    __read_only image3d_t img_p0,
-    __read_only image3d_t img_p1,
-    int imgx, int imgy, int idepth, int tb_order,
+    __read_only image2d_t img_p0,
+    __read_only image2d_t img_p1,
+    int imgx, int imgy, int tb_order,
     uchar thre_motion, uchar thre_deint, uchar thre_shift) {
     short4 p0, p1, mask = 0;
     //motion
-    p0 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy,idepth,0)).x));
-    p1 = convert_short4(as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy,idepth,0)).x));
+    p0 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy)));
+    p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy)));
     mask = analyze_motion(p0, p1, thre_motion, thre_shift);
 
     if (imgy >= 1) {
         //non-shift
-        p1 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy-1,idepth,0)).x));
+        p1 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
         mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
 
         //shift
         if ((tb_order + imgy) & 1) {
-            p0 = convert_short4(as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy-1,idepth,0)).x));
-            p1 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy,  idepth,0)).x));
+            p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
+            p1 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy  )));
         } else {
-            p0 = convert_short4(as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy-1,idepth,0)).x));
-            p1 = convert_short4(as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy,  idepth,0)).x));
+            p0 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
+            p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
         mask |= analyze_stripe(p0, p1, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
@@ -93,28 +93,28 @@ uchar4 analyze_stripe(uchar4 p0, uchar4 p1, uchar flag_sign, uchar flag_deint, u
 }
 
 uchar4 analyze(
-    __read_only image3d_t img_p0,
-    __read_only image3d_t img_p1,
-    int imgx, int imgy, int idepth, int tb_order,
+    __read_only image2d_t img_p0,
+    __read_only image2d_t img_p1,
+    int imgx, int imgy, int tb_order,
     uchar thre_motion, uchar thre_deint, uchar thre_shift) {
     uchar4 p0, p1, mask = 0;
     //motion
-    p0 = as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy,idepth,0)).x);
-    p1 = as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy,idepth,0)).x);
+    p0 = read_imageui(img_p0, sampler, (int2)(imgx,imgy));
+    p1 = read_imageui(img_p1, sampler, (int2)(imgx,imgy));
     mask = analyze_motion(p0, p1, thre_motion, thre_shift);
 
     if (imgy >= 1) {
         //non-shift
-        p1 = as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy-1,idepth,0)).x);
+        p1 = read_imageui(img_p0, sampler, (int2)(imgx,imgy-1));
         mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
 
         //shift
         if ((tb_order + imgy) & 1) {
-            p0 = as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy-1,idepth,0)).x);
-            p1 = as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy,  idepth,0)).x);
+            p0 = read_imageui(img_p1, sampler, (int2)(imgx,imgy-1));
+            p1 = read_imageui(img_p0, sampler, (int2)(imgx,imgy  ));
         } else {
-            p0 = as_uchar4(read_imageui(img_p0, sampler, (int4)(imgx,imgy-1,idepth,0)).x);
-            p1 = as_uchar4(read_imageui(img_p1, sampler, (int4)(imgx,imgy,  idepth,0)).x);
+            p0 = read_imageui(img_p0, sampler, (int2)(imgx,imgy-1));
+            p1 = read_imageui(img_p1, sampler, (int2)(imgx,imgy  ));
         }
         mask |= analyze_stripe(p0, p1, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
@@ -205,8 +205,10 @@ void merge_mask(ushort2 masky, ushort2 maskc, ushort2 *restrict mask0, ushort2 *
 __kernel void afs_analyze_12_nv16_kernel(
     __global int *restrict ptr_dst,
     __global int *restrict ptr_count,
-    __read_only image3d_t img_p0,
-    __read_only image3d_t img_p1,
+    __read_only image2d_t img_p0y,
+    __read_only image2d_t img_p0c,
+    __read_only image2d_t img_p1y,
+    __read_only image2d_t img_p1c,
     int tb_order, int width_int, int si_pitch_int, int h,
     uchar thre_Ymotion, uchar thre_Cmotion, uchar thre_deint, uchar thre_shift,
     uint scan_left, uint scan_width, uint scan_top, uint scan_height) {
@@ -227,9 +229,9 @@ __kernel void afs_analyze_12_nv16_kernel(
     if (ly < 4) {
         uchar4 mask;
         int imgy = imgy_start-4+ly;
-        mask = (imgy >= 0) ? analyze(img_p0, img_p1, imgx, imgy, 0, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy >= 0) ? analyze(img_p0y, img_p1y, imgx, imgy, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 0)] = as_int(mask);
-        mask = (imgy >= 0) ? analyze(img_p0, img_p1, imgx, imgy, 1, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy >= 0) ? analyze(img_p0c, img_p1c, imgx, imgy, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 1)] = as_int(mask);
     }
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 2)] = 0;
@@ -239,9 +241,9 @@ __kernel void afs_analyze_12_nv16_kernel(
     for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++, ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y, ly += BLOCK_Y) {
         { //差分情報を計算
             uchar4 mask;
-            mask = (imgy < h) ? analyze(img_p0, img_p1, imgx, imgy, 0, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+            mask = (imgy < h) ? analyze(img_p0y, img_p1y, imgx, imgy, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
             ptr_shared[shared_int_idx(0, ly, 0)] = as_int(mask);
-            mask = (imgy < h) ? analyze(img_p0, img_p1, imgx, imgy, 1, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+            mask = (imgy < h) ? analyze(img_p0c, img_p1c, imgx, imgy, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
             ptr_shared[shared_int_idx(0, ly, 1)] = as_int(mask);
             barrier(CLK_LOCAL_MEM_FENCE);
         }

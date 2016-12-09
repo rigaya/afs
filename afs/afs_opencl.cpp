@@ -4,6 +4,7 @@
 #include <Shlwapi.h>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include "afs.h"
 #pragma comment(lib, "opencl.lib")
 #pragma comment(lib, "shlwapi.lib")
@@ -14,6 +15,13 @@ using std::vector;
 
 #define ICEILDIV(x, div) (((x) + (div) - 1) / (div))
 #define ICEIL(x, div) (ICEILDIV((x), (div)) * (div))
+
+static inline int get_gcd(int a, int b) {
+    int c;
+    while ((c = a % b) != 0)
+        a = b, b = c;
+    return b;
+}
 
 static inline const char *strichr(const char *str, int c) {
     c = tolower(c);
@@ -38,8 +46,11 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
     }
     for (int i = 0; i < _countof(afs->opencl.source_mem); i++) {
         afs_opencl_source_buffer_unmap(afs, i);
-        if (afs->opencl.source_mem[i]) {
-            clReleaseMemObject(afs->opencl.source_mem[i]);
+        if (afs->opencl.source_mem[i][0]) {
+            clReleaseMemObject(afs->opencl.source_mem[i][0]);
+        }
+        if (afs->opencl.source_mem[i][1]) {
+            clReleaseMemObject(afs->opencl.source_mem[i][1]);
         }
     }
     for (int i = 0; i < _countof(afs->opencl.scan_mem); i++) {
@@ -237,10 +248,15 @@ cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs) {
 cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
     cl_int ret = 0;
     size_t origin[3] = { 0, 0, 0 };
-    size_t region[3] = { (size_t)afs->opencl.source_w, (size_t)afs->opencl.source_h, 2 };
+    size_t region[3] = { (size_t)afs->opencl.source_w, (size_t)afs->opencl.source_h, 1 };
     size_t image_row_pitch = 0;
     size_t image_slice_picth = 0;
-    afs->source_array[i].map = clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_mem[i], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+    afs->source_array[i].map = clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_mem[i][0], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+        origin, region, &image_row_pitch, &image_slice_picth, 0, NULL, NULL, &ret);
+    if (ret != CL_SUCCESS) {
+        return ret;
+    }
+    clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_mem[i][1], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         origin, region, &image_row_pitch, &image_slice_picth, 0, NULL, NULL, &ret);
     afs->source_w = image_row_pitch;
     return ret;
@@ -250,10 +266,13 @@ cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i) {
     if (afs->source_array[i].map == nullptr) {
         return CL_SUCCESS;
     }
-    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_mem[i], afs->source_array[i].map, 0, NULL, NULL);
+    char *ptrY = (char *)(afs->source_array[i].map);
+    char *ptrC = ptrY + afs->source_w * afs->source_h;
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_mem[i][0], ptrY, 0, NULL, NULL);
     if (ret == CL_SUCCESS) {
         afs->source_array[i].map = nullptr;
     }
+    ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_mem[i][1], ptrC, 0, NULL, NULL);
     return ret;
 }
 
@@ -266,30 +285,59 @@ int afs_opencl_source_buffer_index(AFS_CONTEXT *afs, void *p0) {
     return -1;
 }
 
+int afs_opencl_source_buffer_pitch(AFS_CONTEXT *afs, int w, int h, int *pitch, int *baseAddressAlign) {
+    const int widthint32 = (w + 3) >> 2;
+    int image2dAlign = 0;
+    cl_int ret = clGetDeviceInfo(afs->opencl.device, CL_DEVICE_IMAGE_PITCH_ALIGNMENT, sizeof(cl_uint), &image2dAlign, nullptr);
+    if (ret != CL_SUCCESS) {
+        return 1;
+    }
+    image2dAlign = std::max(image2dAlign, 128);
+
+    int baseAlign;
+    ret = clGetDeviceInfo(afs->opencl.device, CL_DEVICE_IMAGE_BASE_ADDRESS_ALIGNMENT, sizeof(cl_uint), &baseAlign, nullptr);
+    baseAlign = std::max(baseAlign, 4096);
+    int gcd = get_gcd(h, baseAlign);
+
+    image2dAlign = std::max(image2dAlign, baseAlign / gcd);
+
+    *pitch = ICEIL(widthint32 * 4, image2dAlign);
+    *baseAddressAlign = baseAlign;
+
+    return 0;
+}
+
 int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
     if (!afs->opencl.ctx) {
         return 1;
     }
     cl_image_format format;
-    format.image_channel_order = CL_R;
-    format.image_channel_data_type = CL_UNSIGNED_INT32;
-    const int widthint32 = (w + 3) >> 2;
+    format.image_channel_order = CL_RGBA;
+    format.image_channel_data_type = CL_UNSIGNED_INT8;
+    const int width_uchar4 = (w + 3) >> 2;
     cl_image_desc img_desc;
-    img_desc.image_type = CL_MEM_OBJECT_IMAGE3D;
-    img_desc.image_width = widthint32;
+    img_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    img_desc.image_width = width_uchar4;
     img_desc.image_height = h;
     img_desc.image_depth = 2;
     img_desc.image_array_size = 0;
-    img_desc.image_row_pitch = 0;
+    img_desc.image_row_pitch = afs->source_w;
     img_desc.image_slice_pitch = 0;
     img_desc.num_mip_levels = 0;
     img_desc.num_samples = 0;
     img_desc.buffer = 0;
-    afs->opencl.source_w = widthint32;
+    afs->opencl.source_w = width_uchar4;
     afs->opencl.source_h = h;
+
     for (int i = 0; i < _countof(afs->source_array); i++) {
+        char *ptrY = (char *)(afs->source_array[i].map);
+        char *ptrC = ptrY + img_desc.image_row_pitch * h;
         cl_int ret = CL_SUCCESS;
-        afs->opencl.source_mem[i] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, &format, &img_desc, nullptr, &ret);
+        afs->opencl.source_mem[i][0] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, &format, &img_desc, ptrY, &ret);
+        if (ret != CL_SUCCESS) {
+            return 1;
+        }
+        afs->opencl.source_mem[i][1] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, &format, &img_desc, ptrC, &ret);
         if (ret != CL_SUCCESS) {
             return 1;
         }
@@ -393,8 +441,10 @@ int afs_opencl_analyze_12_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1
 /*
 __global int *restrict ptr_dst,
 __global int *restrict ptr_count,
-__read_only image3d_t img_p0,
-__read_only image3d_t img_p1,
+__read_only image2d_t img_p0y,
+__read_only image2d_t img_p0c,
+__read_only image2d_t img_p1y,
+__read_only image2d_t img_p1c,
 int tb_order, int width_int, int si_pitch_int, int h,
 uchar thre_Ymotion, uchar thre_Cmotion, uchar thre_deint, uchar thre_shift,
 uint scan_left, uint scan_width, uint scan_top, uint scan_height)
@@ -405,20 +455,22 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
     cl_int ret = CL_SUCCESS;
     if (   CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
         || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  2, sizeof(cl_mem),   &afs->opencl.source_mem[p0_idx]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  3, sizeof(cl_mem),   &afs->opencl.source_mem[p1_idx]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  4, sizeof(int),      &tb_order))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  5, sizeof(int),      &width_int))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  6, sizeof(int),      &si_pitch_int))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  7, sizeof(int),      &h))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  8, sizeof(uint8_t),  &thre_Ymotion_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  9, sizeof(uint8_t),  &thre_Cmotion_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 10, sizeof(uint8_t),  &thre_deint_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 11, sizeof(uint8_t),  &thre_shift_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 12, sizeof(uint32_t), &scan_left))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 13, sizeof(uint32_t), &scan_width))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 14, sizeof(uint32_t), &scan_top))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 15, sizeof(uint32_t), &scan_height))) {
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  2, sizeof(cl_mem),   &afs->opencl.source_mem[p0_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  3, sizeof(cl_mem),   &afs->opencl.source_mem[p0_idx][1]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  4, sizeof(cl_mem),   &afs->opencl.source_mem[p1_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  5, sizeof(cl_mem),   &afs->opencl.source_mem[p1_idx][1]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  6, sizeof(int),      &tb_order))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  7, sizeof(int),      &width_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  8, sizeof(int),      &si_pitch_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  9, sizeof(int),      &h))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 10, sizeof(uint8_t),  &thre_Ymotion_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 11, sizeof(uint8_t),  &thre_Cmotion_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 12, sizeof(uint8_t),  &thre_deint_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 13, sizeof(uint8_t),  &thre_shift_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 14, sizeof(uint32_t), &scan_left))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 15, sizeof(uint32_t), &scan_width))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 16, sizeof(uint32_t), &scan_top))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 17, sizeof(uint32_t), &scan_height))) {
         return 1;
     }
     size_t global[3] = { ICEIL(ICEILDIV((size_t)width, 4), BLOCK_INT_X), ICEIL(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y), 1 };
