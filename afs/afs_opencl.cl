@@ -252,8 +252,8 @@ __kernel void afs_analyze_12_nv16_kernel(
             ushort2 maskc = generate_mask(ly, 1, ptr_shared);
             ushort2 mask0, mask1;
             merge_mask(masky, maskc, &mask0, &mask1);
-            ptr_shared[shared_int_idx(0, ly, 2)] = as_int(masky);
-            ptr_shared[shared_int_idx(0, ly, 3)] = as_int(maskc);
+            ptr_shared[shared_int_idx(0, ly, 2)] = as_int(mask0);
+            ptr_shared[shared_int_idx(0, ly, 3)] = as_int(mask1);
             barrier(CLK_LOCAL_MEM_FENCE);
         }
         { //最終出力
