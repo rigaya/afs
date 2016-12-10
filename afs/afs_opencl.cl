@@ -8,6 +8,10 @@
 
 #ifdef __OPENCL_VERSION__
 
+#ifndef PREFER_SHORT4
+#define PREFER_SHORT4 1
+#endif
+
 //__constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 __constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;
 
@@ -99,22 +103,22 @@ uchar4 analyze(
     uchar thre_motion, uchar thre_deint, uchar thre_shift) {
     uchar4 p0, p1, mask = 0;
     //motion
-    p0 = read_imageui(img_p0, sampler, (int2)(imgx,imgy));
-    p1 = read_imageui(img_p1, sampler, (int2)(imgx,imgy));
+    p0 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy)));
+    p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy)));
     mask = analyze_motion(p0, p1, thre_motion, thre_shift);
 
     if (imgy >= 1) {
         //non-shift
-        p1 = read_imageui(img_p0, sampler, (int2)(imgx,imgy-1));
+        p1 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
         mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
 
         //shift
         if ((tb_order + imgy) & 1) {
-            p0 = read_imageui(img_p1, sampler, (int2)(imgx,imgy-1));
-            p1 = read_imageui(img_p0, sampler, (int2)(imgx,imgy  ));
+            p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
+            p1 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy  )));
         } else {
-            p0 = read_imageui(img_p0, sampler, (int2)(imgx,imgy-1));
-            p1 = read_imageui(img_p1, sampler, (int2)(imgx,imgy  ));
+            p0 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
+            p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
         mask |= analyze_stripe(p0, p1, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
