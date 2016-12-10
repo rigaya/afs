@@ -221,27 +221,26 @@ __kernel void afs_analyze_12_nv16_kernel(
     int ly = get_local_id(1); //スレッド数=BLOCK_Y
     int gid = get_group_id(1);
     int imgx = get_global_id(0);
-    int imgy_start = gid * BLOCK_LOOP_Y * BLOCK_Y + ly;
+    int imgy = gid * BLOCK_LOOP_Y * BLOCK_Y + ly;
     int imgy_block_fin = (gid * BLOCK_LOOP_Y + 1) * BLOCK_Y;
     ushort2 motion_count_01 = (ushort2)0;
 
     __local int *ptr_shared = shared + shared_int_idx(lx,0,0);
-    ptr_dst += (imgy_start-4) * si_pitch_int + imgx;
+    ptr_dst += (imgy-4) * si_pitch_int + imgx;
 
     //前の4ライン分、計算しておく
     //sharedの SHARED_Y-4 ～ SHARED_Y-1 を埋める
     if (ly < 4) {
         uchar4 mask;
-        int imgy = imgy_start-4+ly;
-        mask = (imgy >= 0) ? analyze(img_p0y, img_p1y, imgx, imgy, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+        int imgy2 = imgy-4+ly;
+        mask = (imgy2 >= 0) ? analyze(img_p0y, img_p1y, imgx, imgy2, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 0)] = as_int(mask);
-        mask = (imgy >= 0) ? analyze(img_p0c, img_p1c, imgx, imgy, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy2 >= 0) ? analyze(img_p0c, img_p1c, imgx, imgy2, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 1)] = as_int(mask);
     }
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 2)] = 0;
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 3)] = 0;
 
-    int imgy = imgy_start;
     for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++, ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y, ly += BLOCK_Y) {
         { //差分情報を計算
             uchar4 mask;
