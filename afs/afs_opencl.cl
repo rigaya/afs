@@ -282,7 +282,9 @@ __kernel void afs_analyze_12_nv16_kernel(
                 //判定結果の出力
                 ptr_dst[0] = as_int(mask1);
             }
-            barrier(CLK_LOCAL_MEM_FENCE);
+            //次に書き換えるのは(x,y,0)と(x,y,1)なので、(x,y,2)の読み込みと同時に行うことができるので、
+            //ここでの同期は不要
+            //barrier(CLK_LOCAL_MEM_FENCE);
         }
     }
 
