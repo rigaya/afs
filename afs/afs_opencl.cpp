@@ -72,6 +72,7 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
     memset(afs->opencl.source_img, 0, sizeof(afs->opencl.source_img));
     memset(afs->opencl.source_buf, 0, sizeof(afs->opencl.source_buf));
     memset(afs->opencl.scan_mem,   0, sizeof(afs->opencl.scan_mem));
+    afs->opencl.motion_count_temp = NULL;
 }
 
 void afs_opencl_close(AFS_CONTEXT *afs) {
