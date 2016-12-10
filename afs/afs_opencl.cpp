@@ -122,7 +122,10 @@ static cl_int afs_opencl_get_device(const char *vendor_name, cl_int device_type,
     for (auto platform : platform_list) {
         if (checkPlatformForVendor(platform)) {
             if (CL_SUCCESS != (ret = clGetDeviceIDs(platform, device_type, 0, nullptr, &size))) {
-                return ret;
+                continue;
+            }
+            if (size == 0) {
+                continue;
             }
             vector<cl_device_id> device_list(size);
             if (CL_SUCCESS != (ret = clGetDeviceIDs(platform, device_type, size, &device_list[0], &size))) {
@@ -151,7 +154,7 @@ static cl_int afs_opencl_get_device(const char *vendor_name, cl_int device_type,
         }
     }
 
-    return ret;
+    return (ret != CL_SUCCESS) ? ret : ((cl_data->platform != nullptr) ? 0 : -1);
 }
 
 static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
