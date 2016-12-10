@@ -44,13 +44,15 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
     if (!afs->opencl.ctx) {
         return;
     }
-    for (int i = 0; i < _countof(afs->opencl.source_mem); i++) {
+    for (int i = 0; i < _countof(afs->opencl.source_img); i++) {
         afs_opencl_source_buffer_unmap(afs, i);
-        if (afs->opencl.source_mem[i][0]) {
-            clReleaseMemObject(afs->opencl.source_mem[i][0]);
-        }
-        if (afs->opencl.source_mem[i][1]) {
-            clReleaseMemObject(afs->opencl.source_mem[i][1]);
+        for (int j = 0; j < 2; j++) {
+            if (afs->opencl.source_img[i][j]) {
+                clReleaseMemObject(afs->opencl.source_img[i][j]);
+            }
+            if (afs->opencl.source_buf[i][j]) {
+                clReleaseMemObject(afs->opencl.source_buf[i][j]);
+            }
         }
     }
     for (int i = 0; i < _countof(afs->opencl.scan_mem); i++) {
@@ -67,7 +69,8 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
         clReleaseMemObject(afs->opencl.motion_count_temp);
     }
     clFinish(afs->opencl.queue);
-    memset(afs->opencl.source_mem, 0, sizeof(afs->opencl.source_mem));
+    memset(afs->opencl.source_img, 0, sizeof(afs->opencl.source_img));
+    memset(afs->opencl.source_buf, 0, sizeof(afs->opencl.source_buf));
     memset(afs->opencl.scan_mem,   0, sizeof(afs->opencl.scan_mem));
 }
 
@@ -246,17 +249,17 @@ cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs) {
 }
 
 cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
-    cl_int ret = 0;
+    cl_int ret = CL_SUCCESS;
     size_t origin[3] = { 0, 0, 0 };
     size_t region[3] = { (size_t)afs->opencl.source_w, (size_t)afs->opencl.source_h, 1 };
     size_t image_row_pitch = 0;
     size_t image_slice_picth = 0;
-    afs->source_array[i].map = clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_mem[i][0], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+    afs->source_array[i].map = clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_img[i][0], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         origin, region, &image_row_pitch, &image_slice_picth, 0, NULL, NULL, &ret);
     if (ret != CL_SUCCESS) {
         return ret;
     }
-    clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_mem[i][1], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+    clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_img[i][1], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         origin, region, &image_row_pitch, &image_slice_picth, 0, NULL, NULL, &ret);
     afs->source_w = image_row_pitch;
     return ret;
@@ -268,11 +271,11 @@ cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i) {
     }
     char *ptrY = (char *)(afs->source_array[i].map);
     char *ptrC = ptrY + afs->source_w * afs->source_h;
-    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_mem[i][0], ptrY, 0, NULL, NULL);
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_img[i][0], ptrY, 0, NULL, NULL);
     if (ret == CL_SUCCESS) {
         afs->source_array[i].map = nullptr;
     }
-    ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_mem[i][1], ptrC, 0, NULL, NULL);
+    ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_img[i][1], ptrC, 0, NULL, NULL);
     return ret;
 }
 
@@ -326,20 +329,29 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
     img_desc.num_mip_levels = 0;
     img_desc.num_samples = 0;
     img_desc.buffer = 0;
+    img_desc.mem_object = 0;
     afs->opencl.source_w = width_uchar4;
     afs->opencl.source_h = h;
 
+    const int imageSizeBytes = afs->source_w * h;
+
     for (int i = 0; i < _countof(afs->source_array); i++) {
+        cl_int ret = CL_SUCCESS;
         char *ptrY = (char *)(afs->source_array[i].map);
         char *ptrC = ptrY + img_desc.image_row_pitch * h;
-        cl_int ret = CL_SUCCESS;
-        afs->opencl.source_mem[i][0] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, &format, &img_desc, ptrY, &ret);
-        if (ret != CL_SUCCESS) {
-            return 1;
-        }
-        afs->opencl.source_mem[i][1] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, &format, &img_desc, ptrC, &ret);
-        if (ret != CL_SUCCESS) {
-            return 1;
+        char *ptr[2] = { ptrY, ptrC };
+        for (int j = 0; j < 2; j++) {
+            //一度CL_MEM_USE_HOST_PTRでバッファを作ってから、cl_image_descのmem_objectに指定することで、ZeroCopyなimage2dが可能になる
+            //clCreateImageのhost_ptrに直接ポインタを渡し、CL_MEM_USE_HOST_PTRを指定してもZeroCopyにはならないことに注意
+            afs->opencl.source_buf[i][j] = clCreateBuffer(afs->opencl.ctx, CL_MEM_USE_HOST_PTR, imageSizeBytes, ptr[j], &ret);
+            if (ret != CL_SUCCESS) {
+                return 1;
+            }
+            img_desc.mem_object = afs->opencl.source_buf[i][j];
+            afs->opencl.source_img[i][j] = clCreateImage(afs->opencl.ctx, CL_MEM_READ_ONLY, &format, &img_desc, nullptr, &ret);
+            if (ret != CL_SUCCESS) {
+                return 1;
+            }
         }
         afs_opencl_source_buffer_map(afs, i);
         afs->source_array[i].status = 0;
@@ -455,10 +467,10 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
     cl_int ret = CL_SUCCESS;
     if (   CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
         || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  2, sizeof(cl_mem),   &afs->opencl.source_mem[p0_idx][0]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  3, sizeof(cl_mem),   &afs->opencl.source_mem[p0_idx][1]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  4, sizeof(cl_mem),   &afs->opencl.source_mem[p1_idx][0]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  5, sizeof(cl_mem),   &afs->opencl.source_mem[p1_idx][1]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  2, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  3, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][1]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  4, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  5, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][1]))
         || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  6, sizeof(int),      &tb_order))
         || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  7, sizeof(int),      &width_int))
         || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  8, sizeof(int),      &si_pitch_int))

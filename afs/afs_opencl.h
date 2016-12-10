@@ -17,7 +17,8 @@ typedef struct _AFS_OPENCL {
     cl_program program;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem source_mem[AFS_SOURCE_CACHE_NUM][2];
+    cl_mem source_img[AFS_SOURCE_CACHE_NUM][2];
+    cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];
     int source_w, source_h;
     cl_mem scan_mem[AFS_SCAN_CACHE_NUM];
     int scan_w, scan_h;
