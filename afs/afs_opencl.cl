@@ -216,7 +216,7 @@ __kernel void afs_analyze_12_nv16_kernel(
     int tb_order, int width_int, int si_pitch_int, int h,
     uchar thre_Ymotion, uchar thre_Cmotion, uchar thre_deint, uchar thre_shift,
     uint scan_left, uint scan_width, uint scan_top, uint scan_height) {
-    __local int shared[BLOCK_INT_X * SHARED_Y * 4]; //int単位でアクセスする
+    __local int shared[BLOCK_INT_X * SHARED_Y * 3]; //int単位でアクセスする
     int lx = get_local_id(0); //スレッド数=BLOCK_INT_X
     int ly = get_local_id(1); //スレッド数=BLOCK_Y
     int gid = get_group_id(1);
@@ -239,7 +239,7 @@ __kernel void afs_analyze_12_nv16_kernel(
         ptr_shared[shared_int_idx(0, -4+ly, 1)] = as_int(mask);
     }
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 2)] = 0;
-    ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 3)] = 0;
+    //ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 3)] = 0;
 
     for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++, ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y, ly += BLOCK_Y) {
         { //差分情報を計算
@@ -250,26 +250,25 @@ __kernel void afs_analyze_12_nv16_kernel(
             ptr_shared[shared_int_idx(0, ly, 1)] = as_int(mask);
             barrier(CLK_LOCAL_MEM_FENCE);
         }
+        ushort2 mask1;
         { //マスク生成
             ushort2 masky = generate_mask(ly, 0, ptr_shared);
             ushort2 maskc = generate_mask(ly, 1, ptr_shared);
-            ushort2 mask0, mask1;
+            ushort2 mask0;
             merge_mask(masky, maskc, &mask0, &mask1);
             ptr_shared[shared_int_idx(0, ly, 2)] = as_int(mask0);
-            ptr_shared[shared_int_idx(0, ly, 3)] = as_int(mask1);
             barrier(CLK_LOCAL_MEM_FENCE);
         }
         { //最終出力
             //ly+4とか使っているので準備ができてないうちから、次の列のデータを使うことになってまずい
-            ushort2 mask1, mask4, mask5, mask6, mask7;
-            mask7 = as_ushort2(ptr_shared[shared_int_idx(0, ly-4, 2)]);
-            mask6 = as_ushort2(ptr_shared[shared_int_idx(0, ly-3, 2)]);
-            mask5 = as_ushort2(ptr_shared[shared_int_idx(0, ly-2, 2)]);
+            ushort2 mask4, mask5, mask6, mask7;
             mask4 = as_ushort2(ptr_shared[shared_int_idx(0, ly-1, 2)]);
-            mask1 = as_ushort2(ptr_shared[shared_int_idx(0, ly+0, 3)]);
+            mask5 = as_ushort2(ptr_shared[shared_int_idx(0, ly-2, 2)]);
+            mask6 = as_ushort2(ptr_shared[shared_int_idx(0, ly-3, 2)]);
+            mask7 = as_ushort2(ptr_shared[shared_int_idx(0, ly-4, 2)]);
+            mask1 &= (ushort2)0x3030;
             mask4 |= mask5 | mask6;
             mask4 &= (ushort2)0x3333;
-            mask1 &= (ushort2)0x3030;
             mask1 |= mask4 | mask7;
             if (imgx < width_int && (imgy - 4) < min(h, imgy_block_fin) && ly - 4 >= 0) {
                 //motion_countの実行
