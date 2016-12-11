@@ -66,13 +66,11 @@ uchar4 analyze(
 
         //shift
         if ((tb_order + imgy) & 1) {
-            p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
-            p1 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy  )));
+            p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
         } else {
-            p0 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
-            p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
+            p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
-        mask |= analyze_stripe(p0, p1, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
+        mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
     return convert_uchar4(mask);
 }
@@ -114,13 +112,11 @@ uchar4 analyze(
 
         //shift
         if ((tb_order + imgy) & 1) {
-            p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
-            p1 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy  )));
+            p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
         } else {
-            p0 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
-            p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
+            p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
-        mask |= analyze_stripe(p0, p1, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
+        mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
     return mask;
 }
