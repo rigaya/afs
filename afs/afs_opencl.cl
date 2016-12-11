@@ -31,7 +31,7 @@ __constant uchar shift_deint = 0x01u;
 
 #if PREFER_SHORT4
 short4 analyze_motion(short4 p0, short4 p1, uchar thre_motion, uchar thre_shift) {
-    short4 absy = as_short4(abs(convert_short4(p1) - convert_short4(p0)));
+    short4 absy = as_short4(abs(p1 - p0));
     short4 mask = 0;
     mask |= ((short4)thre_motion > absy) ? (short4)motion_flag  : (short4)0;
     mask |= ((short4)thre_shift  > absy) ? (short4)motion_shift : (short4)0;
@@ -41,7 +41,7 @@ short4 analyze_motion(short4 p0, short4 p1, uchar thre_motion, uchar thre_shift)
 short4 analyze_stripe(short4 p0, short4 p1, uchar flag_sign, uchar flag_deint, uchar flag_shift, uchar thre_deint, uchar thre_shift) {
     short4 new_sign = (p0 >= p1) ? (short4)flag_sign : (short4)0;
     //short4 new_diff = (p1 > p0) ? p1 - p0 : p0 - p1;
-    short4 absy = as_short4(abs(convert_short4(p1) - convert_short4(p0)));
+    short4 absy = as_short4(abs(p1 - p0));
     short4 mask = new_sign;
     mask |= (absy > (short4)thre_deint) ? (short4)flag_deint : (short4)0;
     mask |= (absy > (short4)thre_shift) ? (short4)flag_shift : (short4)0;
