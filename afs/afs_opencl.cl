@@ -287,10 +287,9 @@ __kernel void afs_analyze_12_nv16_kernel(
     //motion countの総和演算
     //lyはループを回して加算されているので、get_local_id(1)を取り直す
     const int lid = get_local_id(1) * BLOCK_INT_X + get_local_id(0);
-    uint temp = as_uint(motion_count_01);
     // 32              24              16               8              0
     //  | count_latter1 | count_first1 || count_latter0 | count_first0 |
-    //
+    uint temp = as_uint(motion_count_01);
     //  |               |              || count_latter0 | count_first0 |
     //  |               |              ||      +        |      +       |   temp
     //  |               |              || count_latter1 | count_first1 |
