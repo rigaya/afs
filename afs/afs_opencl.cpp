@@ -45,7 +45,8 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
         return;
     }
     for (int i = 0; i < _countof(afs->opencl.source_img); i++) {
-        afs_opencl_source_buffer_unmap(afs, i);
+        void *ptr = afs->source_array[i].map;
+        afs_opencl_source_buffer_unmap(afs, i, true);
         for (int j = 0; j < 2; j++) {
             if (afs->opencl.source_img[i][j]) {
                 clReleaseMemObject(afs->opencl.source_img[i][j]);
@@ -54,19 +55,26 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
                 clReleaseMemObject(afs->opencl.source_buf[i][j]);
             }
         }
+        afs->source_array[i].map = ptr;
     }
     for (int i = 0; i < _countof(afs->opencl.scan_mem); i++) {
         unsigned char *ptr = afs->scan_array[i].map;
-        afs_opencl_scan_buffer_unmap(afs, i);
+        afs_opencl_scan_buffer_unmap(afs, i, true);
         if (afs->opencl.scan_mem[i]) {
             clReleaseMemObject(afs->opencl.scan_mem[i]);
         }
         afs->scan_array[i].status = 0;
         afs->scan_array[i].map = ptr;
     }
-    afs_opencl_count_motion_temp_unmap(afs);
-    if (afs->opencl.motion_count_temp) {
-        clReleaseMemObject(afs->opencl.motion_count_temp);
+    {
+        void *ptr = afs->opencl.motion_count_temp_map;
+        afs_opencl_count_motion_temp_unmap(afs, true);
+        if (afs->opencl.motion_count_temp) {
+            clReleaseMemObject(afs->opencl.motion_count_temp);
+        }
+        if (afs->afs_mode & AFS_MODE_OPENCL_SVMF) {
+            clSVMFree(afs->opencl.ctx, ptr);
+        }
     }
     clFinish(afs->opencl.queue);
     memset(afs->opencl.source_img, 0, sizeof(afs->opencl.source_img));
@@ -147,6 +155,11 @@ static cl_int afs_opencl_get_device(const char *vendor_name, cl_int device_type,
                         && ((dev_major > major) || (dev_major == major && dev_minor >= minor))) {
                         cl_data->platform = platform;
                         cl_data->device = device_list[0];
+                        if (dev_major >= 2) {
+                            cl_device_svm_capabilities svm_cap = { 0 };
+                            clGetDeviceInfo(device, CL_DEVICE_SVM_CAPABILITIES, sizeof(svm_cap), &svm_cap, nullptr);
+                            cl_data->bSVMAvail = (svm_cap & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) != 0;
+                        }
                     }
                     break;
                 }
@@ -198,6 +211,9 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
 
     std::string sBuildOptions;
     sBuildOptions += "-D PREFER_SHORT4=1";
+    if (cl_data->bSVMAvail) {
+        sBuildOptions += " -cl-std=CL2.0";
+    }
     if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program, 1, &cl_data->device, sBuildOptions.c_str(), nullptr, nullptr))) {
         std::vector<char> buffer(16 * 1024, '\0');
         size_t length = 0;
@@ -254,6 +270,9 @@ cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs) {
 
 cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
     cl_int ret = CL_SUCCESS;
+    if (afs->source_array[i].map != nullptr) {
+        return ret;
+    }
     size_t origin[3] = { 0, 0, 0 };
     size_t region[3] = { (size_t)afs->opencl.source_w, (size_t)afs->opencl.source_h, 1 };
     size_t image_row_pitch = 0;
@@ -269,8 +288,11 @@ cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
     return ret;
 }
 
-cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i) {
+cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i, bool force) {
     if (afs->source_array[i].map == nullptr) {
+        return CL_SUCCESS;
+    }
+    if (!force && (afs->afs_mode & AFS_MODE_OPENCL_SVMF)) {
         return CL_SUCCESS;
     }
     char *ptrY = (char *)(afs->source_array[i].map);
@@ -357,6 +379,7 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
                 return 1;
             }
         }
+        afs->source_array[i].map = nullptr;
         afs_opencl_source_buffer_map(afs, i);
         afs->source_array[i].status = 0;
     }
@@ -368,7 +391,15 @@ int afs_opencl_create_motion_count_temp(AFS_CONTEXT *afs, int w, int h) {
     const int global_block_count = ICEILDIV(ICEILDIV((size_t)w, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
     afs->opencl.motion_count_temp_max = (global_block_count + 63) & ~63;
     cl_int ret = CL_SUCCESS;
-    afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, afs->opencl.motion_count_temp_max, nullptr, &ret);
+    if (afs->afs_mode & AFS_MODE_OPENCL_SVMF) {
+        afs->opencl.motion_count_temp_map = (uint16_t *)clSVMAlloc(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_SVM_FINE_GRAIN_BUFFER, afs->opencl.motion_count_temp_max, 0);
+        if (afs->opencl.motion_count_temp_map != nullptr) {
+            afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, afs->opencl.motion_count_temp_max, afs->opencl.motion_count_temp_map, &ret);
+        }
+        afs->opencl.motion_count_temp_map = nullptr;
+    } else {
+        afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, afs->opencl.motion_count_temp_max, nullptr, &ret);
+    }
     if (ret != CL_SUCCESS) {
         return 1;
     }
@@ -378,14 +409,20 @@ int afs_opencl_create_motion_count_temp(AFS_CONTEXT *afs, int w, int h) {
 }
 
 cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs) {
-    cl_int ret = 0;
+    cl_int ret = CL_SUCCESS;
+    if (afs->opencl.motion_count_temp_map != nullptr) {
+        return ret;
+    }
     afs->opencl.motion_count_temp_map = (unsigned short *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.motion_count_temp, CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         0, afs->opencl.motion_count_temp_max, 0, NULL, NULL, &ret);
     return ret;
 }
 
-cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs) {
+cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs, bool force) {
     if (afs->opencl.motion_count_temp_map == nullptr) {
+        return CL_SUCCESS;
+    }
+    if (!force && (afs->afs_mode & AFS_MODE_OPENCL_SVMF)) {
         return CL_SUCCESS;
     }
     cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.motion_count_temp, afs->opencl.motion_count_temp_map, 0, NULL, NULL);
@@ -396,15 +433,21 @@ cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs) {
 }
 
 cl_int afs_opencl_scan_buffer_map(AFS_CONTEXT *afs, int i) {
-    cl_int ret = 0;
+    cl_int ret = CL_SUCCESS;
+    if (afs->scan_array[i].map != nullptr) {
+        return ret;
+    }
     const int size = (afs->opencl.scan_w * afs->opencl.scan_h + 63) & ~63;
     afs->scan_array[i].map = (unsigned char *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.scan_mem[i], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         0, size, 0, NULL, NULL, &ret);
     return ret;
 }
 
-cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i) {
+cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i, bool force) {
     if (afs->scan_array[i].map == nullptr) {
+        return CL_SUCCESS;
+    }
+    if (!force && (afs->afs_mode & AFS_MODE_OPENCL_SVMF)) {
         return CL_SUCCESS;
     }
     cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.scan_mem[i], afs->scan_array[i].map, 0, NULL, NULL);
@@ -424,6 +467,7 @@ int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
         if (ret != CL_SUCCESS) {
             return 1;
         }
+        afs->scan_array[i].map = nullptr;
         afs_opencl_scan_buffer_map(afs, i);
         afs->scan_array[i].status = 0;
     }

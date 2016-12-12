@@ -267,7 +267,11 @@ void free_source_cache(void) {
     if (g_afs.source_array[0].map != NULL) {
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
             if (g_afs.source_array[i].map) {
-                _aligned_free(g_afs.source_array[i].map);
+                if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+                    clSVMFree(g_afs.opencl.ctx, g_afs.source_array[i].map);
+                } else {
+                    _aligned_free(g_afs.source_array[i].map);
+                }
                 g_afs.source_array[i].map = NULL;
             }
             g_afs.source_array[i].status = 0;
@@ -298,7 +302,12 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
         const int size = source_w * max_h;
         const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + 63) & ~63;
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
-            if (NULL == (g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, baseAddressAlign))) {
+            if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+                g_afs.source_array[i].map = clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_ONLY|CL_MEM_SVM_FINE_GRAIN_BUFFER, frame_size_bytes, 0);
+            } else {
+                g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, baseAddressAlign);
+            }
+            if (g_afs.source_array[i].map == nullptr) {
                 free_source_cache();
                 return FALSE;
             }
@@ -474,8 +483,12 @@ void free_analyze_cache() {
             CloseHandle(g_afs.hEvent_worker_sleep[i]);
         }
         for (int i = 0; i < _countof(g_afs.analyze_cachep); i++) {
-            if (nullptr != g_afs.analyze_cachep[i]) {
-                _aligned_free(g_afs.analyze_cachep[i]);
+            if (g_afs.analyze_cachep[i] != nullptr) {
+                if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+                    clSVMFree(g_afs.opencl.ctx, g_afs.analyze_cachep[i]);
+                } else {
+                    _aligned_free(g_afs.analyze_cachep[i]);
+                }
             }
         }
         memset(g_afs.analyze_cachep, 0, sizeof(g_afs.analyze_cachep));
@@ -893,18 +906,23 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
         }
 
         for (int i = 0; i < AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM; i++) {
-            if (nullptr == (g_afs.analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, 64))) {
-                if (g_afs.analyze_cachep[i]) {
-                    _aligned_free(g_afs.analyze_cachep[i]);
-                    g_afs.analyze_cachep[i] = nullptr;
-                }
+            if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+                g_afs.analyze_cachep[i] = (unsigned char*)clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_WRITE|CL_MEM_SVM_FINE_GRAIN_BUFFER, sizeof(unsigned char) * size, 0);
+            } else {
+                g_afs.analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, 64);
+            }
+            if (g_afs.analyze_cachep[i] == nullptr) {
                 return FALSE;
             }
             ZeroMemory(g_afs.analyze_cachep[i], sizeof(unsigned char) * size);
         }
         for (int i = 0; i < AFS_SCAN_CACHE_NUM; i++) {
             g_afs.scan_array[i].status = 0;
-            g_afs.scan_array[i].map = (unsigned char *)((size_t)(g_afs.analyze_cachep[i] + si_w + 4095) & ~4095);
+            if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+                g_afs.scan_array[i].map = (unsigned char *)((size_t)(g_afs.analyze_cachep[i] + si_w + 4095) & ~4095);
+            } else {
+                g_afs.scan_array[i].map = (unsigned char *)(g_afs.analyze_cachep[i] + si_w);
+            }
         }
 
         for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++) {
@@ -1993,6 +2011,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 #ifndef AFSVF
     const int cache_nv16_mode = (g_afs.ex_data.proc_mode & AFS_MODE_CACHE_NV16) || fpip->yc_size < 6;
     const int use_opencl = cache_nv16_mode && (g_afs.ex_data.proc_mode & AFS_MODE_OPENCL);
+    const int use_opencl_svm = use_opencl && (g_afs.ex_data.proc_mode & AFS_MODE_OPENCL_SVMF);
 #else
     const int cache_nv16_mode = 0;
     const int use_opencl = 0;
@@ -2010,6 +2029,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     g_afs.afs_mode |= (yuy2upsample & (fpip->yc_size != 2)) ? AFS_MODE_YUY2UP : 0x00;
     g_afs.afs_mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
     g_afs.afs_mode |= (use_opencl) ? AFS_MODE_OPENCL : 0x00;
+    g_afs.afs_mode |= (use_opencl_svm) ? AFS_MODE_OPENCL_SVMF : 0x00;
 
     if (use_opencl) {
         if (afs_opencl_init(&g_afs)) {
@@ -2738,6 +2758,9 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
     set_combo_item("簡易高速解析", AFS_MODE_CACHE_NV16);
     if (0 == afs_opencl_open_device(&g_afs, fp->dll_hinst)) {
         set_combo_item("簡易高速解析 (OpenCL)", AFS_MODE_CACHE_NV16 | AFS_MODE_OPENCL);
+        if (g_afs.opencl.bSVMAvail) {
+            set_combo_item("簡易高速解析 (OpenCL SVM)", AFS_MODE_CACHE_NV16 | AFS_MODE_OPENCL | AFS_MODE_OPENCL_SVMF);
+        }
     }
     SendMessage(cx_proc_mode, CB_SETCURSEL, 0, 0);
 #endif

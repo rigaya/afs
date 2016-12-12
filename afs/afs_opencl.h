@@ -26,6 +26,7 @@ typedef struct _AFS_OPENCL {
     unsigned short *motion_count_temp_map;
     int motion_count_temp_max;
     HMODULE hModuleDLL;
+    bool bSVMAvail;
 } AFS_OPENCL;
 
 int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL);
@@ -38,13 +39,13 @@ int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h);
 int afs_opencl_create_motion_count_temp(AFS_CONTEXT *afs, int w, int h);
 
 cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i);
-cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i);
+cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i, bool force = false);
 int    afs_opencl_source_buffer_index(AFS_CONTEXT *afs, void *p0);
 cl_int afs_opencl_scan_buffer_map(AFS_CONTEXT *afs, int i);
-cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i);
+cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i, bool force = false);
 int    afs_opencl_scan_buffer_index(AFS_CONTEXT *afs, void *p0);
 cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs);
-cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs);
+cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs, bool force = false);
 
 cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs);
 

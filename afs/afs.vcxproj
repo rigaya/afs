@@ -128,6 +128,9 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>copy /y "$(OutDir)$(TargetFileName)" "C:\ProgramEx\AviutlS\plugins"</Command>
+    </PostBuildEvent>
     <ResourceCompile>
       <NullTerminateStrings>true</NullTerminateStrings>
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
@@ -137,7 +140,7 @@
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">
@@ -175,11 +178,14 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <PostBuildEvent>
+      <Command>copy /y "$(OutDir)$(TargetFileName)" "C:\ProgramEx\AviutlS\plugins"</Command>
+    </PostBuildEvent>
     <Intel_OpenCL_Build_Rules>
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -231,11 +237,14 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <PostBuildEvent>
+      <Command>copy /y "$(OutDir)$(TargetFileName)" "C:\ProgramEx\AviutlS\plugins"</Command>
+    </PostBuildEvent>
     <Intel_OpenCL_Build_Rules>
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">
@@ -286,11 +295,14 @@
       <AdditionalOptions>/c 65001 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32</PreprocessorDefinitions>
     </ResourceCompile>
+    <PostBuildEvent>
+      <Command>copy /y "$(OutDir)$(TargetFileName)" "C:\ProgramEx\AviutlS\plugins"</Command>
+    </PostBuildEvent>
     <Intel_OpenCL_Build_Rules>
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemGroup>
