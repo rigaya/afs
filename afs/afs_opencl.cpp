@@ -93,8 +93,10 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
 
 void afs_opencl_close(AFS_CONTEXT *afs) {
     afs_opencl_release_buffer(afs);
-    if (afs->opencl.kernel) clReleaseKernel(afs->opencl.kernel);
-    if (afs->opencl.program) clReleaseProgram(afs->opencl.program);
+    for (int i = 0; i < _countof(afs->opencl.program); i++) {
+        if (afs->opencl.kernel[i]) clReleaseKernel(afs->opencl.kernel[i]);
+        if (afs->opencl.program[i]) clReleaseProgram(afs->opencl.program[i]);
+    }
     if (afs->opencl.queue) clReleaseCommandQueue(afs->opencl.queue);
     if (afs->opencl.ctx) clReleaseContext(afs->opencl.ctx);
     int device_check = afs->opencl.device_check;
@@ -213,30 +215,33 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         || 0       == (resourceSize = SizeofResource(cl_data->hModuleDLL, hResource))) {
         return 1;
     }
-    cl_data->program = clCreateProgramWithSource(cl_data->ctx, 1, (const char**)&clSourceFile, &resourceSize, &ret);
-    if (CL_SUCCESS != ret)
-        return ret;
+    for (int i = 0; i < _countof(cl_data->program); i++) {
+        cl_data->program[i] = clCreateProgramWithSource(cl_data->ctx, 1, (const char**)&clSourceFile, &resourceSize, &ret);
+        if (CL_SUCCESS != ret)
+            return ret;
 
-    std::string sBuildOptions;
-    sBuildOptions += "-D PREFER_SHORT4=1";
-    if (cl_data->bSVMAvail) {
-        sBuildOptions += " -cl-std=CL2.0";
-    }
-    if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program, 1, &cl_data->device, sBuildOptions.c_str(), nullptr, nullptr))) {
-        std::vector<char> buffer(16 * 1024, '\0');
-        size_t length = 0;
-        clGetProgramBuildInfo(cl_data->program, cl_data->device, CL_PROGRAM_BUILD_LOG, buffer.size(), buffer.data(), &length);
-        FILE *fp = nullptr;
-        if (!fopen_s(&fp, BUILD_ERR_FILE, "w")) {
-            fprintf(fp, "%s\n", buffer.data());
-            fclose(fp);
+        std::string sBuildOptions;
+        sBuildOptions += "-D PREFER_SHORT4=1";
+        if (cl_data->bSVMAvail) {
+            sBuildOptions += " -cl-std=CL2.0";
         }
-        return ret;
+        sBuildOptions += (i) ? " -D TB_ORDER=1" : " -D TB_ORDER=0";
+        if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program[i], 1, &cl_data->device, sBuildOptions.c_str(), nullptr, nullptr))) {
+            std::vector<char> buffer(16 * 1024, '\0');
+            size_t length = 0;
+            clGetProgramBuildInfo(cl_data->program[i], cl_data->device, CL_PROGRAM_BUILD_LOG, buffer.size(), buffer.data(), &length);
+            FILE *fp = nullptr;
+            if (!fopen_s(&fp, BUILD_ERR_FILE, "w")) {
+                fprintf(fp, "%s\n", buffer.data());
+                fclose(fp);
+            }
+            return ret;
+        }
+        cl_data->kernel[i] = clCreateKernel(cl_data->program[i], "afs_analyze_12_nv16_kernel", &ret);
+        if (CL_SUCCESS != ret) {
+            return ret;
+        }
     }
-    cl_data->kernel = clCreateKernel(cl_data->program, "afs_analyze_12_nv16_kernel", &ret);
-    if (CL_SUCCESS != ret)
-        return ret;
-
     return ret;
 }
 
@@ -528,34 +533,34 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
     const int si_pitch_int = afs->opencl.scan_w / sizeof(int);
     // Set kernel arguments
     cl_int ret = CL_SUCCESS;
-    if (   CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  2, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][0]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  3, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][1]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  4, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][0]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  5, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][1]))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  6, sizeof(int),      &tb_order))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  7, sizeof(int),      &width_int))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  8, sizeof(int),      &si_pitch_int))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel,  9, sizeof(int),      &h))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 10, sizeof(uint8_t),  &thre_Ymotion_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 11, sizeof(uint8_t),  &thre_Cmotion_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 12, sizeof(uint8_t),  &thre_deint_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 13, sizeof(uint8_t),  &thre_shift_yuy2))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 14, sizeof(uint32_t), &scan_left))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 15, sizeof(uint32_t), &scan_width))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 16, sizeof(uint32_t), &scan_top))
-        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel, 17, sizeof(uint32_t), &scan_height))) {
+    cl_kernel kernel_analyze = afs->opencl.kernel[tb_order != 0];
+    if (   CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  2, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  3, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][1]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  4, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  5, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][1]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  6, sizeof(int),      &width_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  7, sizeof(int),      &si_pitch_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  8, sizeof(int),      &h))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  9, sizeof(uint8_t),  &thre_Ymotion_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 10, sizeof(uint8_t),  &thre_Cmotion_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 11, sizeof(uint8_t),  &thre_deint_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 12, sizeof(uint8_t),  &thre_shift_yuy2))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 13, sizeof(uint32_t), &scan_left))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 14, sizeof(uint32_t), &scan_width))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 15, sizeof(uint32_t), &scan_top))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze, 16, sizeof(uint32_t), &scan_height))) {
         return 1;
     }
     size_t global[3] = { ICEIL(ICEILDIV((size_t)width, 4), BLOCK_INT_X), ICEIL(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y), 1 };
     size_t local[3]  = { BLOCK_INT_X, BLOCK_Y, 1 };
     size_t local_size_max;
-    if (CL_SUCCESS != (ret = clGetKernelWorkGroupInfo(afs->opencl.kernel, afs->opencl.device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), (void *)&local_size_max, NULL))) {
+    if (CL_SUCCESS != (ret = clGetKernelWorkGroupInfo(kernel_analyze, afs->opencl.device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), (void *)&local_size_max, NULL))) {
         return 1;
     }
 
-    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, afs->opencl.kernel, 2, NULL, global, local, 0, NULL, NULL))) {
+    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, kernel_analyze, 2, NULL, global, local, 0, NULL, NULL))) {
         return 1;
     }
     *global_block_count = ICEILDIV(ICEILDIV((size_t)width, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);

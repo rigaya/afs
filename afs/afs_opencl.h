@@ -14,9 +14,9 @@ typedef struct _AFS_OPENCL {
     cl_platform_id platform;
     cl_device_id device;
     cl_context ctx;
-    cl_program program;
+    cl_program program[2];
     cl_command_queue queue;
-    cl_kernel kernel;
+    cl_kernel kernel[2];
     cl_mem source_img[AFS_SOURCE_CACHE_NUM][2];
     cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];
     int source_w, source_h;

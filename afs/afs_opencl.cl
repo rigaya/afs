@@ -51,7 +51,7 @@ short4 analyze_stripe(short4 p0, short4 p1, uchar flag_sign, uchar flag_deint, u
 uchar4 analyze(
     __read_only image2d_t img_p0,
     __read_only image2d_t img_p1,
-    int imgx, int imgy, int tb_order,
+    int imgx, int imgy,
     uchar thre_motion, uchar thre_deint, uchar thre_shift) {
     short4 p0, p1, mask = 0;
     //motion
@@ -65,11 +65,19 @@ uchar4 analyze(
         mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
 
         //shift
-        if ((tb_order + imgy) & 1) {
+#if TB_ORDER
+        if (imgy & 1) {
+            p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
+        } else {
+            p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
+        }
+#else
+        if (imgy & 1) {
             p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
         } else {
             p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
+#endif
         mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
     return convert_uchar4(mask);
@@ -97,7 +105,7 @@ uchar4 analyze_stripe(uchar4 p0, uchar4 p1, uchar flag_sign, uchar flag_deint, u
 uchar4 analyze(
     __read_only image2d_t img_p0,
     __read_only image2d_t img_p1,
-    int imgx, int imgy, int tb_order,
+    int imgx, int imgy,
     uchar thre_motion, uchar thre_deint, uchar thre_shift) {
     uchar4 p0, p1, mask = 0;
     //motion
@@ -111,11 +119,19 @@ uchar4 analyze(
         mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
 
         //shift
-        if ((tb_order + imgy) & 1) {
+#if TB_ORDER
+        if (imgy & 1) {
+            p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
+        } else {
+            p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
+        }
+#else
+        if (imgy & 1) {
             p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
         } else {
             p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
+#endif
         mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
     return mask;
@@ -220,7 +236,7 @@ __kernel void afs_analyze_12_nv16_kernel(
     __read_only image2d_t img_p0c,
     __read_only image2d_t img_p1y,
     __read_only image2d_t img_p1c,
-    int tb_order, int width_int, int si_pitch_int, int h,
+    int width_int, int si_pitch_int, int h,
     uchar thre_Ymotion, uchar thre_Cmotion, uchar thre_deint, uchar thre_shift,
     uint scan_left, uint scan_width, uint scan_top, uint scan_height) {
     __local int shared[BLOCK_INT_X * SHARED_Y * 3]; //int単位でアクセスする
@@ -240,9 +256,9 @@ __kernel void afs_analyze_12_nv16_kernel(
     if (ly < 4) {
         uchar4 mask;
         int imgy2 = imgy-4+ly;
-        mask = (imgy2 >= 0) ? analyze(img_p0y, img_p1y, imgx, imgy2, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy2 >= 0) ? analyze(img_p0y, img_p1y, imgx, imgy2, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 0)] = as_int(mask);
-        mask = (imgy2 >= 0) ? analyze(img_p0c, img_p1c, imgx, imgy2, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy2 >= 0) ? analyze(img_p0c, img_p1c, imgx, imgy2, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 1)] = as_int(mask);
     }
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 2)] = 0;
@@ -251,9 +267,9 @@ __kernel void afs_analyze_12_nv16_kernel(
     for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++, ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y, ly += BLOCK_Y) {
         { //差分情報を計算
             uchar4 mask;
-            mask = (imgy < h) ? analyze(img_p0y, img_p1y, imgx, imgy, tb_order, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+            mask = (imgy < h) ? analyze(img_p0y, img_p1y, imgx, imgy, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
             ptr_shared[shared_int_idx(0, ly, 0)] = as_int(mask);
-            mask = (imgy < h) ? analyze(img_p0c, img_p1c, imgx, imgy, tb_order, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+            mask = (imgy < h) ? analyze(img_p0c, img_p1c, imgx, imgy, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
             ptr_shared[shared_int_idx(0, ly, 1)] = as_int(mask);
             barrier(CLK_LOCAL_MEM_FENCE);
         }
@@ -283,8 +299,12 @@ __kernel void afs_analyze_12_nv16_kernel(
                     ushort2 motion_flag = ((~mask1) & (ushort2)0x4040) >> (ushort2)6;
                     motion_flag = (motion_flag & (ushort2)0xff) + (motion_flag >> (ushort2)8);
                     // 16                     8                    0
-                    //  | motion_count_latter | motion_count_first |      
-                    motion_count_01 += motion_flag << (((ly + tb_order + 1) & 1) << 3);
+                    //  | motion_count_latter | motion_count_first |
+#if TB_ORDER
+                    motion_count_01 += motion_flag << (((ly    ) & 1) << 3);
+#else
+                    motion_count_01 += motion_flag << (((ly + 1) & 1) << 3);
+#endif
                 }
                 //判定結果の出力
                 ptr_dst[0] = as_int(mask1);
