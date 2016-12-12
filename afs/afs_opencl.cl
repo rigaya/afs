@@ -126,12 +126,25 @@ int shared_int_idx(int x, int y, int dep) {
     return dep * SHARED_INT_X * SHARED_Y + (y&15) * SHARED_INT_X + x;
 }
 
-void count_flags(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, ushort2 *restrict count_shift) {
+void count_flags_skip(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, ushort2 *restrict count_shift) {
     ushort2 deint, shift, mask;
-    deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
-    shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
     mask = (dat0 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)))
          ^ (dat1 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)));
+    deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
+    shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
+    mask >>= 1; //最初はshiftの位置にしかビットはたっていない
+    //*count_deint &= mask; //deintにマスクはいらない
+    *count_shift &= mask;
+    *count_deint  = deint; //deintに値は入っていないので代入でよい
+    *count_shift += shift;
+}
+
+void count_flags(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, ushort2 *restrict count_shift) {
+    ushort2 deint, shift, mask;
+    mask = (dat0 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)))
+         ^ (dat1 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)));
+    deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
+    shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
     mask |= (mask<<1);
     mask |= (mask>>2);
     *count_deint &= mask;
@@ -142,18 +155,16 @@ void count_flags(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, usho
 
 ushort2 generate_mask(int ly, int idepth, __local int *restrict ptr_shared) {
     ushort2 count_deint = (ushort2)0;
-    ushort2 count_shift = (ushort2)0;
     ushort2 dat0, dat1, deint, shift, motion;
 
     //sharedメモリはあらかじめ-4もデータを作ってあるので、問題なく使用可能
     dat1 = as_ushort2(ptr_shared[shared_int_idx(0, ly-3, idepth)]);
     //deint = dat1 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
-    shift = dat1 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
+    ushort2 count_shift = dat1 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
     //count_deint += deint;
-    count_shift += shift;
 
     dat0 = as_ushort2(ptr_shared[shared_int_idx(0, ly-2, idepth)]);
-    count_flags(dat0, dat1, &count_deint, &count_shift);
+    count_flags_skip(dat0, dat1, &count_deint, &count_shift);
 
     dat1 = as_ushort2(ptr_shared[shared_int_idx(0, ly-1, idepth)]);
     count_flags(dat1, dat0, &count_deint, &count_shift);
