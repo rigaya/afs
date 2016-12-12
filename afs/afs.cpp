@@ -969,7 +969,7 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
         afs_opencl_count_motion_temp_unmap(&g_afs);
 
         int global_block_count = 0;
-        afs_opencl_analyze_12_nv16(&g_afs, sp_idx, p0_idx, p1_idx, p0_idx, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, &global_block_count);
+        afs_opencl_analyze_12_nv16(&g_afs, sp_idx, p0_idx, p1_idx, tb_order, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, &global_block_count);
 
         afs_opencl_source_buffer_map(&g_afs, p0_idx);
         afs_opencl_source_buffer_map(&g_afs, p1_idx);
