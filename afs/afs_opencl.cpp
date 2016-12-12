@@ -393,8 +393,8 @@ int afs_opencl_create_motion_count_temp(AFS_CONTEXT *afs, int w, int h) {
     cl_int ret = CL_SUCCESS;
     if (afs->afs_mode & AFS_MODE_OPENCL_SVMF) {
         afs->opencl.motion_count_temp_map = (uint16_t *)clSVMAlloc(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_SVM_FINE_GRAIN_BUFFER, afs->opencl.motion_count_temp_max, 0);
-        if (afs->opencl.motion_count_temp_map != nullptr) {
-            afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, afs->opencl.motion_count_temp_max, afs->opencl.motion_count_temp_map, &ret);
+        if (afs->opencl.motion_count_temp_map == nullptr) {
+            return 1;
         }
         afs->opencl.motion_count_temp_map = nullptr;
     } else {
