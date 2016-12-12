@@ -273,7 +273,7 @@ __kernel void afs_analyze_12_nv16_kernel(
                     motion_flag = (motion_flag & (ushort2)0xff) + (motion_flag >> (ushort2)8);
                     // 16                     8                    0
                     //  | motion_count_latter | motion_count_first |      
-                    motion_count_01 += motion_flag << (((ly + tb_order) & 1) << 3);
+                    motion_count_01 += motion_flag << (((ly + tb_order + 1) & 1) << 3);
                 }
                 //判定結果の出力
                 ptr_dst[0] = as_int(mask1);
