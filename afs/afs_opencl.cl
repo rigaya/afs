@@ -306,7 +306,15 @@ __kernel void afs_analyze_12_nv16_kernel(
     //  |               |              || count_latter1 | count_first1 |
     temp = (temp & 0xffff) + (temp >> 16);
     //  |       0       | count_latter ||      0        | count_first |
-    shared[lid] = ((temp & 0xff00) << 8) | (temp & 0xff);
+    temp = ((temp & 0xff00) << 8) | (temp & 0xff);
+#if 0
+    //OpenCL 2.0で可能な書き方だが、純粋なsharedメモリを使用した実装のほうが速い
+    temp = work_group_reduce_add(temp);
+    if (lid == 0) {
+        ptr_count[get_group_id(1) * get_num_groups(0) + get_group_id(0)] = temp;
+    }
+#else
+    shared[lid] = temp;
     barrier(CLK_LOCAL_MEM_FENCE);
     for (int offset = BLOCK_Y * BLOCK_INT_X >> 1; offset > 0; offset >>= 1) {
         if (lid < offset) {
@@ -317,6 +325,7 @@ __kernel void afs_analyze_12_nv16_kernel(
     if (lid == 0) {
         ptr_count[get_group_id(1) * get_num_groups(0) + get_group_id(0)] = shared[0];
     }
+#endif
 }
 
 #endif //#ifdef __OPENCL_VERSION__
