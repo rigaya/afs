@@ -1002,6 +1002,7 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
         }
         int idx = sp - g_afs.scan_array;
         memcpy(g_afs.scan_motion_count[idx], motion_count, sizeof(motion_count));
+        g_afs.scan_motion_clip[idx] = *mc_clip;
     } else {
         analyze_stripe((mode == 0), sp, p1, p0, source_w, mc_clip);
     }
