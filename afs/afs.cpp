@@ -1304,8 +1304,8 @@ static inline PIXEL_YC getavg(PIXEL_YC *ycpa, PIXEL_YC *ycpb, int pos_x, int src
 static inline PIXEL_YC getyc48(int y, int u, int v) {
     PIXEL_YC ycp;
     ycp.y  = ((y * 1197) >> 6) - 299;
-    ycp.cr = ((u - 128) * 4681 + 164) >> 8;
-    ycp.cb = ((v - 128) * 4681 + 164) >> 8;
+    ycp.cb = ((u - 128) * 4681 + 164) >> 8;
+    ycp.cr = ((v - 128) * 4681 + 164) >> 8;
     return ycp;
 }
 static inline PIXEL_YC getavg(uint8_t *ycpa, uint8_t *ycpb, int pos_x, int src_frame_pixels) {
