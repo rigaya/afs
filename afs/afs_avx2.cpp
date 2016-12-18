@@ -1505,7 +1505,7 @@ static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t 
         my0b = afs_deint4(my1b, my3b, my4b, my5b, my7b, msipb);
 
         //マスクを更新
-        afs_mask_extend16(msipa, msipb, mmask, sip + 16);
+        afs_mask_extend16(msipa, msipb, mmask, sip + 32);
 
         //色差をブレンド
         mc2a = afs_deint4(mc6a, mc8a, mc9a, mcaa, mcca, afs_mask_for_uv_16(msipa));
