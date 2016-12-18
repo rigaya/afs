@@ -334,7 +334,7 @@ int afs_opencl_source_buffer_pitch(AFS_CONTEXT *afs, int w, int h, int *pitch, i
     if (ret != CL_SUCCESS) {
         return 1;
     }
-    image2dAlign = std::max(image2dAlign, 128);
+    image2dAlign = std::max(image2dAlign, 64);
 
     int baseAlign;
     ret = clGetDeviceInfo(afs->opencl.device, CL_DEVICE_IMAGE_BASE_ADDRESS_ALIGNMENT, sizeof(cl_uint), &baseAlign, nullptr);
