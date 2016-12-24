@@ -361,7 +361,7 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
     img_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
     img_desc.image_width = width_uchar4;
     img_desc.image_height = h;
-    img_desc.image_depth = 2;
+    img_desc.image_depth = 0;
     img_desc.image_array_size = 0;
     img_desc.image_row_pitch = afs->source_w;
     img_desc.image_slice_pitch = 0;
