@@ -3003,9 +3003,15 @@ static void del_combo_item(void *string) {
 static void update_cx(int proc_mode) {
     const int num = SendMessage(cx_proc_mode, CB_GETCOUNT, 0, 0);
     // コンボボックス検索
-    for (int i = 0; i < num; i++) {
-        if (proc_mode == SendMessage(cx_proc_mode, CB_GETITEMDATA, i, 0)) {
-            SendMessage(cx_proc_mode, CB_SETCURSEL, i, 0); // カーソルセット
+    uint32_t flags[] = { 0, AFS_MODE_OPENCL_SVMF, AFS_MODE_OPENCL, AFS_MODE_CACHE_NV16 };
+    for (int iflag = 0; iflag < _countof(flags); iflag++) {
+        proc_mode &= (~flags[iflag]);
+        for (int i = 0; i < num; i++) {
+            if (proc_mode == SendMessage(cx_proc_mode, CB_GETITEMDATA, i, 0)) {
+                SendMessage(cx_proc_mode, CB_SETCURSEL, i, 0); // カーソルセット
+                g_afs.ex_data.proc_mode = proc_mode;
+                return;
+            }
         }
     }
 }
