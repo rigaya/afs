@@ -31,45 +31,6 @@ __constant uchar shift_sign  = 0x04u;
 __constant uchar shift_shift = 0x02u;
 __constant uchar shift_deint = 0x01u;
 
-#if PREFER_SHORT4
-short4 analyze_motion(short4 p0, short4 p1, uchar thre_motion, uchar thre_shift) {
-    short4 absy = as_short4(abs(p1 - p0));
-    short4 mask = 0;
-    mask |= ((short4)thre_motion > absy) ? (short4)motion_flag  : (short4)0;
-    mask |= ((short4)thre_shift  > absy) ? (short4)motion_shift : (short4)0;
-    return mask;
-}
-
-short4 analyze_stripe(short4 p0, short4 p1, uchar flag_sign, uchar flag_deint, uchar flag_shift, uchar thre_deint, uchar thre_shift) {
-    short4 new_sign = (p0 >= p1) ? (short4)flag_sign : (short4)0;
-    //short4 new_diff = (p1 > p0) ? p1 - p0 : p0 - p1;
-    short4 absy = as_short4(abs(p1 - p0));
-    short4 mask = new_sign;
-    mask |= (absy > (short4)thre_deint) ? (short4)flag_deint : (short4)0;
-    mask |= (absy > (short4)thre_shift) ? (short4)flag_shift : (short4)0;
-    return mask;
-}
-#else //#if PREFER_SHORT4
-uchar4 analyze_motion(uchar4 p0, uchar4 p1, uchar thre_motion, uchar thre_shift) {
-    uchar4 absy = convert_uchar4(abs(convert_short4(p1) - convert_short4(p0)));
-    uchar4 mask = 0;
-    mask |= ((uchar4)thre_motion > absy) ? (uchar4)motion_flag  : (uchar4)0;
-    mask |= ((uchar4)thre_shift  > absy) ? (uchar4)motion_shift : (uchar4)0;
-    return mask;
-}
-
-uchar4 analyze_stripe(uchar4 p0, uchar4 p1, uchar flag_sign, uchar flag_deint, uchar flag_shift, uchar thre_deint, uchar thre_shift) {
-    uchar4 new_sign = (p0 >= p1) ? (uchar4)flag_sign : (uchar4)0;
-    //uchar4 new_diff = (p1 > p0) ? p1 - p0 : p0 - p1;
-    uchar4 absy = as_uchar4((p1 > p0) ? as_char4(p1) - as_char4(p0) : as_char4(p0) - as_char4(p1));
-    //uchar4 absy = convert_uchar4(abs(convert_short4(p1) - convert_short4(p0)));
-    uchar4 mask = new_sign;
-    mask |= (absy > (uchar4)thre_deint) ? (uchar4)flag_deint : (uchar4)0;
-    mask |= (absy > (uchar4)thre_shift) ? (uchar4)flag_shift : (uchar4)0;
-    return mask;
-}
-#endif //#if PREFER_SHORT4
-
 
 #if PREFER_SHORT4
 #define DATA4         short4
@@ -78,6 +39,23 @@ uchar4 analyze_stripe(uchar4 p0, uchar4 p1, uchar flag_sign, uchar flag_deint, u
 #define DATA4         uchar4
 #define CONVERT_DATA4 convert_uchar4
 #endif //#if PREFER_SHORT4
+
+DATA4 analyze_motion(DATA4 p0, DATA4 p1, uchar thre_motion, uchar thre_shift) {
+    DATA4 absy = CONVERT_DATA4(abs(convert_short4(p1) - convert_short4(p0)));
+    DATA4 mask = 0;
+    mask |= ((DATA4)thre_motion > absy) ? (DATA4)motion_flag  : (DATA4)0;
+    mask |= ((DATA4)thre_shift  > absy) ? (DATA4)motion_shift : (DATA4)0;
+    return mask;
+}
+
+DATA4 analyze_stripe(DATA4 p0, DATA4 p1, uchar flag_sign, uchar flag_deint, uchar flag_shift, uchar thre_deint, uchar thre_shift) {
+    DATA4 new_sign = (p0 >= p1) ? (DATA4)flag_sign : (DATA4)0;
+    DATA4 absy = CONVERT_DATA4(abs(convert_short4(p1) - convert_short4(p0)));
+    DATA4 mask = new_sign;
+    mask |= (absy > (DATA4)thre_deint) ? (DATA4)flag_deint : (DATA4)0;
+    mask |= (absy > (DATA4)thre_shift) ? (DATA4)flag_shift : (DATA4)0;
+    return mask;
+}
 
 #if PREFER_IMAGE
 uchar4 analyze(
