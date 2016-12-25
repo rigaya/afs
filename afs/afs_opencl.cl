@@ -6,6 +6,8 @@
 #define SHARED_INT_X (BLOCK_INT_X) //SLMの幅
 #define SHARED_Y     (16) //SLMの縦
 
+#define PREFER_IMAGE  0
+
 #ifdef __OPENCL_VERSION__
 
 #ifndef PREFER_SHORT4
@@ -47,42 +49,7 @@ short4 analyze_stripe(short4 p0, short4 p1, uchar flag_sign, uchar flag_deint, u
     mask |= (absy > (short4)thre_shift) ? (short4)flag_shift : (short4)0;
     return mask;
 }
-
-uchar4 analyze(
-    __read_only image2d_t img_p0,
-    __read_only image2d_t img_p1,
-    int imgx, int imgy,
-    uchar thre_motion, uchar thre_deint, uchar thre_shift) {
-    short4 p0, p1, mask = 0;
-    //motion
-    p0 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy)));
-    p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy)));
-    mask = analyze_motion(p0, p1, thre_motion, thre_shift);
-
-    if (imgy >= 1) {
-        //non-shift
-        p1 = convert_short4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
-        mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
-
-        //shift
-#if TB_ORDER
-        if (imgy & 1) {
-            p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
-        } else {
-            p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
-        }
-#else
-        if (imgy & 1) {
-            p1 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
-        } else {
-            p0 = convert_short4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
-        }
-#endif
-        mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
-    }
-    return convert_uchar4(mask);
-}
-#else
+#else //#if PREFER_SHORT4
 uchar4 analyze_motion(uchar4 p0, uchar4 p1, uchar thre_motion, uchar thre_shift) {
     uchar4 absy = convert_uchar4(abs(convert_short4(p1) - convert_short4(p0)));
     uchar4 mask = 0;
@@ -101,42 +68,91 @@ uchar4 analyze_stripe(uchar4 p0, uchar4 p1, uchar flag_sign, uchar flag_deint, u
     mask |= (absy > (uchar4)thre_shift) ? (uchar4)flag_shift : (uchar4)0;
     return mask;
 }
+#endif //#if PREFER_SHORT4
 
+
+#if PREFER_SHORT4
+#define DATA4         short4
+#define CONVERT_DATA4 convert_short4
+#else //#if PREFER_SHORT4
+#define DATA4         uchar4
+#define CONVERT_DATA4 convert_uchar4
+#endif //#if PREFER_SHORT4
+
+#if PREFER_IMAGE
 uchar4 analyze(
     __read_only image2d_t img_p0,
     __read_only image2d_t img_p1,
     int imgx, int imgy,
     uchar thre_motion, uchar thre_deint, uchar thre_shift) {
-    uchar4 p0, p1, mask = 0;
+    DATA4 p0, p1, mask = 0;
     //motion
-    p0 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy)));
-    p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy)));
+    p0 = CONVERT_DATA4(read_imageui(img_p0, sampler, (int2)(imgx,imgy)));
+    p1 = CONVERT_DATA4(read_imageui(img_p1, sampler, (int2)(imgx,imgy)));
     mask = analyze_motion(p0, p1, thre_motion, thre_shift);
 
     if (imgy >= 1) {
         //non-shift
-        p1 = convert_uchar4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
+        p1 = CONVERT_DATA4(read_imageui(img_p0, sampler, (int2)(imgx,imgy-1)));
         mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
 
         //shift
 #if TB_ORDER
         if (imgy & 1) {
-            p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
+            p0 = CONVERT_DATA4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         } else {
-            p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
+            p1 = CONVERT_DATA4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
         }
 #else
         if (imgy & 1) {
-            p1 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
+            p1 = CONVERT_DATA4(read_imageui(img_p1, sampler, (int2)(imgx,imgy-1)));
         } else {
-            p0 = convert_uchar4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
+            p0 = CONVERT_DATA4(read_imageui(img_p1, sampler, (int2)(imgx,imgy  )));
         }
 #endif
         mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
     }
-    return mask;
+    return convert_uchar4(mask);
 }
-#endif
+#else //#if PREFER_IMAGE
+uchar4 analyze(
+    const __global uchar4 *restrict src_p0,
+    const __global uchar4 *restrict src_p1,
+    int source_w_int, int imgy,
+    uchar thre_motion, uchar thre_deint, uchar thre_shift) {
+    DATA4 p0, p1, mask = 0;
+    //motion
+    p0 = CONVERT_DATA4(src_p0[0]);
+    p1 = CONVERT_DATA4(src_p1[0]);
+    mask = analyze_motion(p0, p1, thre_motion, thre_shift);
+
+    if (imgy >= 1) {
+        //non-shift
+        p1 = CONVERT_DATA4(src_p0[ -source_w_int ]);
+        mask |= analyze_stripe(p0, p1, non_shift_sign, non_shift_deint, non_shift_shift, thre_deint, thre_shift);
+
+        //shift
+#if TB_ORDER
+        if (imgy & 1) {
+            p0 = CONVERT_DATA4(src_p1[0]);
+        } else {
+            p1 = CONVERT_DATA4(src_p1[ -source_w_int ]);
+        }
+#else //#if TB_ORDER
+        if (imgy & 1) {
+            p1 = CONVERT_DATA4(src_p1[ -source_w_int ]);
+        } else {
+            p0 = CONVERT_DATA4(src_p1[0]);
+        }
+#endif //#if TB_ORDER
+        mask |= analyze_stripe(p1, p0, shift_sign, shift_deint, shift_shift, thre_deint, thre_shift);
+    }
+    return convert_uchar4(mask);
+}
+#endif //#if PREFER_IMAGE
+
+#undef DATA4
+#undef CONVERT_DATA4
 
 int shared_int_idx(int x, int y, int dep) {
     return dep * SHARED_INT_X * SHARED_Y + (y&15) * SHARED_INT_X + x;
@@ -232,10 +248,17 @@ void merge_mask(ushort2 masky, ushort2 maskc, ushort2 *restrict mask0, ushort2 *
 __kernel void afs_analyze_12_nv16_kernel(
     __global int *restrict ptr_dst,
     __global int *restrict ptr_count,
-    __read_only image2d_t img_p0y,
-    __read_only image2d_t img_p0c,
-    __read_only image2d_t img_p1y,
-    __read_only image2d_t img_p1c,
+#if PREFER_IMAGE
+    __read_only image2d_t src_p0y,
+    __read_only image2d_t src_p0c,
+    __read_only image2d_t src_p1y,
+    __read_only image2d_t src_p1c,
+#else
+    const __global uchar4 *restrict src_p0y,
+    const __global uchar4 *restrict src_p1y,
+    int source_w_int,
+    int frame_size_int,
+#endif
     int width_int, int si_pitch_int, int h,
     uchar thre_Ymotion, uchar thre_Cmotion, uchar thre_deint, uchar thre_shift,
     uint scan_left, uint scan_width, uint scan_top, uint scan_height) {
@@ -247,6 +270,18 @@ __kernel void afs_analyze_12_nv16_kernel(
     int imgy = gid * BLOCK_LOOP_Y * BLOCK_Y + ly;
     int imgy_block_fin = (gid * BLOCK_LOOP_Y + 1) * BLOCK_Y;
     ushort2 motion_count_01 = (ushort2)0;
+#if !PREFER_IMAGE
+    src_p0y += imgx + source_w_int * imgy;
+    src_p1y += imgx + source_w_int * imgy;
+    const __global uchar4 *restrict src_p0c = src_p0y + frame_size_int;
+    const __global uchar4 *restrict src_p1c = src_p1y + frame_size_int;
+#endif
+
+#if PREFER_IMAGE
+#define CALL_ANALYZE(p0, p1, y_offset) analyze((p0), (p1), (imgx), (imgy+(y_offset)), thre_Ymotion, thre_deint, thre_shift)
+#else
+#define CALL_ANALYZE(p0, p1, y_offset) analyze(((p0) + (y_offset) * source_w_int), ((p1) + (y_offset) * source_w_int), source_w_int, (imgy+(y_offset)), thre_Ymotion, thre_deint, thre_shift)
+#endif
 
     __local int *ptr_shared = shared + shared_int_idx(lx,0,0);
     ptr_dst += (imgy-4) * si_pitch_int + imgx;
@@ -255,21 +290,27 @@ __kernel void afs_analyze_12_nv16_kernel(
     //sharedの SHARED_Y-4 ～ SHARED_Y-1 を埋める
     if (ly < 4) {
         uchar4 mask;
-        int imgy2 = imgy-4+ly;
-        mask = (imgy2 >= 0) ? analyze(img_p0y, img_p1y, imgx, imgy2, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy-4+ly >= 0) ? CALL_ANALYZE(src_p0y, src_p1y, -4+ly) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 0)] = as_int(mask);
-        mask = (imgy2 >= 0) ? analyze(img_p0c, img_p1c, imgx, imgy2, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+        mask = (imgy-4+ly >= 0) ? CALL_ANALYZE(src_p0c, src_p1c, -4+ly) : (uchar4)0;
         ptr_shared[shared_int_idx(0, -4+ly, 1)] = as_int(mask);
     }
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 2)] = 0;
     //ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 3)] = 0;
 
-    for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++, ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y, ly += BLOCK_Y) {
+    for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++,
+        ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y,
+#if !PREFER_IMAGE
+        src_p0y += BLOCK_Y * source_w_int, src_p0c += BLOCK_Y * source_w_int,
+        src_p1y += BLOCK_Y * source_w_int, src_p1c += BLOCK_Y * source_w_int,
+#endif
+        ly += BLOCK_Y
+    ) {
         { //差分情報を計算
             uchar4 mask;
-            mask = (imgy < h) ? analyze(img_p0y, img_p1y, imgx, imgy, thre_Ymotion, thre_deint, thre_shift) : (uchar4)0;
+            mask = (imgy < h) ? CALL_ANALYZE(src_p0y, src_p1y, 0) : (uchar4)0;
             ptr_shared[shared_int_idx(0, ly, 0)] = as_int(mask);
-            mask = (imgy < h) ? analyze(img_p0c, img_p1c, imgx, imgy, thre_Cmotion, thre_deint, thre_shift) : (uchar4)0;
+            mask = (imgy < h) ? CALL_ANALYZE(src_p0c, src_p1c, 0) : (uchar4)0;
             ptr_shared[shared_int_idx(0, ly, 1)] = as_int(mask);
             barrier(CLK_LOCAL_MEM_FENCE);
         }

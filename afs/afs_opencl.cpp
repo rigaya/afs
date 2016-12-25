@@ -44,7 +44,7 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
     if (!afs->opencl.ctx) {
         return;
     }
-    for (int i = 0; i < _countof(afs->opencl.source_img); i++) {
+    for (int i = 0; i < _countof(afs->opencl.source_buf); i++) {
         //afs_opencl_source_buffer_unmap()を呼ぶとnullにされるので、その前に取り出しておく
         void *ptr = afs->source_array[i].map;
         afs_opencl_source_buffer_unmap(afs, i, true);
@@ -286,6 +286,7 @@ cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
     if (afs->source_array[i].map != nullptr) {
         return ret;
     }
+#if PREFER_IMAGE
     size_t origin[3] = { 0, 0, 0 };
     size_t region[3] = { (size_t)afs->opencl.source_w, (size_t)afs->opencl.source_h, 1 };
     size_t image_row_pitch = 0;
@@ -298,6 +299,14 @@ cl_int afs_opencl_source_buffer_map(AFS_CONTEXT *afs, int i) {
     clEnqueueMapImage(afs->opencl.queue, afs->opencl.source_img[i][1], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         origin, region, &image_row_pitch, &image_slice_picth, 0, NULL, NULL, &ret);
     afs->source_w = image_row_pitch;
+#else
+    afs->source_array[i].map = clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.source_buf[i][0], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+        0, afs->opencl.source_w * afs->opencl.source_h * 2, 0, NULL, NULL, &ret);
+    if (ret != CL_SUCCESS) {
+        return ret;
+    }
+    afs->source_w = afs->opencl.source_w;
+#endif
     return ret;
 }
 
@@ -309,12 +318,19 @@ cl_int afs_opencl_source_buffer_unmap(AFS_CONTEXT *afs, int i, bool force) {
         return CL_SUCCESS;
     }
     char *ptrY = (char *)(afs->source_array[i].map);
+#if PREFER_IMAGE
     char *ptrC = ptrY + afs->source_w * afs->source_h;
     cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_img[i][0], ptrY, 0, NULL, NULL);
     if (ret == CL_SUCCESS) {
         afs->source_array[i].map = nullptr;
     }
     ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_img[i][1], ptrC, 0, NULL, NULL);
+#else
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.source_buf[i][0], ptrY, 0, NULL, NULL);
+    if (ret == CL_SUCCESS) {
+        afs->source_array[i].map = nullptr;
+    }
+#endif
     return ret;
 }
 
@@ -353,6 +369,7 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
     if (!afs->opencl.ctx) {
         return 1;
     }
+#if PREFER_IMAGE
     cl_image_format format;
     format.image_channel_order = CL_RGBA;
     format.image_channel_data_type = CL_UNSIGNED_INT8;
@@ -373,9 +390,15 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
     afs->opencl.source_h = h;
 
     const int imageSizeBytes = afs->source_w * h;
+#else
+    afs->opencl.source_w = w;
+    afs->opencl.source_h = h;
+    const int imageSizeBytes = w * h * 2;
+#endif
 
     for (int i = 0; i < _countof(afs->source_array); i++) {
         cl_int ret = CL_SUCCESS;
+#if PREFER_IMAGE
         char *ptrY = (char *)(afs->source_array[i].map);
         char *ptrC = ptrY + img_desc.image_row_pitch * h;
         char *ptr[2] = { ptrY, ptrC };
@@ -392,6 +415,12 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
                 return 1;
             }
         }
+#else
+        afs->opencl.source_buf[i][0] = clCreateBuffer(afs->opencl.ctx, CL_MEM_USE_HOST_PTR, imageSizeBytes, afs->source_array[i].map, &ret);
+        if (ret != CL_SUCCESS) {
+            return 1;
+        }
+#endif
         //afs->source_array[i].mapはafs_opencl_source_buffer_map()で再取得するため、ここではnullptrにしておく
         afs->source_array[i].map = nullptr;
         afs_opencl_source_buffer_map(afs, i);
@@ -518,6 +547,7 @@ int afs_opencl_analyze_12_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1
     uint32_t scan_top    = scan_clip->top;
     uint32_t scan_height = h - scan_clip->top - scan_clip->bottom;
 
+
 /*
 __global int *restrict ptr_dst,
 __global int *restrict ptr_count,
@@ -531,15 +561,24 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
 */
     const int width_int = width / sizeof(int);
     const int si_pitch_int = afs->opencl.scan_w / sizeof(int);
+    const int source_w_int = afs->source_w / sizeof(int);
+    const int frame_size_int = source_w_int * afs->opencl.source_h;
     // Set kernel arguments
     cl_int ret = CL_SUCCESS;
     cl_kernel kernel_analyze = afs->opencl.kernel[tb_order != 0];
     if (   CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
+#if PREFER_IMAGE
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  2, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][0]))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  3, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][1]))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  4, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][0]))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  5, sizeof(cl_mem),   &afs->opencl.source_img[p1_idx][1]))
+#else
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  2, sizeof(cl_mem),   &afs->opencl.source_buf[p0_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  3, sizeof(cl_mem),   &afs->opencl.source_buf[p1_idx][0]))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  4, sizeof(int),      &source_w_int))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  5, sizeof(int),      &frame_size_int))
+#endif
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  6, sizeof(int),      &width_int))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  7, sizeof(int),      &si_pitch_int))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  8, sizeof(int),      &h))
