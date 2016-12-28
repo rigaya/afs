@@ -778,7 +778,6 @@ static __forceinline void afs_blend_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *
         src3 += dw;
         sip += dw;
 
-        __m256i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
@@ -854,7 +853,6 @@ static __forceinline void afs_blend_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t *
         convert_range_c_yuy2_to_yc48(mc2a, mc2b);
         convert_range_c_yuy2_to_yc48(mc3a, mc3b);
 
-        __m256i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         mc0a = afs_blend(mc1a, mc2a, mc3a, afs_mask_for_uv_16(msipa));
@@ -1456,7 +1454,6 @@ static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t 
         src7 += dw;
         sip += dw;
 
-        __m256i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         mc1a = _mm256_loadu_si256((const __m256i *)(src1 + src_frame_pixels));
@@ -1550,7 +1547,6 @@ static __forceinline void afs_deint4_nv16(PIXEL_YC *dst, uint8_t *src1, uint8_t 
         convert_range_c_yuy2_to_yc48(mc5a, mc5b);
         convert_range_c_yuy2_to_yc48(mc7a, mc7b);
 
-        __m256i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         mc0a = afs_deint4(mc1a, mc3a, mc4a, mc5a, mc7a, afs_mask_for_uv_16(msipa));
