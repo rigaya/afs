@@ -673,7 +673,7 @@ static __forceinline void afs_blend_nv16_simd_base(PIXEL_YC *dst, uint8_t *src1,
     ////色差をブレンド
     //mc4a = afs_blend(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
     //mc4b = afs_blend(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipb));
-    mc4a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc4a = _mm_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
@@ -854,7 +854,7 @@ static __forceinline void afs_mie_spot_nv16_simd_base(PIXEL_YC *dst, uint8_t *sr
     my0b = afs_mie_spot(my1b, my2b, my3b, my4b, mysb);
 
     ////色差をブレンド
-    mc5a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc5a = _mm_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
@@ -1021,7 +1021,7 @@ static __forceinline void afs_mie_inter_nv16_simd_base(PIXEL_YC *dst, uint8_t *s
     my0b = afs_mie_inter(my1b, my2b, my3b, my4b);
 
     ////色差をブレンド
-    mc5a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc5a = _mm_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
@@ -1217,7 +1217,7 @@ static __forceinline void afs_deint4_nv16_simd_base(PIXEL_YC *dst, uint8_t *src1
     ////色差をブレンド
     //mc4a = afs_deint4(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
     //mc4b = afs_deint4(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipa));
-    mc4a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc4a = _mm_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
@@ -1338,7 +1338,7 @@ static __forceinline void afs_convert_nv16_yc48(PIXEL_YC *dst, uint8_t *src1, in
     ////色差をブレンド
     //mc4a = afs_blend(mc5a, mc6a, mc7a, afs_mask_for_uv_16(msipa));
     //mc4b = afs_blend(mc5b, mc6b, mc7b, afs_mask_for_uv_16(msipa));
-    mc4a = _mm_shuffle_epi32(my0b, _MM_SHUFFLE(3, 3, 3, 3));
+    mc4a = _mm_shuffle_epi32(mc0b, _MM_SHUFFLE(3, 3, 3, 3));
 
     //UVは補間を行う
     if (uv_upsample) {
