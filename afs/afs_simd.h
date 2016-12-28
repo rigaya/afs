@@ -639,7 +639,6 @@ static __forceinline void afs_blend_nv16_simd_base(PIXEL_YC *dst, uint8_t *src1,
         mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
         mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
 
-        __m128i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         convert_range_c_yuy2_to_yc48(mc1a, mc1b);
@@ -1175,7 +1174,6 @@ static __forceinline void afs_deint4_nv16_simd_base(PIXEL_YC *dst, uint8_t *src1
         mc5a = _mm_loadu_si128((const __m128i *)(src5 + src_frame_pixels));
         mc7a = _mm_loadu_si128((const __m128i *)(src7 + src_frame_pixels));
 
-        __m128i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         convert_range_c_yuy2_to_yc48(mc1a, mc1b);
@@ -1404,6 +1402,7 @@ static __forceinline void afs_blend_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, 
     const __m128i mmask = _mm_set1_epi32(mask);
     __m128i mc0a, mc0b, mc1a, mc1b, mc2a, mc2b, mc3a, mc3b;
     __m128i my0a, my0b, my1a, my1b, my2a, my2b, my3a, my3b;
+    __m128i msipa, msipb;
 
     for (; src1 < src1_fin; src1 += 16, src2 += 16, src3 += 16, dst += 32, sip += 16) {
         my1a = _mm_loadu_si128((const __m128i *)src1);
@@ -1413,7 +1412,6 @@ static __forceinline void afs_blend_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, 
         mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
         mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
 
-        __m128i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         //YUY2->YC48に変換
@@ -1449,7 +1447,6 @@ static __forceinline void afs_blend_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1, 
     mc2a = _mm_loadu_si128((const __m128i *)(src2 + src_frame_pixels));
     mc3a = _mm_loadu_si128((const __m128i *)(src3 + src_frame_pixels));
 
-    __m128i msipa, msipb;
     afs_mask_extend16(msipa, msipb, mmask, sip);
 
     //YUY2->YC48に変換
@@ -1639,6 +1636,7 @@ static __forceinline void afs_deint4_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1,
     const __m128i mmask = _mm_set1_epi32(mask);
     __m128i mc0a, mc0b, mc1a, mc1b, mc3a, mc3b, mc4a, mc4b, mc5a, mc5b, mc7a, mc7b;
     __m128i my0a, my0b, my1a, my1b, my3a, my3b, my4a, my4b, my5a, my5b, my7a, my7b;
+    __m128i msipa, msipb;
 
     for (; src1 < src1_fin; src1 += 16, src3 += 16, src4 += 16, src5 += 16, src7 += 16, dst += 32, sip += 16) {
         my1a = _mm_loadu_si128((const __m128i *)src1);
@@ -1652,7 +1650,6 @@ static __forceinline void afs_deint4_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1,
         mc5a = _mm_loadu_si128((const __m128i *)(src5 + src_frame_pixels));
         mc7a = _mm_loadu_si128((const __m128i *)(src7 + src_frame_pixels));
 
-        __m128i msipa, msipb;
         afs_mask_extend16(msipa, msipb, mmask, sip);
 
         //YUY2->YC48に変換
@@ -1696,7 +1693,6 @@ static __forceinline void afs_deint4_nv16_yuy2_simd(uint8_t *dst, uint8_t *src1,
     mc5a = _mm_loadu_si128((const __m128i *)(src5 + src_frame_pixels));
     mc7a = _mm_loadu_si128((const __m128i *)(src7 + src_frame_pixels));
 
-    __m128i msipa, msipb;
     afs_mask_extend16(msipa, msipb, mmask, sip);
 
     //YUY2->YC48に変換
