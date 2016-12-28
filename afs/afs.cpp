@@ -583,7 +583,7 @@ int check_default[] = { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
 FILTER_DLL filter = {
 #ifndef AFSVF
     FILTER_FLAG_INTERLACE_FILTER|FILTER_FLAG_EX_INFORMATION|FILTER_FLAG_WINDOW_SIZE|FILTER_FLAG_EX_DATA,
-    320,616, //window size
+    320,626, //window size
 #else
     FILTER_FLAG_NO_INIT_DATA|FILTER_FLAG_EX_INFORMATION,
     0,0, //window size
@@ -2604,11 +2604,13 @@ BOOL func_is_saveframe(FILTER *fp, void *editp, int saveno, int frame, int fps, 
 #define ID_BUTTON_STRIPE   40009
 #define ID_BUTTON_MOTION   40010
 #define ID_BUTTON_HDTV     40011
-#define ID_LABEL_PROC_MODE 40012
-#define ID_COMBO_PROC_MODE 40013
+#define ID_BUTTON_STG_SAVE 40012
+#define ID_BUTTON_STG_LOAD 40013
+#define ID_LABEL_PROC_MODE 40014
+#define ID_COMBO_PROC_MODE 40015
 
 HFONT b_font;
-HWND b_default, b_lv1, b_lv2, b_lv3, b_lv4, b_24fps, b_24fps_hd, b_30fps, b_stripe, b_motion, b_hdtv, lb_proc_mode, cx_proc_mode;
+HWND b_default, b_lv1, b_lv2, b_lv3, b_lv4, b_24fps, b_24fps_hd, b_30fps, b_stripe, b_motion, b_hdtv, b_stgload, b_stgsave, lb_proc_mode, cx_proc_mode;
 
 static void init_dialog(HWND hwnd, FILTER *fp);
 static void on_lvdefault_button(FILTER *fp);
@@ -2622,6 +2624,8 @@ static void on_30fps_button(FILTER *fp);
 static void on_stripe_button(FILTER *fp);
 static void on_motion_button(FILTER *fp);
 static void on_hdtv_button(FILTER *fp);
+static void on_stg_load_button(FILTER *fp);
+static void on_stg_save_button(FILTER *fp);
 static int  set_combo_item(void *string, int data);
 static void del_combo_item(void *string);
 static void change_cx_param();
@@ -2680,6 +2684,12 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
         case ID_BUTTON_HDTV:
             on_hdtv_button(fp);
             break;
+        case ID_BUTTON_STG_SAVE:
+            on_stg_save_button(fp);
+            break;
+        case ID_BUTTON_STG_LOAD:
+            on_stg_load_button(fp);
+            break;
 #ifndef AFSVF
         case ID_COMBO_PROC_MODE: // コンボボックス
             switch (HIWORD(wparam)) {
@@ -2707,7 +2717,7 @@ BOOL func_WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, void*, 
 }
 
 static void init_dialog(HWND hwnd, FILTER *fp) {
-    int top = 330;
+    int top = 325;
     HINSTANCE hinst = fp->dll_hinst;
 
     b_font = CreateFont(14, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "Meiryo UI");
@@ -2745,12 +2755,18 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
     b_hdtv   = CreateWindow("BUTTON", "解除Lv0(HD)", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+200, 90, 18, hwnd, (HMENU)ID_BUTTON_HDTV, hinst, NULL);
     SendMessage(b_hdtv, WM_SETFONT, (WPARAM)b_font, 0);
 
+    b_stgsave = CreateWindow("BUTTON", "設定保存", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+225, 90, 18, hwnd, (HMENU)ID_BUTTON_STG_SAVE, hinst, NULL);
+    SendMessage(b_stgsave, WM_SETFONT, (WPARAM)b_font, 0);
+
+    b_stgload   = CreateWindow("BUTTON", "設定ロード", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top+245, 90, 18, hwnd, (HMENU)ID_BUTTON_STG_LOAD, hinst, NULL);
+    SendMessage(b_stgload, WM_SETFONT, (WPARAM)b_font, 0);
+
 #ifndef AFSVF
-    lb_proc_mode = CreateWindow("static", "", SS_SIMPLE|WS_CHILD|WS_VISIBLE, 8, top+238, 60, 24, hwnd, (HMENU)ID_LABEL_PROC_MODE, hinst, NULL);
+    lb_proc_mode = CreateWindow("static", "", SS_SIMPLE|WS_CHILD|WS_VISIBLE, 8, top+243, 60, 24, hwnd, (HMENU)ID_LABEL_PROC_MODE, hinst, NULL);
     SendMessage(lb_proc_mode, WM_SETFONT, (WPARAM)b_font, 0);
     SendMessage(lb_proc_mode, WM_SETTEXT, 0, (LPARAM)"解析モード");
 
-    cx_proc_mode = CreateWindow("COMBOBOX", "", WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL, 70, top+234, 234, 100, hwnd, (HMENU)ID_COMBO_PROC_MODE, hinst, NULL);
+    cx_proc_mode = CreateWindow("COMBOBOX", "", WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL, 65, top+241, 145, 100, hwnd, (HMENU)ID_COMBO_PROC_MODE, hinst, NULL);
     SendMessage(cx_proc_mode, WM_SETFONT, (WPARAM)b_font, 0);
 
     if (!g_yuy2_table_called) {
@@ -2968,6 +2984,56 @@ static void on_hdtv_button(FILTER *fp) {
     fp->check[9]  = 0;
     fp->check[11] = 0;
     fp->exfunc->filter_window_update(fp);
+}
+
+#include "afs_stg.h"
+
+static void on_stg_load_button(FILTER *fp) {
+    char filename[MAX_PATH] = { 0 };
+    // ロードファイル名取得
+    BOOL res = fp->exfunc->dlg_get_load_name(filename, AFS_STG_FILTER, NULL);
+    if (res == FALSE) // キャンセル
+        return;
+    fp->track[0]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_UP,               fp->track[0],  filename);
+    fp->track[1]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_BOTTOM,           fp->track[1],  filename);
+    fp->track[2]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_LEFT,             fp->track[2],  filename);
+    fp->track[3]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_RIGHT,            fp->track[3],  filename);
+    fp->track[4]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_METHOD_WATERSHED, fp->track[4],  filename);
+    fp->track[5]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_COEFF_SHIFT,      fp->track[5],  filename);
+    fp->track[6]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_SHIFT,       fp->track[6],  filename);
+    fp->track[7]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_DEINT,       fp->track[7],  filename);
+    fp->track[8]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_Y_MOTION,    fp->track[8],  filename);
+    fp->track[9]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_C_MOTION,    fp->track[9],  filename);
+    fp->track[10] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_MODE,             fp->track[10], filename);
+    fp->track[11] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THREADS,          fp->track[11], filename);
+    if (TRACK_N >= 13) {
+        fp->track[12] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_SUB_THREADS,  fp->track[12], filename);
+    }
+    fp->check[0]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_FIELD_SHIFT,      fp->check[0],  filename);
+    fp->check[1]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_DROP,             fp->check[1],  filename);
+    fp->check[2]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_SMOOTH,           fp->check[2],  filename);
+    fp->check[3]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_FORCE24,          fp->check[3],  filename);
+    fp->check[4]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_DETECT_SC,        fp->check[4],  filename);
+    fp->check[5]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_TUNE_MODE,        fp->check[5],  filename);
+    fp->check[6]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_LOG_SAVE,         fp->check[6],  filename);
+    fp->check[7]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_TRACE_MODE,       fp->check[7],  filename);
+    fp->check[8]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_REPLAY_MODE,      fp->check[8],  filename);
+    fp->check[9]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_YUY2UPSAMPLE,     fp->check[9],  filename);
+    fp->check[10] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THROUGH_MODE,     fp->check[10], filename);
+
+    g_afs.ex_data.proc_mode = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_PROC_MODE, g_afs.ex_data.proc_mode, filename);
+    update_cx(g_afs.ex_data.proc_mode);
+
+    fp->exfunc->filter_window_update(fp);
+}
+
+static void on_stg_save_button(FILTER *fp) {
+    char filename[MAX_PATH];
+    strcpy_s(filename, "afs_stg.ini");
+    BOOL res = fp->exfunc->dlg_get_save_name(filename, AFS_STG_FILTER, filename);
+    if (res == FALSE) // キャンセル
+        return;
+    write_stg_file(filename, fp->track, fp->track_n, fp->check, fp->check_n, g_afs.ex_data.proc_mode);
 }
 
 static void change_cx_param() {

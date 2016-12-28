@@ -438,6 +438,7 @@
     <ClInclude Include="afs_opencl.h" />
     <ClInclude Include="afs_server.h" />
     <ClInclude Include="afs_simd.h" />
+    <ClInclude Include="afs_stg.h" />
     <ClInclude Include="afs_version.h" />
     <ClInclude Include="afs_yuy2up_mmx.h" />
     <ClInclude Include="afs_yuy2up_simd.h" />
