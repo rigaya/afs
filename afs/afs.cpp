@@ -1339,8 +1339,8 @@ void store_pixel_yc(uint16_t *_ptr, PIXEL_YC ycp, int pos_x) {
         ptr[0] = yuv_temp.y;
     } else {
         ptr[0] = yuv_temp.y;
-        ptr[1] = yuv_temp.v;
-        ptr[3] = yuv_temp.u;
+        ptr[1] = yuv_temp.u;
+        ptr[3] = yuv_temp.v;
     }
 }
 void store_pixel_yc(PIXEL_YC *ptr, PIXEL_YC ycp, int pos_x) {
