@@ -159,6 +159,9 @@
   <ItemGroup>
     <ClInclude Include="aviutl_sav_parser.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="save_stg_afs.rc" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
