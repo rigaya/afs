@@ -9,6 +9,18 @@
 #include "../afs/afs_stg.h"
 #include "aviutl_sav_parser.h"
 
+void write_stg_file(bool bForVF, const std::string& output_file_name, FilterConfig *afs_conf) {
+    int proc_mode = 0x00;
+    if (afs_conf->other_data.size() > 0) {
+        AFS_EX_DATA *ex_data = (AFS_EX_DATA *)afs_conf->other_data.data();
+        proc_mode = ex_data->proc_mode;
+    }
+    write_stg_file(bForVF, output_file_name.c_str(),
+        afs_conf->track_data.data(), afs_conf->track_data.size(),
+        afs_conf->check_data.data(), afs_conf->check_data.size(),
+        proc_mode);
+}
+
 int save_stg_afs(const char *filename) {
     int ret = 1;
     using namespace std;
@@ -23,15 +35,13 @@ int save_stg_afs(const char *filename) {
         auto size_read = filter_config.parse(vector<char>(file_data.begin(), file_data.end()), 0);
         if (size_read > 0) {
             auto afs_conf = filter_config.find_filter("自動フィールドシフト");
-            int proc_mode = 0x00;
-            if (afs_conf->other_data.size() > 0) {
-                AFS_EX_DATA *ex_data = (AFS_EX_DATA *)afs_conf->other_data.data();
-                proc_mode = ex_data->proc_mode;
+            if (afs_conf) {
+                write_stg_file(false, output_file_name, afs_conf);
             }
-            write_stg_file(output_file_name.c_str(),
-                afs_conf->track_data.data(), afs_conf->track_data.size(),
-                afs_conf->check_data.data(), afs_conf->check_data.size(),
-                proc_mode);
+            afs_conf = filter_config.find_filter("自動フィールドシフトVF");
+            if (afs_conf) {
+                write_stg_file(true, output_file_name, afs_conf);
+            }
             ret = 0;
         }
     }

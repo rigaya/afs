@@ -585,8 +585,8 @@ FILTER_DLL filter = {
     FILTER_FLAG_INTERLACE_FILTER|FILTER_FLAG_EX_INFORMATION|FILTER_FLAG_WINDOW_SIZE|FILTER_FLAG_EX_DATA,
     320,626, //window size
 #else
-    FILTER_FLAG_NO_INIT_DATA|FILTER_FLAG_EX_INFORMATION,
-    0,0, //window size
+    FILTER_FLAG_NO_INIT_DATA|FILTER_FLAG_EX_INFORMATION|FILTER_FLAG_WINDOW_SIZE|FILTER_FLAG_EX_DATA,
+    320,626, //window size
 #endif
     filter_name,
     TRACK_N,
@@ -2016,9 +2016,12 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
 #else
     const int cache_nv16_mode = 0;
     const int use_opencl = 0;
+    const int use_opencl_svm = 0;
 #endif
     if (((g_afs.afs_mode & AFS_MODE_OPENCL) != 0) != (use_opencl != 0)) {
+#ifndef AFSVF
         free_source_cache();
+#endif
         free_analyze_cache();
     }
 
@@ -2994,34 +2997,39 @@ static void on_stg_load_button(FILTER *fp) {
     BOOL res = fp->exfunc->dlg_get_load_name(filename, AFS_STG_FILTER, NULL);
     if (res == FALSE) // キャンセル
         return;
-    fp->track[0]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_UP,               fp->track[0],  filename);
-    fp->track[1]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_BOTTOM,           fp->track[1],  filename);
-    fp->track[2]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_LEFT,             fp->track[2],  filename);
-    fp->track[3]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_RIGHT,            fp->track[3],  filename);
-    fp->track[4]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_METHOD_WATERSHED, fp->track[4],  filename);
-    fp->track[5]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_COEFF_SHIFT,      fp->track[5],  filename);
-    fp->track[6]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_SHIFT,       fp->track[6],  filename);
-    fp->track[7]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_DEINT,       fp->track[7],  filename);
-    fp->track[8]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_Y_MOTION,    fp->track[8],  filename);
-    fp->track[9]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_C_MOTION,    fp->track[9],  filename);
-    fp->track[10] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_MODE,             fp->track[10], filename);
-    fp->track[11] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THREADS,          fp->track[11], filename);
+#ifdef AFSVF
+    auto section = AFSVF_STG_SECTION;
+#else
+    auto section = AFS_STG_SECTION;
+#endif
+    fp->track[0]  = GetPrivateProfileInt(section, AFS_STG_UP,               fp->track[0],  filename);
+    fp->track[1]  = GetPrivateProfileInt(section, AFS_STG_BOTTOM,           fp->track[1],  filename);
+    fp->track[2]  = GetPrivateProfileInt(section, AFS_STG_LEFT,             fp->track[2],  filename);
+    fp->track[3]  = GetPrivateProfileInt(section, AFS_STG_RIGHT,            fp->track[3],  filename);
+    fp->track[4]  = GetPrivateProfileInt(section, AFS_STG_METHOD_WATERSHED, fp->track[4],  filename);
+    fp->track[5]  = GetPrivateProfileInt(section, AFS_STG_COEFF_SHIFT,      fp->track[5],  filename);
+    fp->track[6]  = GetPrivateProfileInt(section, AFS_STG_THRE_SHIFT,       fp->track[6],  filename);
+    fp->track[7]  = GetPrivateProfileInt(section, AFS_STG_THRE_DEINT,       fp->track[7],  filename);
+    fp->track[8]  = GetPrivateProfileInt(section, AFS_STG_THRE_Y_MOTION,    fp->track[8],  filename);
+    fp->track[9]  = GetPrivateProfileInt(section, AFS_STG_THRE_C_MOTION,    fp->track[9],  filename);
+    fp->track[10] = GetPrivateProfileInt(section, AFS_STG_MODE,             fp->track[10], filename);
+    fp->track[11] = GetPrivateProfileInt(section, AFS_STG_THREADS,          fp->track[11], filename);
     if (TRACK_N >= 13) {
-        fp->track[12] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_SUB_THREADS,  fp->track[12], filename);
+        fp->track[12] = GetPrivateProfileInt(section, AFS_STG_SUB_THREADS,  fp->track[12], filename);
     }
-    fp->check[0]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_FIELD_SHIFT,      fp->check[0],  filename);
-    fp->check[1]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_DROP,             fp->check[1],  filename);
-    fp->check[2]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_SMOOTH,           fp->check[2],  filename);
-    fp->check[3]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_FORCE24,          fp->check[3],  filename);
-    fp->check[4]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_DETECT_SC,        fp->check[4],  filename);
-    fp->check[5]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_TUNE_MODE,        fp->check[5],  filename);
-    fp->check[6]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_LOG_SAVE,         fp->check[6],  filename);
-    fp->check[7]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_TRACE_MODE,       fp->check[7],  filename);
-    fp->check[8]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_REPLAY_MODE,      fp->check[8],  filename);
-    fp->check[9]  = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_YUY2UPSAMPLE,     fp->check[9],  filename);
-    fp->check[10] = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_THROUGH_MODE,     fp->check[10], filename);
+    fp->check[0]  = GetPrivateProfileInt(section, AFS_STG_FIELD_SHIFT,      fp->check[0],  filename);
+    fp->check[1]  = GetPrivateProfileInt(section, AFS_STG_DROP,             fp->check[1],  filename);
+    fp->check[2]  = GetPrivateProfileInt(section, AFS_STG_SMOOTH,           fp->check[2],  filename);
+    fp->check[3]  = GetPrivateProfileInt(section, AFS_STG_FORCE24,          fp->check[3],  filename);
+    fp->check[4]  = GetPrivateProfileInt(section, AFS_STG_DETECT_SC,        fp->check[4],  filename);
+    fp->check[5]  = GetPrivateProfileInt(section, AFS_STG_TUNE_MODE,        fp->check[5],  filename);
+    fp->check[6]  = GetPrivateProfileInt(section, AFS_STG_LOG_SAVE,         fp->check[6],  filename);
+    fp->check[7]  = GetPrivateProfileInt(section, AFS_STG_TRACE_MODE,       fp->check[7],  filename);
+    fp->check[8]  = GetPrivateProfileInt(section, AFS_STG_REPLAY_MODE,      fp->check[8],  filename);
+    fp->check[9]  = GetPrivateProfileInt(section, AFS_STG_YUY2UPSAMPLE,     fp->check[9],  filename);
+    fp->check[10] = GetPrivateProfileInt(section, AFS_STG_THROUGH_MODE,     fp->check[10], filename);
 
-    g_afs.ex_data.proc_mode = GetPrivateProfileInt(AFS_STG_SECTION, AFS_STG_PROC_MODE, g_afs.ex_data.proc_mode, filename);
+    g_afs.ex_data.proc_mode = GetPrivateProfileInt(section, AFS_STG_PROC_MODE, g_afs.ex_data.proc_mode, filename);
     update_cx(g_afs.ex_data.proc_mode);
 
     fp->exfunc->filter_window_update(fp);
@@ -3033,7 +3041,12 @@ static void on_stg_save_button(FILTER *fp) {
     BOOL res = fp->exfunc->dlg_get_save_name(filename, AFS_STG_FILTER, filename);
     if (res == FALSE) // キャンセル
         return;
-    write_stg_file(filename, fp->track, fp->track_n, fp->check, fp->check_n, g_afs.ex_data.proc_mode);
+#ifdef AFSVF
+    bool bForVF = true;
+#else
+    bool bForVF = false;
+#endif
+    write_stg_file(bForVF, filename, fp->track, fp->track_n, fp->check, fp->check_n, g_afs.ex_data.proc_mode);
 }
 
 static void change_cx_param() {

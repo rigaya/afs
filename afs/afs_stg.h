@@ -31,7 +31,8 @@ static const char *const AFS_STG_YUY2UPSAMPLE     = "yuy2upsample";
 static const char *const AFS_STG_THROUGH_MODE     = "through_mode";
 static const char *const AFS_STG_PROC_MODE        = "proc_mode";
 
-#define AFS_STG_SECTION "AFS_STG"
+#define AFS_STG_SECTION   "AFS_STG"
+#define AFSVF_STG_SECTION "AFSVF_STG"
 #define AFS_STG_FILTER  "設定ファイル (*.ini)\0*.ini\0" "全てのファイル (*.*)\0*.*\0"
 
 static inline void WritePrivateProfileInt(const char *section, const char *keyname, int value, const char *ini_file) {
@@ -40,33 +41,34 @@ static inline void WritePrivateProfileInt(const char *section, const char *keyna
     WritePrivateProfileString(section, keyname, tmp, ini_file);
 }
 
-static void write_stg_file(const char *filename, int *track, int track_n, int *check, int check_n, int proc_mode) {
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_UP,               track[0],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_BOTTOM,           track[1],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_LEFT,             track[2],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_RIGHT,            track[3],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_METHOD_WATERSHED, track[4],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_COEFF_SHIFT,      track[5],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_SHIFT,       track[6],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_DEINT,       track[7],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_Y_MOTION,    track[8],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_THRE_C_MOTION,    track[9],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_MODE,             track[10], filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_THREADS,          track[11], filename);
+static void write_stg_file(bool bForVF, const char *filename, int *track, int track_n, int *check, int check_n, int proc_mode) {
+    auto section = (bForVF) ? AFSVF_STG_SECTION : AFS_STG_SECTION;
+    WritePrivateProfileInt(section, AFS_STG_UP,               track[0],  filename);
+    WritePrivateProfileInt(section, AFS_STG_BOTTOM,           track[1],  filename);
+    WritePrivateProfileInt(section, AFS_STG_LEFT,             track[2],  filename);
+    WritePrivateProfileInt(section, AFS_STG_RIGHT,            track[3],  filename);
+    WritePrivateProfileInt(section, AFS_STG_METHOD_WATERSHED, track[4],  filename);
+    WritePrivateProfileInt(section, AFS_STG_COEFF_SHIFT,      track[5],  filename);
+    WritePrivateProfileInt(section, AFS_STG_THRE_SHIFT,       track[6],  filename);
+    WritePrivateProfileInt(section, AFS_STG_THRE_DEINT,       track[7],  filename);
+    WritePrivateProfileInt(section, AFS_STG_THRE_Y_MOTION,    track[8],  filename);
+    WritePrivateProfileInt(section, AFS_STG_THRE_C_MOTION,    track[9],  filename);
+    WritePrivateProfileInt(section, AFS_STG_MODE,             track[10], filename);
+    WritePrivateProfileInt(section, AFS_STG_THREADS,          track[11], filename);
     if (track_n >= 13) {
-        WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_SUB_THREADS,  track[12], filename);
+        WritePrivateProfileInt(section, AFS_STG_SUB_THREADS,  track[12], filename);
     }
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_FIELD_SHIFT,      check[0],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_DROP,             check[1],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_SMOOTH,           check[2],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_FORCE24,          check[3],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_DETECT_SC,        check[4],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_TUNE_MODE,        check[5],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_LOG_SAVE,         check[6],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_TRACE_MODE,       check[7],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_REPLAY_MODE,      check[8],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_YUY2UPSAMPLE,     check[9],  filename);
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_THROUGH_MODE,     check[10], filename);
+    WritePrivateProfileInt(section, AFS_STG_FIELD_SHIFT,      check[0],  filename);
+    WritePrivateProfileInt(section, AFS_STG_DROP,             check[1],  filename);
+    WritePrivateProfileInt(section, AFS_STG_SMOOTH,           check[2],  filename);
+    WritePrivateProfileInt(section, AFS_STG_FORCE24,          check[3],  filename);
+    WritePrivateProfileInt(section, AFS_STG_DETECT_SC,        check[4],  filename);
+    WritePrivateProfileInt(section, AFS_STG_TUNE_MODE,        check[5],  filename);
+    WritePrivateProfileInt(section, AFS_STG_LOG_SAVE,         check[6],  filename);
+    WritePrivateProfileInt(section, AFS_STG_TRACE_MODE,       check[7],  filename);
+    WritePrivateProfileInt(section, AFS_STG_REPLAY_MODE,      check[8],  filename);
+    WritePrivateProfileInt(section, AFS_STG_YUY2UPSAMPLE,     check[9],  filename);
+    WritePrivateProfileInt(section, AFS_STG_THROUGH_MODE,     check[10], filename);
 
-    WritePrivateProfileInt(AFS_STG_SECTION, AFS_STG_PROC_MODE,        proc_mode, filename);
+    WritePrivateProfileInt(section, AFS_STG_PROC_MODE,        proc_mode, filename);
 }
