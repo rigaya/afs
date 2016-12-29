@@ -246,6 +246,7 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
 }
 
 int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL) {
+#if ENABLE_OPENCL
     if (afs->opencl.device_check == AFS_OPENCL_DEVICE_CHECK_FAIL) {
         return 1;
     }
@@ -261,6 +262,9 @@ int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL) {
         afs->opencl.hModuleDLL = hModuleDLL;
     }
     return 0;
+#else
+    return 1;
+#endif
 }
 
 int afs_opencl_init(AFS_CONTEXT *afs) {
