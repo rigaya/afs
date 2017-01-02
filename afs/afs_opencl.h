@@ -21,6 +21,7 @@ typedef struct _AFS_OPENCL {
     cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];
     int source_w, source_h;
     cl_mem scan_mem[AFS_SCAN_CACHE_NUM];
+    cl_mem stripe_mem[AFS_STRIPE_CACHE_NUM];
     int scan_w, scan_h;
     cl_mem motion_count_temp[AFS_SCAN_CACHE_NUM];
     unsigned short *motion_count_temp_map[AFS_SCAN_CACHE_NUM];
@@ -45,6 +46,8 @@ cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i, bool force = false)
 int    afs_opencl_scan_buffer_index(AFS_CONTEXT *afs, void *p0);
 cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs, int i);
 cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs, int i, bool force = false);
+cl_int afs_opencl_stripe_buffer_map(AFS_CONTEXT *afs, int i);
+cl_int afs_opencl_stripe_buffer_unmap(AFS_CONTEXT *afs, int i, bool force = false);
 
 cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs);
 

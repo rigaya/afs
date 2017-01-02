@@ -84,10 +84,23 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
             clSVMFree(afs->opencl.ctx, ptr);
         }
     }
+    for (int i = 0; i < _countof(afs->opencl.stripe_mem); i++) {
+        //afs_opencl_stripe_buffer_unmap()を呼ぶとnullにされるので、その前に取り出しておく
+        unsigned char *ptr = afs->stripe_array[i].map;
+        afs_opencl_stripe_buffer_unmap(afs, i, true);
+        if (afs->opencl.stripe_mem[i]) {
+            clReleaseMemObject(afs->opencl.stripe_mem[i]);
+        }
+        afs->stripe_array[i].status = 0;
+        //取り出しておいたポインタを戻す
+        //これはafs.cppのfree_analyze_cache()のほうで解放される
+        afs->stripe_array[i].map = ptr;
+    }
     clFinish(afs->opencl.queue);
     memset(afs->opencl.source_img, 0, sizeof(afs->opencl.source_img));
     memset(afs->opencl.source_buf, 0, sizeof(afs->opencl.source_buf));
     memset(afs->opencl.scan_mem,   0, sizeof(afs->opencl.scan_mem));
+    memset(afs->opencl.stripe_mem, 0, sizeof(afs->opencl.stripe_mem));
     memset(afs->opencl.motion_count_temp,     0, sizeof(afs->opencl.motion_count_temp));
     memset(afs->opencl.motion_count_temp_map, 0, sizeof(afs->opencl.motion_count_temp_map));
 }
@@ -485,6 +498,31 @@ cl_int afs_opencl_scan_buffer_unmap(AFS_CONTEXT *afs, int i, bool force) {
     return ret;
 }
 
+cl_int afs_opencl_stripe_buffer_map(AFS_CONTEXT *afs, int i) {
+    cl_int ret = CL_SUCCESS;
+    if (afs->stripe_array[i].map != nullptr) {
+        return ret;
+    }
+    const int size = (afs->opencl.scan_w * afs->opencl.scan_h + 63) & ~63;
+    afs->stripe_array[i].map = (unsigned char *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.stripe_mem[i], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+        0, size, 0, NULL, NULL, &ret);
+    return ret;
+}
+
+cl_int afs_opencl_stripe_buffer_unmap(AFS_CONTEXT *afs, int i, bool force) {
+    if (afs->stripe_array[i].map == nullptr) {
+        return CL_SUCCESS;
+    }
+    if (!force && (afs->afs_mode & AFS_MODE_OPENCL_SVMF)) {
+        return CL_SUCCESS;
+    }
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.stripe_mem[i], afs->stripe_array[i].map, 0, NULL, NULL);
+    if (ret == CL_SUCCESS) {
+        afs->stripe_array[i].map = nullptr;
+    }
+    return ret;
+}
+
 int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
     const int size = (si_w * h + 63) & ~63;
     afs->opencl.scan_w = si_w;
@@ -516,6 +554,17 @@ int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
             afs->opencl.motion_count_temp[i] = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, afs->opencl.motion_count_temp_max, nullptr, &ret);
         }
         afs_opencl_count_motion_temp_map(afs, i);
+    }
+    for (int i = 0; i < _countof(afs->stripe_array); i++) {
+        cl_int ret = CL_SUCCESS;
+        afs->opencl.stripe_mem[i] = clCreateBuffer(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size, afs->stripe_array[i].map, &ret);
+        if (ret != CL_SUCCESS) {
+            return 1;
+        }
+        //afs->scan_array[i].mapはafs_opencl_stripe_buffer_map()で再取得するため、ここではnullptrにしておく
+        afs->stripe_array[i].map = nullptr;
+        afs_opencl_stripe_buffer_map(afs, i);
+        afs->stripe_array[i].status = 0;
     }
     //キューの完了を待つ: 重要!!
     clFinish(afs->opencl.queue);
