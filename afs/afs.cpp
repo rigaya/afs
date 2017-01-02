@@ -339,20 +339,37 @@ void __stdcall yuy2up(int thread_id) {
 }
 #endif
 
+bool inline check_source_cache_hit(int frame, int file_id, int video_number, int yuy2upsample) {
+    AFS_SOURCE_DATA *srp = sourcep(frame);
+    return srp->status > 0 && srp->frame == frame && srp->file_id == file_id &&
+        srp->video_number == video_number && srp->yuy2upsample == yuy2upsample;
+}
+
+bool inline check_source_cache_hit(FILTER *fp, void *editp, int frame) {
+    int file_id, video_number;
+#ifndef AFSNFS
+    if (fp->exfunc->get_source_video_number(editp, frame, &file_id, &video_number) != TRUE)
+#endif
+        file_id = video_number = 0;
+
+    int yuy2upsample = fp->check[10] ? 1 : 0;
+    return check_source_cache_hit(frame, file_id, video_number, yuy2upsample);
+}
+
 void* get_source_cache(FILTER *fp, void *editp, int frame, int w, int max_w, int h, int *hit) {
     int file_id, video_number;
 #ifndef AFSNFS
     if (fp->exfunc->get_source_video_number(editp, frame, &file_id, &video_number) != TRUE)
 #endif
         file_id = video_number = 0;
-    int yuy2upsample = fp->check[10] ? 1 : 0;
 
+    const int yuy2upsample = fp->check[10] ? 1 : 0;
     AFS_SOURCE_DATA *srp = sourcep(frame);
-
-    if (srp->status > 0 && srp->frame == frame && srp->file_id == file_id &&
-        srp->video_number == video_number && srp->yuy2upsample == yuy2upsample) {
-            if(hit != NULL) *hit = 1;
-            return srp->map;
+    if (check_source_cache_hit(frame, file_id, video_number, yuy2upsample)) {
+        if (hit != NULL) {
+            *hit = 1;
+        }
+        return srp->map;
     }
     if (hit != NULL) *hit = 0;
 
