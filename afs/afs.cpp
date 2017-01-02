@@ -317,8 +317,7 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
         g_afs.source_w = source_w;
 
         if (g_afs.afs_mode & AFS_MODE_OPENCL) {
-            if (afs_opencl_create_source_buffer(&g_afs, source_w, max_h)
-                || afs_opencl_create_motion_count_temp(&g_afs, source_w, max_h)) {
+            if (afs_opencl_create_source_buffer(&g_afs, source_w, max_h)) {
                 return FALSE;
             }
         } 
@@ -1003,7 +1002,7 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
         afs_opencl_source_buffer_unmap(&g_afs, p0_idx);
         afs_opencl_source_buffer_unmap(&g_afs, p1_idx);
         afs_opencl_scan_buffer_unmap(&g_afs, sp_idx);
-        afs_opencl_count_motion_temp_unmap(&g_afs);
+        afs_opencl_count_motion_temp_unmap(&g_afs, sp_idx);
 
         int global_block_count = 0;
         afs_opencl_analyze_12_nv16(&g_afs, sp_idx, p0_idx, p1_idx, tb_order, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, &global_block_count);
@@ -1011,13 +1010,13 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
         afs_opencl_source_buffer_map(&g_afs, p0_idx);
         afs_opencl_source_buffer_map(&g_afs, p1_idx);
         afs_opencl_scan_buffer_map(&g_afs, sp_idx);
-        afs_opencl_count_motion_temp_map(&g_afs);
+        afs_opencl_count_motion_temp_map(&g_afs, sp_idx);
         afs_opencl_queue_finish(&g_afs);
 
         int motion_count[2] = { 0 };
         for (int i = 0; i < global_block_count; i++) {
-            motion_count[0] += g_afs.opencl.motion_count_temp_map[2*i+0];
-            motion_count[1] += g_afs.opencl.motion_count_temp_map[2*i+1];
+            motion_count[0] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+0];
+            motion_count[1] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+1];
         }
         int idx = sp - g_afs.scan_array;
         memcpy(g_afs.scan_motion_count[idx], motion_count, sizeof(motion_count));

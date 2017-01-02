@@ -72,12 +72,12 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
         //これはafs.cppのfree_analyze_cache()のほうで解放される
         afs->scan_array[i].map = ptr;
     }
-    {
+    for (int i = 0; i < _countof(afs->opencl.motion_count_temp); i++) {
         //afs_opencl_count_motion_temp_unmap()を呼ぶとnullにされるので、その前に取り出しておく
-        void *ptr = afs->opencl.motion_count_temp_map;
-        afs_opencl_count_motion_temp_unmap(afs, true);
-        if (afs->opencl.motion_count_temp) {
-            clReleaseMemObject(afs->opencl.motion_count_temp);
+        void *ptr = afs->opencl.motion_count_temp_map[i];
+        afs_opencl_count_motion_temp_unmap(afs, i, true);
+        if (afs->opencl.motion_count_temp[i]) {
+            clReleaseMemObject(afs->opencl.motion_count_temp[i]);
         }
         //SVM Modeなら、clSVMFree()による開放も必要
         if (afs->afs_mode & AFS_MODE_OPENCL_SVMF) {
@@ -88,7 +88,8 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
     memset(afs->opencl.source_img, 0, sizeof(afs->opencl.source_img));
     memset(afs->opencl.source_buf, 0, sizeof(afs->opencl.source_buf));
     memset(afs->opencl.scan_mem,   0, sizeof(afs->opencl.scan_mem));
-    afs->opencl.motion_count_temp = NULL;
+    memset(afs->opencl.motion_count_temp,     0, sizeof(afs->opencl.motion_count_temp));
+    memset(afs->opencl.motion_count_temp_map, 0, sizeof(afs->opencl.motion_count_temp_map));
 }
 
 void afs_opencl_close(AFS_CONTEXT *afs) {
@@ -435,50 +436,26 @@ int afs_opencl_create_source_buffer(AFS_CONTEXT *afs, int w, int h) {
     return 0;
 }
 
-int afs_opencl_create_motion_count_temp(AFS_CONTEXT *afs, int w, int h) {
-    const int global_block_count = ICEILDIV(ICEILDIV((size_t)w, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
-    afs->opencl.motion_count_temp_max = (global_block_count + 63) & ~63;
+cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs, int i) {
     cl_int ret = CL_SUCCESS;
-    if (afs->afs_mode & AFS_MODE_OPENCL_SVMF) {
-        afs->opencl.motion_count_temp_map = (uint16_t *)clSVMAlloc(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_SVM_FINE_GRAIN_BUFFER, afs->opencl.motion_count_temp_max, 0);
-        if (afs->opencl.motion_count_temp_map == nullptr) {
-            return 1;
-        }
-        afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, afs->opencl.motion_count_temp_max, afs->opencl.motion_count_temp_map, &ret);
-        //afs->opencl.motion_count_temp_mapはafs_opencl_count_motion_temp_map()で再取得するため、ここではnullptrにしておく
-        afs->opencl.motion_count_temp_map = nullptr;
-    } else {
-        afs->opencl.motion_count_temp = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, afs->opencl.motion_count_temp_max, nullptr, &ret);
-    }
-    if (ret != CL_SUCCESS) {
-        return 1;
-    }
-    afs_opencl_count_motion_temp_map(afs);
-    //キューの完了を待つ: 重要!!
-    clFinish(afs->opencl.queue);
-    return 0;
-}
-
-cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs) {
-    cl_int ret = CL_SUCCESS;
-    if (afs->opencl.motion_count_temp_map != nullptr) {
+    if (afs->opencl.motion_count_temp_map[i] != nullptr) {
         return ret;
     }
-    afs->opencl.motion_count_temp_map = (unsigned short *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.motion_count_temp, CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
+    afs->opencl.motion_count_temp_map[i] = (unsigned short *)clEnqueueMapBuffer(afs->opencl.queue, afs->opencl.motion_count_temp[i], CL_FALSE, CL_MAP_WRITE | CL_MAP_READ,
         0, afs->opencl.motion_count_temp_max, 0, NULL, NULL, &ret);
     return ret;
 }
 
-cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs, bool force) {
-    if (afs->opencl.motion_count_temp_map == nullptr) {
+cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs, int i, bool force) {
+    if (afs->opencl.motion_count_temp_map[i] == nullptr) {
         return CL_SUCCESS;
     }
     if (!force && (afs->afs_mode & AFS_MODE_OPENCL_SVMF)) {
         return CL_SUCCESS;
     }
-    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.motion_count_temp, afs->opencl.motion_count_temp_map, 0, NULL, NULL);
+    cl_int ret = clEnqueueUnmapMemObject(afs->opencl.queue, afs->opencl.motion_count_temp[i], afs->opencl.motion_count_temp_map[i], 0, NULL, NULL);
     if (ret == CL_SUCCESS) {
-        afs->opencl.motion_count_temp_map = nullptr;
+        afs->opencl.motion_count_temp_map[i] = nullptr;
     }
     return ret;
 }
@@ -512,6 +489,9 @@ int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
     const int size = (si_w * h + 63) & ~63;
     afs->opencl.scan_w = si_w;
     afs->opencl.scan_h = h;
+    const int global_block_count = ICEILDIV(ICEILDIV((size_t)si_w, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
+    afs->opencl.motion_count_temp_max = (global_block_count + 63) & ~63;
+
     for (int i = 0; i < _countof(afs->scan_array); i++) {
         cl_int ret = CL_SUCCESS;
         afs->opencl.scan_mem[i] = clCreateBuffer(afs->opencl.ctx, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size, afs->scan_array[i].map, &ret);
@@ -522,6 +502,20 @@ int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
         afs->scan_array[i].map = nullptr;
         afs_opencl_scan_buffer_map(afs, i);
         afs->scan_array[i].status = 0;
+
+        //motion_count用のバッファも作成
+        if (afs->afs_mode & AFS_MODE_OPENCL_SVMF) {
+            afs->opencl.motion_count_temp_map[i] = (uint16_t *)clSVMAlloc(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_SVM_FINE_GRAIN_BUFFER, afs->opencl.motion_count_temp_max, 0);
+            if (afs->opencl.motion_count_temp_map[i] == nullptr) {
+                return 1;
+            }
+            afs->opencl.motion_count_temp[i] = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, afs->opencl.motion_count_temp_max, afs->opencl.motion_count_temp_map[i], &ret);
+            //afs->opencl.motion_count_temp_mapはafs_opencl_count_motion_temp_map()で再取得するため、ここではnullptrにしておく
+            afs->opencl.motion_count_temp_map[i] = nullptr;
+        } else {
+            afs->opencl.motion_count_temp[i] = clCreateBuffer(afs->opencl.ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, afs->opencl.motion_count_temp_max, nullptr, &ret);
+        }
+        afs_opencl_count_motion_temp_map(afs, i);
     }
     //キューの完了を待つ: 重要!!
     clFinish(afs->opencl.queue);
@@ -551,7 +545,6 @@ int afs_opencl_analyze_12_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1
     uint32_t scan_top    = scan_clip->top;
     uint32_t scan_height = h - scan_clip->top - scan_clip->bottom;
 
-
 /*
 __global int *restrict ptr_dst,
 __global int *restrict ptr_count,
@@ -571,7 +564,7 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
     cl_int ret = CL_SUCCESS;
     cl_kernel kernel_analyze = afs->opencl.kernel[tb_order != 0];
     if (   CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
-        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp))
+        || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp[dst_idx]))
 #if PREFER_IMAGE
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  2, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][0]))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  3, sizeof(cl_mem),   &afs->opencl.source_img[p0_idx][1]))
