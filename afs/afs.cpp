@@ -974,17 +974,19 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
 }
 
 // 縞・動き解析
+bool inline scan_frame_result_cached(int frame, int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
+    const AFS_SCAN_DATA *sp = scanp(frame);
+    return sp->status > 0 && sp->frame == frame && sp->tb_order == tb_order && sp->thre_shift == thre_shift &&
+        ((mode == 0) ||
+         (mode == 1 && sp->mode == 1 && sp->thre_deint == thre_deint && sp->thre_Ymotion == thre_Ymotion && sp->thre_Cmotion == thre_Cmotion));
+}
 
 void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
                 int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip) {
-    const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
-    AFS_SCAN_DATA *sp = scanp(frame);
-    if (!force && sp->status > 0 && sp->frame == frame && sp->tb_order == tb_order && sp->thre_shift == thre_shift &&
-        ((mode == 0 ) ||
-        (mode == 1 && sp->mode == 1 &&
-        sp->thre_deint == thre_deint && sp->thre_Ymotion == thre_Ymotion && sp->thre_Cmotion == thre_Cmotion)))
+    if (!force && scan_frame_result_cached(frame, mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion))
         return;
 
+    AFS_SCAN_DATA *sp = scanp(frame);
     sp->status = 1;
     stripe_info_expire(frame);
     stripe_info_expire(frame - 1);
