@@ -2132,7 +2132,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         uint8_t *ptr_dst = (uint8_t *)fpip->ycp_edit;
         int src_offset = 0;
         const int src_frame_pixels = g_afs.source_w * g_afs.source_h;
-        const func_copy_line copy_line = afs_func.copy_line[g_afs.afs_mode];
+        const func_copy_line copy_line = afs_func.copy_line[g_afs.afs_mode & 0x07];
         const int dst_w_byte = fpip->max_w * ((g_afs.afs_mode & AFS_MODE_AVIUTL_YUY2) ? 2 : 6);
         const int source_w_byte = g_afs.source_w * ((g_afs.afs_mode & AFS_MODE_CACHE_NV16) ? 1 : 6);
         for (int pos_y = 0; pos_y < fpip->h; pos_y++, ptr_dst += dst_w_byte, src_offset += source_w_byte) {
