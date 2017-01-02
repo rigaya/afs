@@ -373,6 +373,8 @@
       <Device Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">1</Device>
       <Device Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">1</Device>
       <Device Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">1</Device>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">false</ExcludedFromBuild>
     </Intel_OpenCL_Build_Rules>
   </ItemGroup>
   <ItemGroup>
