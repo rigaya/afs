@@ -17,6 +17,8 @@ typedef struct _AFS_OPENCL {
     cl_command_queue queue;
     cl_program program_analyze[2];
     cl_kernel kernel_analyze[2];
+    cl_program program_merge_scan;
+    cl_kernel kernel_merge_scan;
     cl_mem source_img[AFS_SOURCE_CACHE_NUM][2];
     cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];
     int source_w, source_h;
@@ -56,3 +58,4 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs);
 
 int afs_opencl_analyze_12_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int tb_order, int width, int si_pitch, int h, int max_h,
     int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, const void *scan_clip, int *global_block_count);
+int afs_opencl_merge_scan_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h);

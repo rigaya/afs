@@ -368,6 +368,10 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">$(OutDir)%(Filename).asm.obj</Outputs>
     </CustomBuild>
     <None Include="afsvf.def" />
+    <Intel_OpenCL_Build_Rules Include="afs_merge_scan.cl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+    </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules Include="afs_opencl.cl">
       <Device Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">1</Device>
       <Device Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">1</Device>

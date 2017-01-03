@@ -2,7 +2,8 @@
 #include <winver.h>
 #include "afs_version.h"
 
-CLDATA    KERNEL_DATA DISCARDABLE "afs_opencl.cl"
+CLDATA    KERNEL_DATA       DISCARDABLE "afs_opencl.cl"
+CLDATA    KERNEL_MERGE_SCAN DISCARDABLE "afs_merge_scan.cl"
 
 //
 // Version Information

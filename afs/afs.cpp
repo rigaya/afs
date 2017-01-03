@@ -1104,31 +1104,47 @@ unsigned char* get_stripe_info(int frame, int mode) {
         error_message_box(__LINE__, "afs_func.merge_scan");
 #endif
 
+    if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+        const int p0_idx = afs_opencl_scan_buffer_index(&g_afs, sp0->map);
+        const int p1_idx = afs_opencl_scan_buffer_index(&g_afs, sp1->map);
+        const int dst_idx = afs_opencl_stripe_buffer_index(&g_afs, sp->map);
+        afs_opencl_scan_buffer_unmap(&g_afs, p0_idx);
+        afs_opencl_scan_buffer_unmap(&g_afs, p1_idx);
+        afs_opencl_stripe_buffer_unmap(&g_afs, dst_idx);
+
+        afs_opencl_merge_scan_nv16(&g_afs, dst_idx, p0_idx, p1_idx, si_w, g_afs.scan_h);
+
+        afs_opencl_scan_buffer_map(&g_afs, p0_idx);
+        afs_opencl_scan_buffer_map(&g_afs, p1_idx);
+        afs_opencl_stripe_buffer_map(&g_afs, dst_idx);
+        afs_opencl_queue_finish(&g_afs);
+    } else {
 #if ENABLE_SUB_THREADS
-    g_afs.sub_thread.afs_mode = g_afs.afs_mode;
-    g_afs.sub_thread.merge_scan_task.sp = sp;
-    g_afs.sub_thread.merge_scan_task.sp0 = sp0;
-    g_afs.sub_thread.merge_scan_task.sp1 = sp1;
-    g_afs.sub_thread.merge_scan_task.si_w = si_w;
-    g_afs.sub_thread.sub_task = TASK_MERGE_SCAN;
-    
-    //g_afs.sub_thread.thread_sub_nは総スレッド数
-    //自分を除いた数を起動
-    for (int ith = 0; ith < g_afs.sub_thread.thread_sub_n - 1; ith++) {
-        SetEvent(g_afs.sub_thread.hEvent_sub_start[ith]);
-    }
-    //メインスレッド(自分)がスレッドID0を担当
-    merge_scan(0);
-    //1スレッド(つまり自スレッドのみなら同期は必要ない)
-    if (0 < g_afs.sub_thread.thread_sub_n - 1)
-        WaitForMultipleObjects(g_afs.sub_thread.thread_sub_n - 1, g_afs.sub_thread.hEvent_sub_fin, TRUE, INFINITE);
-  #if SIMD_DEBUG
-    if (memcmp(test_buffer, sp->map, si_w * g_afs.scan_h))
-        error_message_box(__LINE__, "afs_func.merge_scan_mt");
-  #endif //SIMD_DEBUG
+        g_afs.sub_thread.afs_mode = g_afs.afs_mode;
+        g_afs.sub_thread.merge_scan_task.sp = sp;
+        g_afs.sub_thread.merge_scan_task.sp0 = sp0;
+        g_afs.sub_thread.merge_scan_task.sp1 = sp1;
+        g_afs.sub_thread.merge_scan_task.si_w = si_w;
+        g_afs.sub_thread.sub_task = TASK_MERGE_SCAN;
+
+        //g_afs.sub_thread.thread_sub_nは総スレッド数
+        //自分を除いた数を起動
+        for (int ith = 0; ith < g_afs.sub_thread.thread_sub_n - 1; ith++) {
+            SetEvent(g_afs.sub_thread.hEvent_sub_start[ith]);
+        }
+        //メインスレッド(自分)がスレッドID0を担当
+        merge_scan(0);
+        //1スレッド(つまり自スレッドのみなら同期は必要ない)
+        if (0 < g_afs.sub_thread.thread_sub_n - 1)
+            WaitForMultipleObjects(g_afs.sub_thread.thread_sub_n - 1, g_afs.sub_thread.hEvent_sub_fin, TRUE, INFINITE);
+#if SIMD_DEBUG
+        if (memcmp(test_buffer, sp->map, si_w * g_afs.scan_h))
+            error_message_box(__LINE__, "afs_func.merge_scan_mt");
+#endif //SIMD_DEBUG
 #else
-    afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, g_afs.scan_h, 0, si_w);
+        afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, g_afs.scan_h, 0, si_w);
 #endif //ENABLE_SUB_THREADS
+    }
 
     sp->status = 2;
     sp->frame = frame;

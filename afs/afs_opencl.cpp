@@ -10,6 +10,7 @@
 #pragma comment(lib, "shlwapi.lib")
 
 #include "afs_opencl.cl"
+#include "afs_merge_scan.cl"
 
 static const char *BUILD_ERR_FILE = "afs_opencl_build_error.txt";
 
@@ -248,6 +249,7 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         sBuildOptionBase += " -cl-std=CL2.0";
     }
     //OpenCLのカーネル用のコードはリソース埋め込みにしているので、それを呼び出し
+    //afs_analyze_12_nv16_kernelのビルド
     HRSRC hResource = nullptr;
     HGLOBAL hResourceData = nullptr;
     const char *clSourceFile = nullptr;
@@ -265,6 +267,14 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         if (CL_SUCCESS != ret)
             return ret;
     }
+    //afs_merge_scan_kernelのビルド
+    if (   nullptr == (hResource = FindResource(cl_data->hModuleDLL, "CLDATA", "KERNEL_MERGE_SCAN"))
+        || nullptr == (hResourceData = LoadResource(cl_data->hModuleDLL, hResource))
+        || nullptr == (clSourceFile = (const char *)LockResource(hResourceData))
+        || 0       == (resourceSize = SizeofResource(cl_data->hModuleDLL, hResource))) {
+        return 1;
+    }
+    ret = afs_opencl_create_kernel(cl_data, cl_data->program_merge_scan, cl_data->kernel_merge_scan, clSourceFile, resourceSize, sBuildOptionBase.c_str(), "afs_merge_scan_kernel");
     return ret;
 }
 
@@ -667,5 +677,29 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
         return 1;
     }
     *global_block_count = ICEILDIV(ICEILDIV((size_t)width, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
+    return 0;
+}
+
+int afs_opencl_merge_scan_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h) {
+    const int si_w_type = ICEILDIV(si_w, sizeof(MERGE_PROC_TYPE_CL));
+    // Set kernel arguments
+    cl_int ret = CL_SUCCESS;
+    if (   CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel_merge_scan, 0, sizeof(cl_mem), &afs->opencl.stripe_mem[dst_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel_merge_scan, 1, sizeof(cl_mem), &afs->opencl.scan_mem[p0_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel_merge_scan, 2, sizeof(cl_mem), &afs->opencl.scan_mem[p1_idx]))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel_merge_scan, 3, sizeof(int), &si_w_type))
+        || CL_SUCCESS != (ret = clSetKernelArg(afs->opencl.kernel_merge_scan, 4, sizeof(int), &h))) {
+        return 1;
+    }
+    size_t global[3] = { ICEIL(ICEILDIV((size_t)si_w, sizeof(MERGE_PROC_TYPE_CL)), MERGE_BLOCK_INT_X), ICEIL(ICEILDIV((size_t)h, MERGE_BLOCK_LOOP_Y), MERGE_BLOCK_Y), 1 };
+    size_t local[3]  = { MERGE_BLOCK_INT_X, MERGE_BLOCK_Y, 1 };
+    size_t local_size_max;
+    if (CL_SUCCESS != (ret = clGetKernelWorkGroupInfo(afs->opencl.kernel_merge_scan, afs->opencl.device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), (void *)&local_size_max, NULL))) {
+        return 1;
+    }
+
+    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, afs->opencl.kernel_merge_scan, 2, NULL, global, local, 0, NULL, NULL))) {
+        return 1;
+    }
     return 0;
 }
