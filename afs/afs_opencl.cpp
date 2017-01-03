@@ -109,9 +109,9 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
 
 void afs_opencl_close(AFS_CONTEXT *afs) {
     afs_opencl_release_buffer(afs);
-    for (int i = 0; i < _countof(afs->opencl.program); i++) {
-        if (afs->opencl.kernel[i]) clReleaseKernel(afs->opencl.kernel[i]);
-        if (afs->opencl.program[i]) clReleaseProgram(afs->opencl.program[i]);
+    for (int i = 0; i < _countof(afs->opencl.program_analyze); i++) {
+        if (afs->opencl.kernel_analyze[i]) clReleaseKernel(afs->opencl.kernel_analyze[i]);
+        if (afs->opencl.program_analyze[i]) clReleaseProgram(afs->opencl.program_analyze[i]);
     }
     if (afs->opencl.queue) clReleaseCommandQueue(afs->opencl.queue);
     if (afs->opencl.ctx) clReleaseContext(afs->opencl.ctx);
@@ -258,10 +258,10 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         || 0       == (resourceSize = SizeofResource(cl_data->hModuleDLL, hResource))) {
         return 1;
     }
-    for (int i = 0; i < _countof(cl_data->program); i++) {
+    for (int i = 0; i < _countof(cl_data->program_analyze); i++) {
         std::string sBuildOptions = sBuildOptionBase + " -D PREFER_SHORT4=1";
         sBuildOptions += (i) ? " -D TB_ORDER=1" : " -D TB_ORDER=0";
-        ret = afs_opencl_create_kernel(cl_data, cl_data->program[i], cl_data->kernel[i], clSourceFile, resourceSize, sBuildOptions.c_str(), "afs_analyze_12_nv16_kernel");
+        ret = afs_opencl_create_kernel(cl_data, cl_data->program_analyze[i], cl_data->kernel_analyze[i], clSourceFile, resourceSize, sBuildOptions.c_str(), "afs_analyze_12_nv16_kernel");
         if (CL_SUCCESS != ret)
             return ret;
     }
@@ -620,7 +620,7 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
     const int frame_size_int = source_w_int * afs->opencl.source_h;
     // Set kernel arguments
     cl_int ret = CL_SUCCESS;
-    cl_kernel kernel_analyze = afs->opencl.kernel[tb_order != 0];
+    cl_kernel kernel_analyze = afs->opencl.kernel_analyze[tb_order != 0];
     if (   CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  0, sizeof(cl_mem),   &afs->opencl.scan_mem[dst_idx]))
         || CL_SUCCESS != (ret = clSetKernelArg(kernel_analyze,  1, sizeof(cl_mem),   &afs->opencl.motion_count_temp[dst_idx]))
 #if PREFER_IMAGE
