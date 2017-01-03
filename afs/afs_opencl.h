@@ -48,6 +48,7 @@ cl_int afs_opencl_count_motion_temp_map(AFS_CONTEXT *afs, int i);
 cl_int afs_opencl_count_motion_temp_unmap(AFS_CONTEXT *afs, int i, bool force = false);
 cl_int afs_opencl_stripe_buffer_map(AFS_CONTEXT *afs, int i);
 cl_int afs_opencl_stripe_buffer_unmap(AFS_CONTEXT *afs, int i, bool force = false);
+int    afs_opencl_stripe_buffer_index(AFS_CONTEXT *afs, void *p0);
 
 cl_int afs_opencl_queue_finish(AFS_CONTEXT *afs);
 

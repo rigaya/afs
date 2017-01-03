@@ -532,6 +532,15 @@ cl_int afs_opencl_stripe_buffer_unmap(AFS_CONTEXT *afs, int i, bool force) {
     return ret;
 }
 
+int afs_opencl_stripe_buffer_index(AFS_CONTEXT *afs, void *p0) {
+    for (int i = 0; i < _countof(afs->stripe_array); i++) {
+        if (afs->stripe_array[i].map == p0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int afs_opencl_create_scan_buffer(AFS_CONTEXT *afs, int si_w, int h) {
     const int size = (si_w * h + 63) & ~63;
     afs->opencl.scan_w = si_w;
