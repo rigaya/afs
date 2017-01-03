@@ -11,6 +11,8 @@
 
 #include "afs_opencl.cl"
 
+static const char *BUILD_ERR_FILE = "afs_opencl_build_error.txt";
+
 using std::vector;
 
 #define ICEILDIV(x, div) (((x) + (div) - 1) / (div))
@@ -195,6 +197,30 @@ static cl_int afs_opencl_get_device(const char *vendor_name, cl_int device_type,
     return (ret != CL_SUCCESS) ? ret : ((cl_data->platform != nullptr) ? 0 : -1);
 }
 
+static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data, cl_program& program, cl_kernel& kernel, const char *source, size_t sourceSize, const char *buildOptions, const char *kernelName) {
+    cl_int ret = CL_SUCCESS;
+    program = clCreateProgramWithSource(cl_data->ctx, 1, &source, &sourceSize, &ret);
+    if (CL_SUCCESS != ret)
+        return ret;
+
+    if (CL_SUCCESS != (ret = clBuildProgram(program, 1, &cl_data->device, buildOptions, nullptr, nullptr))) {
+        std::vector<char> buffer(16 * 1024, '\0');
+        size_t length = 0;
+        clGetProgramBuildInfo(program, cl_data->device, CL_PROGRAM_BUILD_LOG, buffer.size(), buffer.data(), &length);
+        FILE *fp = nullptr;
+        if (!fopen_s(&fp, BUILD_ERR_FILE, "a")) {
+            fprintf(fp, "%s\n", buffer.data());
+            fclose(fp);
+        }
+        return ret;
+    }
+    kernel = clCreateKernel(program, kernelName, &ret);
+    if (CL_SUCCESS != ret) {
+        return ret;
+    }
+    return ret;
+}
+
 static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
     cl_int ret = CL_SUCCESS;
     if (cl_data->ctx) {
@@ -214,9 +240,12 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
     if (CL_SUCCESS != ret)
         return ret;
 
-    const char *BUILD_ERR_FILE = "afs_opencl_build_error.txt";
     if (PathFileExists(BUILD_ERR_FILE)) {
         DeleteFile(BUILD_ERR_FILE);
+    }
+    std::string sBuildOptionBase = "";
+    if (cl_data->bSVMAvail) {
+        sBuildOptionBase += " -cl-std=CL2.0";
     }
     //OpenCLのカーネル用のコードはリソース埋め込みにしているので、それを呼び出し
     HRSRC hResource = nullptr;
@@ -230,31 +259,11 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         return 1;
     }
     for (int i = 0; i < _countof(cl_data->program); i++) {
-        cl_data->program[i] = clCreateProgramWithSource(cl_data->ctx, 1, (const char**)&clSourceFile, &resourceSize, &ret);
+        std::string sBuildOptions = sBuildOptionBase + " -D PREFER_SHORT4=1";
+        sBuildOptions += (i) ? " -D TB_ORDER=1" : " -D TB_ORDER=0";
+        ret = afs_opencl_create_kernel(cl_data, cl_data->program[i], cl_data->kernel[i], clSourceFile, resourceSize, sBuildOptions.c_str(), "afs_analyze_12_nv16_kernel");
         if (CL_SUCCESS != ret)
             return ret;
-
-        std::string sBuildOptions;
-        sBuildOptions += "-D PREFER_SHORT4=1";
-        if (cl_data->bSVMAvail) {
-            sBuildOptions += " -cl-std=CL2.0";
-        }
-        sBuildOptions += (i) ? " -D TB_ORDER=1" : " -D TB_ORDER=0";
-        if (CL_SUCCESS != (ret = clBuildProgram(cl_data->program[i], 1, &cl_data->device, sBuildOptions.c_str(), nullptr, nullptr))) {
-            std::vector<char> buffer(16 * 1024, '\0');
-            size_t length = 0;
-            clGetProgramBuildInfo(cl_data->program[i], cl_data->device, CL_PROGRAM_BUILD_LOG, buffer.size(), buffer.data(), &length);
-            FILE *fp = nullptr;
-            if (!fopen_s(&fp, BUILD_ERR_FILE, "w")) {
-                fprintf(fp, "%s\n", buffer.data());
-                fclose(fp);
-            }
-            return ret;
-        }
-        cl_data->kernel[i] = clCreateKernel(cl_data->program[i], "afs_analyze_12_nv16_kernel", &ret);
-        if (CL_SUCCESS != ret) {
-            return ret;
-        }
     }
     return ret;
 }
