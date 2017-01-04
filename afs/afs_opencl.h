@@ -12,27 +12,27 @@ enum {
 };
 
 typedef struct _AFS_OPENCL {
-    int device_check;
+    int device_check; //AFS_OPENCL_DEVICE_xxx
     cl_platform_id platform;
     cl_device_id device;
     cl_context ctx;
     cl_command_queue queue;
-    cl_program program_analyze[2];
-    cl_kernel kernel_analyze[2];
+    cl_program program_analyze[2]; //それぞれtb_order = 0,1 用
+    cl_kernel kernel_analyze[2];   //それぞれtb_order = 0,1 用
     cl_program program_merge_scan;
     cl_kernel kernel_merge_scan;
-    std::future<cl_int> build_ret;
-    cl_mem source_img[AFS_SOURCE_CACHE_NUM][2];
-    cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];
-    int source_w, source_h;
+    std::future<cl_int> build_ret;                //program_xxx/kernel_xxxの非同期でのビルド結果を格納
+    cl_mem source_img[AFS_SOURCE_CACHE_NUM][2];   //[0]=nv16の輝度, [1]=(PREFER_IMAGE＝1の場合、nv16の色差)/(PREFER_IMAGE＝0の場合、未使用)
+    cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];   //[0]=nv16の輝度, [1]=(PREFER_IMAGE＝1の場合、nv16の色差)/(PREFER_IMAGE＝0の場合、未使用)
+    int source_w, source_h;                       //source_imgのwidth(生のピクセル数)とheight
     cl_mem scan_mem[AFS_SCAN_CACHE_NUM];
     cl_mem stripe_mem[AFS_STRIPE_CACHE_NUM];
-    int scan_w, scan_h;
-    cl_mem motion_count_temp[AFS_SCAN_CACHE_NUM];
-    unsigned short *motion_count_temp_map[AFS_SCAN_CACHE_NUM];
-    int motion_count_temp_max;
-    HMODULE hModuleDLL;
-    bool bSVMAvail;
+    int scan_w, scan_h;                           //scan_mem, stripe_memのwidth(生のピクセル数)とheight
+    cl_mem motion_count_temp[AFS_SCAN_CACHE_NUM]; //scan_frameのmotion_count用
+    unsigned short *motion_count_temp_map[AFS_SCAN_CACHE_NUM]; //scan_frameのmotion_count用
+    int motion_count_temp_max; //motion_count_temp_mapの最大要素数(確保したメモリの量)
+    HMODULE hModuleDLL;        //afs.aufのハンドル (リソース取得時に使用)
+    bool bSVMAvail;            //SVM (Fine Grain)が利用可能かどうか
 } AFS_OPENCL;
 
 int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL);

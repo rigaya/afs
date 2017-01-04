@@ -691,6 +691,9 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
     if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, kernel_analyze, 2, NULL, global, local, 0, NULL, NULL))) {
         return 1;
     }
+    //reductionはwork groupごとに計算される
+    //kernelからのmotion_countの実際の出力数(=work group数)を計算
+    //この値をもとに最後はCPUで総和をとる
     *global_block_count = ICEILDIV(ICEILDIV((size_t)width, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
     return 0;
 }
