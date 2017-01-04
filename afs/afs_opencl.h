@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include <CL/cl.h>
+#include <thread>
+#include <future>
 
 struct AFS_CONTEXT;
 
@@ -19,6 +21,7 @@ typedef struct _AFS_OPENCL {
     cl_kernel kernel_analyze[2];
     cl_program program_merge_scan;
     cl_kernel kernel_merge_scan;
+    std::future<cl_int> build_ret;
     cl_mem source_img[AFS_SOURCE_CACHE_NUM][2];
     cl_mem source_buf[AFS_SOURCE_CACHE_NUM][2];
     int source_w, source_h;

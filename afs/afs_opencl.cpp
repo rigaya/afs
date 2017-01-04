@@ -260,12 +260,14 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         || 0       == (resourceSize = SizeofResource(cl_data->hModuleDLL, hResource))) {
         return 1;
     }
+    std::vector<std::future<cl_int>> build_ret;
     for (int i = 0; i < _countof(cl_data->program_analyze); i++) {
         std::string sBuildOptions = sBuildOptionBase + " -D PREFER_SHORT4=1";
         sBuildOptions += (i) ? " -D TB_ORDER=1" : " -D TB_ORDER=0";
-        ret = afs_opencl_create_kernel(cl_data, cl_data->program_analyze[i], cl_data->kernel_analyze[i], clSourceFile, resourceSize, sBuildOptions.c_str(), "afs_analyze_12_nv16_kernel");
-        if (CL_SUCCESS != ret)
-            return ret;
+        build_ret.push_back(std::async(std::launch::async, [=]() {
+            return afs_opencl_create_kernel(cl_data, cl_data->program_analyze[i], cl_data->kernel_analyze[i],
+                clSourceFile, resourceSize, sBuildOptions.c_str(), "afs_analyze_12_nv16_kernel");
+        }));
     }
     //afs_merge_scan_kernelのビルド
     if (   nullptr == (hResource = FindResource(cl_data->hModuleDLL, "CLDATA", "KERNEL_MERGE_SCAN"))
@@ -274,7 +276,14 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
         || 0       == (resourceSize = SizeofResource(cl_data->hModuleDLL, hResource))) {
         return 1;
     }
-    ret = afs_opencl_create_kernel(cl_data, cl_data->program_merge_scan, cl_data->kernel_merge_scan, clSourceFile, resourceSize, sBuildOptionBase.c_str(), "afs_merge_scan_kernel");
+    ret = afs_opencl_create_kernel(cl_data, cl_data->program_merge_scan, cl_data->kernel_merge_scan,
+        clSourceFile, resourceSize, sBuildOptionBase.c_str(), "afs_merge_scan_kernel");
+    for (uint32_t i = 0; i < build_ret.size(); i++) {
+        auto iret = build_ret[i].get();
+        if (iret != CL_SUCCESS) {
+            ret = iret;
+        }
+    }
     return ret;
 }
 
@@ -294,6 +303,9 @@ int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL) {
     if (hModuleDLL) {
         afs->opencl.hModuleDLL = hModuleDLL;
     }
+    if (!afs->opencl.build_ret.valid()) {
+        afs->opencl.build_ret = std::async(std::launch::async, [afs]() { return afs_opencl_create_kernel(&afs->opencl); });
+    }
     return 0;
 #else
     return 1;
@@ -307,9 +319,12 @@ int afs_opencl_init(AFS_CONTEXT *afs) {
             return 1;
         }
     }
-    if (CL_SUCCESS != (ret = afs_opencl_create_kernel(&afs->opencl))) {
-        afs_opencl_close(afs);
-        return 1;
+    //afs_opencl_open_device内で起動したafs_opencl_create_kernelの結果を受け取る
+    if (afs->opencl.build_ret.valid()) {
+        if (CL_SUCCESS != (ret = afs->opencl.build_ret.get())) {
+            afs_opencl_close(afs);
+            return 1;
+        }
     }
     return 0;
 }
