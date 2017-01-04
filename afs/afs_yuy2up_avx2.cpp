@@ -1,4 +1,6 @@
-﻿#include <immintrin.h>
+﻿#define USE_AVX   1
+#define USE_AVX2  1
+#include <immintrin.h>
 #include <Windows.h>
 #include "filter.h"
 #include "simd_util.h"

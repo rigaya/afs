@@ -1,4 +1,6 @@
-﻿#include <nmmintrin.h> //SSE4.2
+﻿#define USE_AVX  1
+#define USE_AVX2 1
+#include <nmmintrin.h> //SSE4.2
 #include <immintrin.h> //AVX, AVX2
 #include <Windows.h>
 #include "filter.h"

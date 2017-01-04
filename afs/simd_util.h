@@ -86,7 +86,7 @@ static inline __m128i _mm_abs_epi16_simd(__m128i x0) {
     return x0;
 }
 
-#ifdef _INCLUDED_IMM
+#if USE_AVX2
 #define _mm256_store_switch_si256(ptr, ymm)  ((aligned_store) ? _mm256_store_si256(ptr, ymm)  : _mm256_storeu_si256(ptr, ymm))
 #define _mm256_stream_switch_si256(ptr, ymm) ((aligned_store) ? _mm256_stream_si256(ptr, ymm) : _mm256_storeu_si256(ptr, ymm))
 //本来の256bit alignr

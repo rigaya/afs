@@ -1,4 +1,6 @@
-﻿#include <emmintrin.h>
+﻿#define USE_AVX   1
+#define USE_AVX2  1
+#include <emmintrin.h>
 #include <smmintrin.h>
 #include <immintrin.h>
 #include <Windows.h>

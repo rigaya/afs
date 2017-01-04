@@ -1,4 +1,6 @@
-﻿#include <immintrin.h> //イントリンシック命令 AVX / AVX2
+﻿#define USE_AVX   1
+#define USE_AVX2  1
+#include <immintrin.h> //イントリンシック命令 AVX / AVX2
 #include <Windows.h>
 #include "afs.h"
 #include "afs_convert_const.h"

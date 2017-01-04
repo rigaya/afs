@@ -135,7 +135,7 @@ ALIGN32_CONST_ARRAY uint8_t  Array_INTERLACE_WEIGHT[2][32] = {
     { 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3 },
     { 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1 }
 };
-#ifdef _INCLUDED_IMM //AVX2
+#if USE_AVX2 //AVX2
 
 #define yC_Y_L_MA_8           _mm256_load_si256((__m256i*) Array_Y_L_MA_8)
 #define yC_UV_L_MA_8_420P     _mm256_load_si256((__m256i*)Array_UV_L_MA_8_420P)
