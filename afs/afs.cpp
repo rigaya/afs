@@ -3114,6 +3114,11 @@ static void del_combo_item(void *string) {
 }
 
 static void update_cx(int proc_mode) {
+    const int current_sel = SendMessage(cx_proc_mode, CB_GETCURSEL, 0, 0);
+    const int current_data = SendMessage(cx_proc_mode, CB_GETITEMDATA, current_sel, 0);
+    if (proc_mode == current_data) {
+        return;
+    }
     const int num = SendMessage(cx_proc_mode, CB_GETCOUNT, 0, 0);
     // コンボボックス検索
     uint32_t flags[] = { 0, AFS_MODE_OPENCL_SVMF, AFS_MODE_OPENCL, AFS_MODE_CACHE_NV16 };
