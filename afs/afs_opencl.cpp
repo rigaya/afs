@@ -1,6 +1,7 @@
 ﻿#define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
+#include <process.h>
 #include <Shlwapi.h>
 #include <vector>
 #include <string>
@@ -18,6 +19,8 @@ using std::vector;
 
 #define ICEILDIV(x, div) (((x) + (div) - 1) / (div))
 #define ICEIL(x, div) (ICEILDIV((x), (div)) * (div))
+
+static unsigned __stdcall afs_opencl_submit_thread_func(void *ptr);
 
 static inline int get_gcd(int a, int b) {
     int c;
@@ -41,6 +44,26 @@ static inline const char *stristr(const char *str, const char *substr) {
             if (_strnicmp(str, substr, len) == 0)
                 return str;
     return nullptr;
+}
+
+void afs_opencl_submit_thread_release(AFS_OPENCL_SUBMIT *submit) {
+    if (submit->queue) {
+        if (submit->thread) {
+            AFS_OPENCL_SUBMIT_DATA submit_data;
+            submit_data.type = AFS_OPENCL_SUBMIT_DATA_TYPE_ABORT;
+            submit->queue->push(submit_data);
+            WaitForSingleObject(submit->thread, INFINITE);
+            CloseHandle(submit->thread);
+            submit->thread = NULL;
+        }
+        if (submit->he_fin) {
+            CloseHandle(submit->he_fin);
+            submit->he_fin = NULL;
+        }
+        submit->queue->clear();
+        delete submit->queue;
+        submit->queue = NULL;
+    }
 }
 
 void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
@@ -109,6 +132,7 @@ void afs_opencl_release_buffer(AFS_CONTEXT *afs) {
 }
 
 void afs_opencl_close(AFS_CONTEXT *afs) {
+    afs_opencl_submit_thread_release(&afs->opencl.submit);
     afs_opencl_release_buffer(afs);
     for (int i = 0; i < _countof(afs->opencl.program_analyze); i++) {
         if (afs->opencl.kernel_analyze[i]) clReleaseKernel(afs->opencl.kernel_analyze[i]);
@@ -312,6 +336,30 @@ int afs_opencl_open_device(AFS_CONTEXT *afs, HMODULE hModuleDLL) {
 #endif
 }
 
+int afs_opencl_submit_thread_create(AFS_CONTEXT *afs) {
+    if (!afs->opencl.bSVMAvail) {
+        //AFS_MODE_OPENCL_SVMFの時以外には使用しない
+        return 0;
+    }
+    if (afs->opencl.submit.thread != 0) {
+        return 0;
+    }
+    afs->opencl.submit.queue = new QueueSPSP<AFS_OPENCL_SUBMIT_DATA>();
+    if (afs->opencl.submit.queue == nullptr) {
+        return 1;
+    }
+    afs->opencl.submit.queue->init();
+    afs->opencl.submit.he_fin = (HANDLE)CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (afs->opencl.submit.he_fin == 0) {
+        return 1;
+    }
+    afs->opencl.submit.thread = (HANDLE)_beginthreadex(nullptr, 0, afs_opencl_submit_thread_func, afs, 0, nullptr);
+    if (afs->opencl.submit.thread == 0) {
+        return 1;
+    }
+    return 0;
+}
+
 int afs_opencl_init(AFS_CONTEXT *afs) {
     cl_int ret = CL_SUCCESS;
     if (afs->opencl.device == nullptr) {
@@ -325,6 +373,9 @@ int afs_opencl_init(AFS_CONTEXT *afs) {
             afs_opencl_close(afs);
             return 1;
         }
+    }
+    if (afs_opencl_submit_thread_create(afs)) {
+        return 1;
     }
     return 0;
 }
@@ -624,7 +675,8 @@ int afs_opencl_scan_buffer_index(AFS_CONTEXT *afs, void *p0) {
 }
 
 int afs_opencl_analyze_12_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int tb_order, int width, int si_pitch, int h, int max_h,
-    int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, const void *_scan_clip, int *global_block_count) {
+    int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, const void *_scan_clip,
+    const cl_event *wait, cl_event *event) {
 #define CLAMP(x, low, high) (((x) > (high))? (high) : ((x) < (low))? (low) : (x))
     uint8_t thre_shift_yuy2   = CLAMP((thre_shift  *219 + 383)>>12, 0, 127);
     uint8_t thre_deint_yuy2   = CLAMP((thre_deint  *219 + 383)>>12, 0, 127);
@@ -688,17 +740,41 @@ uint scan_left, uint scan_width, uint scan_top, uint scan_height)
         return 1;
     }
 
-    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, kernel_analyze, 2, NULL, global, local, 0, NULL, NULL))) {
+    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, kernel_analyze, 2, NULL, global, local, (wait != nullptr) ? 1 : 0, wait, event))) {
         return 1;
     }
     //reductionはwork groupごとに計算される
     //kernelからのmotion_countの実際の出力数(=work group数)を計算
     //この値をもとに最後はCPUで総和をとる
-    *global_block_count = ICEILDIV(ICEILDIV((size_t)width, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
+    afs->opencl.motion_count_temp_used = ICEILDIV(ICEILDIV((size_t)width, 4), BLOCK_INT_X) * ICEILDIV(ICEILDIV((size_t)h, BLOCK_LOOP_Y), BLOCK_Y);
     return 0;
 }
 
-int afs_opencl_merge_scan_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h) {
+void afs_opencl_analyze_12_nv16_submit(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int tb_order, int width, int si_pitch, int h, int max_h,
+    int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, const void *_scan_clip,
+    const cl_event *wait, cl_event *event) {
+    AFS_OPENCL_SUBMIT_DATA data;
+    data.type = AFS_OPENCL_SUBMIT_DATA_TYPE_ANALYZE;
+    data.data.analyze.dst_idx = dst_idx;
+    data.data.analyze.p0_idx = p0_idx;
+    data.data.analyze.p1_idx = p1_idx;
+    data.data.analyze.tb_order = tb_order;
+    data.data.analyze.width = width;
+    data.data.analyze.si_pitch = si_pitch;
+    data.data.analyze.h = h;
+    data.data.analyze.max_h = max_h;
+    data.data.analyze.thre_shift = thre_shift;
+    data.data.analyze.thre_deint = thre_deint;
+    data.data.analyze.thre_Ymotion = thre_Ymotion;
+    data.data.analyze.thre_Cmotion = thre_Cmotion;
+    data.data.analyze._scan_clip = _scan_clip;
+    data.data.analyze.wait = wait;
+    data.data.analyze.event = event;
+    afs->opencl.submit.queue->push(data);
+}
+
+int afs_opencl_merge_scan_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h,
+    const cl_event *wait, cl_event *event) {
     const int si_w_type = ICEILDIV(si_w, sizeof(MERGE_PROC_TYPE_CL));
     // Set kernel arguments
     cl_int ret = CL_SUCCESS;
@@ -716,8 +792,63 @@ int afs_opencl_merge_scan_nv16(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1
         return 1;
     }
 
-    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, afs->opencl.kernel_merge_scan, 2, NULL, global, local, 0, NULL, NULL))) {
+    if (CL_SUCCESS != (ret = clEnqueueNDRangeKernel(afs->opencl.queue, afs->opencl.kernel_merge_scan, 2, NULL, global, local, (wait != nullptr) ? 1 : 0, wait, event))) {
         return 1;
     }
+    return 0;
+}
+
+void afs_opencl_merge_scan_nv16_submit(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h,
+    const cl_event *wait, cl_event *event) {
+    AFS_OPENCL_SUBMIT_DATA data;
+    data.type = AFS_OPENCL_SUBMIT_DATA_TYPE_MERGE_SCAN;
+    data.data.merge_scan.dst_idx = dst_idx;
+    data.data.merge_scan.p0_idx = p0_idx;
+    data.data.merge_scan.p1_idx = p1_idx;
+    data.data.merge_scan.si_w = si_w;
+    data.data.merge_scan.h = h;
+    data.data.merge_scan.wait = wait;
+    data.data.merge_scan.event = event;
+    afs->opencl.submit.queue->push(data);
+}
+
+void afs_opencl_fin_event_submit(AFS_OPENCL_SUBMIT *submit) {
+    AFS_OPENCL_SUBMIT_DATA data;
+    data.type = AFS_OPENCL_SUBMIT_DATA_TYPE_SET_EVENT;
+    submit->queue->push(data);
+}
+
+static unsigned __stdcall afs_opencl_submit_thread_func(void *ptr) {
+    AFS_CONTEXT *afs = (AFS_CONTEXT *)ptr;
+    auto queue = afs->opencl.submit.queue;
+    for (;;) {
+        queue->wait_for_push(INFINITE);
+        AFS_OPENCL_SUBMIT_DATA data;
+        if (queue->front_copy_and_pop_no_lock(&data)) {
+            switch (data.type) {
+            case AFS_OPENCL_SUBMIT_DATA_TYPE_ABORT:
+                _endthreadex(0);
+                return 0;
+            case AFS_OPENCL_SUBMIT_DATA_TYPE_ANALYZE: {
+                auto d = data.data.analyze;
+                afs_opencl_analyze_12_nv16(afs, d.dst_idx, d.p0_idx, d.p1_idx, d.tb_order, d.width, d.si_pitch, d.h, d.max_h,
+                    d.thre_shift, d.thre_deint, d.thre_Ymotion, d.thre_Cmotion, d._scan_clip,
+                    d.wait, d.event);
+                break;
+            }
+            case AFS_OPENCL_SUBMIT_DATA_TYPE_MERGE_SCAN: {
+                auto d = data.data.merge_scan;
+                afs_opencl_merge_scan_nv16(afs, d.dst_idx, d.p0_idx, d.p1_idx, d.si_w, d.h, d.wait, d.event);
+                break;
+            }
+            case AFS_OPENCL_SUBMIT_DATA_TYPE_SET_EVENT:
+                SetEvent(afs->opencl.submit.he_fin);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+    _endthreadex(0);
     return 0;
 }

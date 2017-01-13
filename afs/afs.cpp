@@ -338,16 +338,17 @@ void __stdcall yuy2up(int thread_id) {
 }
 #endif
 
-bool inline check_source_cache_hit(int frame, int file_id, int video_number, int yuy2upsample) {
+BOOL inline check_source_cache_hit(int frame, int file_id, int video_number, int yuy2upsample) {
     AFS_SOURCE_DATA *srp = sourcep(frame);
     return srp->status > 0 && srp->frame == frame && srp->file_id == file_id &&
         srp->video_number == video_number && srp->yuy2upsample == yuy2upsample;
 }
 
-bool inline check_source_cache_hit(FILTER *fp, void *editp, int frame) {
+BOOL inline check_source_cache_hit(FILTER *fp, FILTER_PROC_INFO *fpip, int frame) {
+    frame = max(0, min(frame, fpip->frame_n - 1));
     int file_id, video_number;
 #ifndef AFSNFS
-    if (fp->exfunc->get_source_video_number(editp, frame, &file_id, &video_number) != TRUE)
+    if (fp->exfunc->get_source_video_number(fpip->editp, frame, &file_id, &video_number) != TRUE)
 #endif
         file_id = video_number = 0;
 
@@ -980,8 +981,18 @@ bool inline scan_frame_result_cached(int frame, int mode, int tb_order, int thre
          (mode == 1 && sp->mode == 1 && sp->thre_deint == thre_deint && sp->thre_Ymotion == thre_Ymotion && sp->thre_Cmotion == thre_Cmotion));
 }
 
+void scan_frame_opencl_submit(int frame, int source_w,
+    int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip, cl_event *wait) {
+    const int p0_idx = ((frame  )&(AFS_SOURCE_CACHE_NUM-1));
+    const int p1_idx = ((frame-1)&(AFS_SOURCE_CACHE_NUM-1));
+    const int sp_idx = ((frame)  &(AFS_SCAN_CACHE_NUM-1));
+    afs_opencl_analyze_12_nv16_submit(&g_afs, sp_idx, p0_idx, p1_idx,
+        tb_order, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h,
+        thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, wait, nullptr);
+}
+
 void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
-                int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip) {
+                int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip, cl_event *wait) {
     if (!force && scan_frame_result_cached(frame, mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion))
         return;
 
@@ -995,32 +1006,26 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
     sp->thre_Ymotion = thre_Ymotion, sp->thre_Cmotion = thre_Cmotion;
     sp->clip.top = sp->clip.bottom = sp->clip.left = sp->clip.right = -1;
 
-    if (g_afs.afs_mode & AFS_MODE_OPENCL) {
-        const int p0_idx = afs_opencl_source_buffer_index(&g_afs, p0);
-        const int p1_idx = afs_opencl_source_buffer_index(&g_afs, p1);
-        const int sp_idx = afs_opencl_scan_buffer_index(&g_afs, sp->map);
+    if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+        clSetUserEventStatus(*wait, CL_COMPLETE);
+    } else if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+        const int p0_idx = ((frame  )&(AFS_SOURCE_CACHE_NUM-1));
+        const int p1_idx = ((frame-1)&(AFS_SOURCE_CACHE_NUM-1));
+        const int sp_idx = ((frame)  &(AFS_SCAN_CACHE_NUM-1));
         afs_opencl_source_buffer_unmap(&g_afs, p0_idx);
         afs_opencl_source_buffer_unmap(&g_afs, p1_idx);
         afs_opencl_scan_buffer_unmap(&g_afs, sp_idx);
         afs_opencl_count_motion_temp_unmap(&g_afs, sp_idx);
 
-        int global_block_count = 0;
-        afs_opencl_analyze_12_nv16(&g_afs, sp_idx, p0_idx, p1_idx, tb_order, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, &global_block_count);
+        afs_opencl_analyze_12_nv16(&g_afs, sp_idx, p0_idx, p1_idx, tb_order, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h,
+            thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, nullptr, nullptr);
 
         afs_opencl_source_buffer_map(&g_afs, p0_idx);
         afs_opencl_source_buffer_map(&g_afs, p1_idx);
         afs_opencl_scan_buffer_map(&g_afs, sp_idx);
         afs_opencl_count_motion_temp_map(&g_afs, sp_idx);
-        afs_opencl_queue_finish(&g_afs);
 
-        int motion_count[2] = { 0 };
-        for (int i = 0; i < global_block_count; i++) {
-            motion_count[0] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+0];
-            motion_count[1] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+1];
-        }
-        int idx = sp - g_afs.scan_array;
-        memcpy(g_afs.scan_motion_count[idx], motion_count, sizeof(motion_count));
-        g_afs.scan_motion_clip[idx] = *mc_clip;
+        afs_opencl_queue_finish(&g_afs);
     } else {
         analyze_stripe((mode == 0), sp, p1, p0, source_w, mc_clip);
     }
@@ -1059,7 +1064,18 @@ void count_motion(int frame, AFS_SCAN_CLIP *mc_clip) {
     func_compare_debug(mc_debug, motion_count);
 #endif
     int *mc_ptr = motion_count;
-    if (afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].mc_count && 0 == memcmp(&g_afs.scan_motion_clip[frame & 15], mc_clip, sizeof(mc_clip[0]))) {
+    if (g_afs.afs_mode & (AFS_MODE_OPENCL | AFS_MODE_OPENCL_SVMF)) {
+        //OpenCLモードの場合は、OpenCL(afs_opencl_analyze_12_nv16())で求めた部分和をここで集計する
+        //相当するOpenCLのタスクが完了している必要がある
+        //AFS_MODE_OPENCLの場合は、各タスクごとに同期しているので問題ない
+        //AFS_MODE_OPENCL_SVMFの場合は、同期状況に注意
+        const int global_block_count = g_afs.opencl.motion_count_temp_used;
+        const int sp_idx = sp - g_afs.scan_array;
+        for (int i = 0; i < global_block_count; i++) {
+            motion_count[0] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+0];
+            motion_count[1] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+1];
+        }
+    } else if (afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].mc_count && 0 == memcmp(&g_afs.scan_motion_clip[frame & 15], mc_clip, sizeof(mc_clip[0]))) {
         mc_ptr = g_afs.scan_motion_count[frame & 15];
 #if SIMD_DEBUG
         func_compare_debug(mc_debug, mc_ptr);
@@ -1112,7 +1128,7 @@ unsigned char* get_stripe_info(int frame, int mode) {
         afs_opencl_scan_buffer_unmap(&g_afs, p1_idx);
         afs_opencl_stripe_buffer_unmap(&g_afs, dst_idx);
 
-        afs_opencl_merge_scan_nv16(&g_afs, dst_idx, p0_idx, p1_idx, si_w, g_afs.scan_h);
+        afs_opencl_merge_scan_nv16(&g_afs, dst_idx, p0_idx, p1_idx, si_w, g_afs.scan_h, nullptr, nullptr);
 
         afs_opencl_scan_buffer_map(&g_afs, p0_idx);
         afs_opencl_scan_buffer_map(&g_afs, p1_idx);
@@ -2169,6 +2185,23 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     QPC_GET_COUNTER(QPC_YCP_CACHE);
     QPC_ADD(QPC_INIT, QPC_INIT, QPC_START);
     QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_INIT);
+    //OpenCL使用中なら別スレッドを使ってタスクを先行投入する
+    BOOL source_cache_hit[10] = { hit, 0 };
+    cl_event analyze_start[9] = { 0 };
+    if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+        for (int i = -1; i <= 7; i++) {
+            prev_hit = hit;
+            hit = check_source_cache_hit(fp, fpip, fpip->frame + i);
+            source_cache_hit[i+2] = hit;
+            if (!prev_hit || !hit) {
+                analyze_start[i+1] = clCreateUserEvent(g_afs.opencl.ctx, nullptr);
+                scan_frame_opencl_submit(fpip->frame + i, g_afs.source_w,
+                    (analyze == 0 ? 0 : 1), tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, &clip,
+                    &analyze_start[i+1]);
+            }
+        }
+    }
+    hit = source_cache_hit[0];
     for (int i = -1; i <= 7; i++) {
         QPC_GET_COUNTER(QPC_INIT);
         ycp1 = ycp0;
@@ -2179,16 +2212,36 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             return TRUE;
         }
         QPC_GET_COUNTER(QPC_YCP_CACHE);
+        if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+            hit = source_cache_hit[i+2];
+        }
         scan_frame(fpip->frame + i, (!prev_hit || !hit), g_afs.source_w, ycp1, ycp0,
-            (analyze == 0 ? 0 : 1), tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, &clip);
+            (analyze == 0 ? 0 : 1), tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, &clip, &analyze_start[i+1]);
         QPC_GET_COUNTER(QPC_SCAN_FRAME);
-        count_motion(fpip->frame + i, &clip);
+        if (!(g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)) {
+            count_motion(fpip->frame + i, &clip);
+        }
         QPC_GET_COUNTER(QPC_COUNT_MOTION);
         
         QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_INIT);
         QPC_ADD(QPC_SCAN_FRAME, QPC_SCAN_FRAME, QPC_YCP_CACHE);
         QPC_ADD(QPC_COUNT_MOTION, QPC_COUNT_MOTION, QPC_SCAN_FRAME);
     }
+
+    if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+        //メインスレッドは、タスク投入スレッドが実際にキューにタスクを投入してから、clFinish()を呼ばなければならない。
+        //afs_opencl_fin_event_submit()をタスク投入スレッドが処理すれば、
+        //タスク投入スレッドがg_afs.opencl.submit.he_finをセットするので、これで同期とする
+        afs_opencl_fin_event_submit(&g_afs.opencl.submit);
+        WaitForSingleObject(g_afs.opencl.submit.he_fin, INFINITE);
+        //g_afs.opencl.submit.he_finがセットされれば、
+        //これまでのタスクはすべてOpenCLキューに投入されている
+        afs_opencl_queue_finish(&g_afs);
+        for (int i = -1; i <= 7; i++) {
+            count_motion(fpip->frame + i, &clip);
+        }
+    }
+
     // 共有メモリ、解析情報キャッシュ読み出し
     QPC_GET_COUNTER(QPC_INIT);
     int assume_shift[4], result_stat[4];
