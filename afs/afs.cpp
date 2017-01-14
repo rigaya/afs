@@ -1106,7 +1106,7 @@ unsigned char* get_stripe_info(int frame, int mode) {
     const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
 
     AFS_STRIPE_DATA *sp = stripep(frame);
-    if(sp->status > mode && sp->frame == frame)
+    if (sp->status > mode && sp->status < 3 && sp->frame == frame)
         return sp->map;
     
     AFS_SCAN_DATA *sp0 = scanp(frame);
@@ -1120,10 +1120,17 @@ unsigned char* get_stripe_info(int frame, int mode) {
         error_message_box(__LINE__, "afs_func.merge_scan");
 #endif
 
-    if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
-        const int p0_idx = afs_opencl_scan_buffer_index(&g_afs, sp0->map);
-        const int p1_idx = afs_opencl_scan_buffer_index(&g_afs, sp1->map);
-        const int dst_idx = afs_opencl_stripe_buffer_index(&g_afs, sp->map);
+    if (sp->status >= 3) {
+        //AFS_MODE_OPENCL_SVMFの時ここに来る
+        //analyze_frame_opencl_submit()でタスクを投入済みということ
+        //OpenCLにタスクを投入してあれば、
+        //ここでは何も行わず、
+        //後段のafs_func.get_count.stripe()を行うだけ
+        //afs_opencl_merge_scan_nv16()が完了している必要がある
+    } else if (g_afs.afs_mode & AFS_MODE_OPENCL) {
+        const int p0_idx  = (frame)   & (AFS_SCAN_CACHE_NUM-1);
+        const int p1_idx  = (frame+1) & (AFS_SCAN_CACHE_NUM-1);
+        const int dst_idx = (frame)   & (AFS_STRIPE_CACHE_NUM-1);
         afs_opencl_scan_buffer_unmap(&g_afs, p0_idx);
         afs_opencl_scan_buffer_unmap(&g_afs, p1_idx);
         afs_opencl_stripe_buffer_unmap(&g_afs, dst_idx);
@@ -1263,6 +1270,25 @@ unsigned char analyze_frame(int frame, int drop, int smooth, int force24, int co
     if (frame < 1) status &= AFS_MASK_SHIFT0;
 
     return status;
+}
+
+void analyze_frame_opencl_submit(int frame, cl_event *event) {
+    const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
+    for (int i = 0; i < 4; i++) {
+        AFS_STRIPE_DATA *sp = stripep(frame + i);
+        if (sp->status > 0 && sp->frame == frame + i)
+            continue;
+
+        const int p0_idx  = (frame+i)   & (AFS_SCAN_CACHE_NUM-1);
+        const int p1_idx  = (frame+i+1) & (AFS_SCAN_CACHE_NUM-1);
+        const int dst_idx = (frame+i)   & (AFS_STRIPE_CACHE_NUM-1);
+        afs_opencl_merge_scan_nv16_submit(&g_afs, dst_idx, p0_idx, p1_idx, si_w, g_afs.scan_h, nullptr, event);
+
+        sp->status = 3; //OpenCLにタスクを投入した状態
+        sp->frame = frame;
+
+        //afs_func.get_count.stripe()は元通り、get_stripe_infoで実行する
+    }
 }
 
 // シーンチェンジ解析
@@ -2229,6 +2255,11 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     }
 
     if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+        for (int i = 0; i <= 2; i++) {
+            if (fpip->frame + i < fpip->frame_n) {
+                analyze_frame_opencl_submit(fpip->frame + i, nullptr);
+            }
+        }
         //メインスレッドは、タスク投入スレッドが実際にキューにタスクを投入してから、clFinish()を呼ばなければならない。
         //afs_opencl_fin_event_submit()をタスク投入スレッドが処理すれば、
         //タスク投入スレッドがg_afs.opencl.submit.he_finをセットするので、これで同期とする

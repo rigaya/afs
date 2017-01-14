@@ -122,3 +122,5 @@ void afs_opencl_fin_event_submit(AFS_OPENCL_SUBMIT *submit);
 void afs_opencl_analyze_12_nv16_submit(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int tb_order, int width, int si_pitch, int h, int max_h,
     int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, const void *_scan_clip,
     const cl_event *wait, cl_event *event);
+void afs_opencl_merge_scan_nv16_submit(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h,
+    const cl_event *wait, cl_event *event);
