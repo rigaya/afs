@@ -2254,6 +2254,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         QPC_ADD(QPC_COUNT_MOTION, QPC_COUNT_MOTION, QPC_SCAN_FRAME);
     }
 
+    const int si_w = si_pitch(fpip->w, g_afs.afs_mode);
     if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
         for (int i = 0; i <= 2; i++) {
             if (fpip->frame + i < fpip->frame_n) {
@@ -2264,6 +2265,13 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         //afs_opencl_fin_event_submit()をタスク投入スレッドが処理すれば、
         //タスク投入スレッドがg_afs.opencl.submit.he_finをセットするので、これで同期とする
         afs_opencl_fin_event_submit(&g_afs.opencl.submit);
+        auto sip = stripep(fpip->frame);
+        if (analyze > 1
+            && sip->status == 2
+            && sip->frame == fpip->frame) {
+            afs_func.analyzemap_filter(sip->map, si_w, fpip->w, fpip->h);
+            sip->status = 1;
+        }
         WaitForSingleObject(g_afs.opencl.submit.he_fin, INFINITE);
         //g_afs.opencl.submit.he_finがセットされれば、
         //これまでのタスクはすべてOpenCLキューに投入されている
@@ -2300,24 +2308,30 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     log_save_check = 1;
     QPC_GET_COUNTER(QPC_ANALYZE_FRAME);
 
-    sip = get_stripe_info(fpip->frame, 1);
-    const int si_w = si_pitch(fpip->w, g_afs.afs_mode);
-    QPC_GET_COUNTER(QPC_STRIP_COUNT);
-
-    // 解析マップをフィルタ
-    if (analyze > 1) {
-#if SIMD_DEBUG
-        BYTE *test_buf = get_debug_buffer(si_w * fpip->h);
-        memcpy(test_buf, sip, si_w * fpip->h);
-#endif
-        afs_func.analyzemap_filter(sip, si_w, fpip->w, fpip->h);
-#if SIMD_DEBUG
-        afs_analyzemap_filter_mmx(test_buf, si_w, fpip->w, fpip->h);
-        if (compare_frame(sip, test_buf, fpip->w, si_w, fpip->h)) {
-            error_message_box(__LINE__, "afs_func.analyzemap_filter");
-        }
-#endif
+    if ((g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
+        && stripep(fpip->frame)->status == 1
+        && stripep(fpip->frame)->frame == fpip->frame) {
+        sip = get_stripe_info(fpip->frame, 0);
         stripe_info_dirty(fpip->frame);
+    } else {
+        sip = get_stripe_info(fpip->frame, 1);
+        QPC_GET_COUNTER(QPC_STRIP_COUNT);
+
+        // 解析マップをフィルタ
+        if (analyze > 1) {
+    #if SIMD_DEBUG
+            BYTE *test_buf = get_debug_buffer(si_w * fpip->h);
+            memcpy(test_buf, sip, si_w * fpip->h);
+    #endif
+            afs_func.analyzemap_filter(sip, si_w, fpip->w, fpip->h);
+    #if SIMD_DEBUG
+            afs_analyzemap_filter_mmx(test_buf, si_w, fpip->w, fpip->h);
+            if (compare_frame(sip, test_buf, fpip->w, si_w, fpip->h)) {
+                error_message_box(__LINE__, "afs_func.analyzemap_filter");
+            }
+    #endif
+            stripe_info_dirty(fpip->frame);
+        }
     }
     QPC_GET_COUNTER(QPC_MAP_FILTER);
     QPC_ADD(QPC_ANALYZE_FRAME, QPC_ANALYZE_FRAME, QPC_INIT);
