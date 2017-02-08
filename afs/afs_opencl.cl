@@ -142,7 +142,7 @@ void count_flags_skip(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint,
          ^ (dat1 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)));
     deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
     shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
-    mask >>= 1; //最初はshiftの位置にしかビットはたっていない
+    mask >>= (ushort2)1; //最初はshiftの位置にしかビットはたっていない
     //*count_deint &= mask; //deintにマスクはいらない
     *count_shift &= mask;
     *count_deint  = deint; //deintに値は入っていないので代入でよい
@@ -155,8 +155,8 @@ void count_flags(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, usho
          ^ (dat1 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)));
     deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
     shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
-    mask |= (mask<<1);
-    mask |= (mask>>2);
+    mask |= (mask<<(ushort2)1);
+    mask |= (mask>>(ushort2)2);
     *count_deint &= mask;
     *count_shift &= mask;
     *count_deint += deint;
@@ -320,9 +320,9 @@ __kernel void afs_analyze_12_nv16_kernel(
                     // 16                     8                    0
                     //  | motion_count_latter | motion_count_first |
 #if TB_ORDER
-                    motion_count_01 += motion_flag << (((ly    ) & 1) << 3);
+                    motion_count_01 += motion_flag << (ushort2)(((ly    ) & 1) << 3);
 #else
-                    motion_count_01 += motion_flag << (((ly + 1) & 1) << 3);
+                    motion_count_01 += motion_flag << (ushort2)(((ly + 1) & 1) << 3);
 #endif
                 }
                 //判定結果の出力
