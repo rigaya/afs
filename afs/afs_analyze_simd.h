@@ -46,7 +46,12 @@ static const _declspec(align(16)) BYTE pb_mask_12motion_01[16] = { 0xcc, 0xcc, 0
 
 static __forceinline int count_motion(__m128i x0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
     DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
-    
+#if 1
+    //_mm256_movemask_epi8は最上位ビットの取り出しであるから、最上位ビットさえ意識すればよい
+    //ここで行いたいのは、「0x40ビットが立っていないこと」であるから、
+    //左シフトで最上位ビットに移動させたのち、andnotで反転させながらmc_maskとの論理積をとればよい
+    x0 = _mm_andnot_si128(_mm_slli_epi16(x0, 1), _mm_load_si128((__m128i *)(mc_mask + x)));
+#else
     static const _declspec(align(16)) BYTE MOTION_COUNT_CHECK[16] = {
         0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40
     };
@@ -55,6 +60,7 @@ static __forceinline int count_motion(__m128i x0, BYTE mc_mask[BLOCK_SIZE_YCP], 
     x0 = _mm_andnot_si128(x0, xMotion);
     x0 = _mm_cmpeq_epi8(x0, xMotion);
     x0 = _mm_and_si128(x0, _mm_load_si128((__m128i *)(mc_mask + x)));
+#endif
     return popcnt32(heightMask & _mm_movemask_epi8(x0));
 }
 

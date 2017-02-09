@@ -50,16 +50,22 @@ static const BYTE mshufmask[] = { 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0x01, 0x00
 
 static __forceinline int count_motion(__m256i y0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
     DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
-    
+#if 1
+
+    //_mm256_movemask_epi8は最上位ビットの取り出しであるから、最上位ビットさえ意識すればよい
+    //ここで行いたいのは、「0x40ビットが立っていないこと」であるから、
+    //左シフトで最上位ビットに移動させたのち、andnotで反転させながらmc_maskとの論理積をとればよい
+    y0 = _mm256_andnot_si256(_mm256_slli_epi16(y0, 1), _mm256_load_si256((__m256i *)(mc_mask + x)));
+#else
     static const _declspec(align(32)) BYTE MOTION_COUNT_CHECK[32] = {
         0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
         0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
     };
-    
     const __m256i yMotion = _mm256_load_si256((__m256i *)MOTION_COUNT_CHECK);
     y0 = _mm256_andnot_si256(y0, yMotion);
     y0 = _mm256_cmpeq_epi8(y0, yMotion);
     y0 = _mm256_and_si256(y0, _mm256_load_si256((__m256i *)(mc_mask + x)));
+#endif
     return _mm_popcnt_u32(heightMask & _mm256_movemask_epi8(y0));
 }
 
