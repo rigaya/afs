@@ -580,7 +580,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 32) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 128) {
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
                 //afs_analyze_1_mmx_loop
@@ -603,15 +603,15 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, y3);
-                y7 = _mm256_load_si256((__m256i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6));
-                y6 = _mm256_load_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
+                y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
+                y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
                 y1 = _mm256_xor_si256(y1, y7);
                 y7 = _mm256_xor_si256(y7, y1);
                 y6 = _mm256_and_si256(y6, y1);
                 y6 = _mm256_and_si256(y6, y0);
                 y6 = _mm256_subs_epi16(y6, y0);
-                _mm256_store_si256((__m256i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6), y7);
-                _mm256_store_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6), y6);
+                _mm256_store_si256((__m256i *)(buf_ptr +  0), y7);
+                _mm256_store_si256((__m256i *)(buf_ptr + 32), y6);
                 
                 y1 = y6;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count1));
@@ -624,15 +624,15 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, y3);
-                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6));
-                y4 = _mm256_load_si256((__m256i *)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6));
+                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
+                y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
                 y1 = _mm256_xor_si256(y1, y5);
                 y5 = _mm256_xor_si256(y5, y1);
                 y4 = _mm256_and_si256(y4, y1);
                 y4 = _mm256_and_si256(y4, y0);
                 y4 = _mm256_subs_epi16(y4, y0);
-                _mm256_store_si256((__m256i *)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6), y5);
-                _mm256_store_si256((__m256i *)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6), y4);
+                _mm256_store_si256((__m256i *)(buf_ptr + 64), y5);
+                _mm256_store_si256((__m256i *)(buf_ptr + 96), y4);
                 y1 = y4;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count1));
                 y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i *)pw_mask_1stripe_1));
@@ -764,7 +764,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 32) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 128) {
                 y3 = _mm256_load_si256((__m256i *)(pw_thre_motion[jw]));
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
@@ -788,15 +788,15 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, _mm256_load_si256((__m256i *)pw_thre_deint));
-                y7 = _mm256_load_si256((__m256i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6));
-                y6 = _mm256_load_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
+                y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
+                y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
                 y1 = _mm256_xor_si256(y1, y7);
                 y7 = _mm256_xor_si256(y7, y1);
                 y6 = _mm256_and_si256(y6, y1);
                 y6 = _mm256_and_si256(y6, y0);
                 y6 = _mm256_subs_epi16(y6, y0);
-                _mm256_store_si256((__m256i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6), y7);
-                _mm256_store_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6), y6);
+                _mm256_store_si256((__m256i *)(buf_ptr +  0), y7);
+                _mm256_store_si256((__m256i *)(buf_ptr + 32), y6);
                 
                 y1 = y6;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count2));
@@ -809,15 +809,15 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, _mm256_load_si256((__m256i *)pw_thre_deint));
-                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6));
-                y4 = _mm256_load_si256((__m256i *)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6));
+                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
+                y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
                 y1 = _mm256_xor_si256(y1, y5);
                 y5 = _mm256_xor_si256(y5, y1);
                 y4 = _mm256_and_si256(y4, y1);
                 y4 = _mm256_and_si256(y4, y0);
                 y4 = _mm256_subs_epi16(y4, y0);
-                _mm256_store_si256((__m256i *)(buf_ptr + 2 * BLOCK_SIZE_YCP * 6), y5);
-                _mm256_store_si256((__m256i *)(buf_ptr + 3 * BLOCK_SIZE_YCP * 6), y4);
+                _mm256_store_si256((__m256i *)(buf_ptr + 64), y5);
+                _mm256_store_si256((__m256i *)(buf_ptr + 96), y4);
                 y1 = y4;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count2));
                 y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i *)pw_mask_2stripe_1));
