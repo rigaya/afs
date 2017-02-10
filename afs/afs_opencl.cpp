@@ -212,6 +212,7 @@ static cl_int afs_opencl_get_device(const char *vendor_name, cl_int device_type,
                             cl_data->bSVMAvail = (svm_cap & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) != 0;
                         }
                     }
+                    cl_data->bIntelGPU = (stristr(vendor_name, "Intel") != nullptr);
                     break;
                 }
             }
@@ -288,6 +289,9 @@ static cl_int afs_opencl_create_kernel(AFS_OPENCL *cl_data) {
     for (int i = 0; i < _countof(cl_data->program_analyze); i++) {
         std::string sBuildOptions = sBuildOptionBase + " -D PREFER_SHORT4=1";
         sBuildOptions += (i) ? " -D TB_ORDER=1" : " -D TB_ORDER=0";
+        if (cl_data->bIntelGPU) {
+            sBuildOptions += " -D __INTEL_OPENCL__=1";
+        }
         build_ret.push_back(std::async(std::launch::async, [=]() {
             return afs_opencl_create_kernel(cl_data, cl_data->program_analyze[i], cl_data->kernel_analyze[i],
                 clSourceFile, resourceSize, sBuildOptions.c_str(), "afs_analyze_12_nv16_kernel");

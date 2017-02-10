@@ -140,7 +140,7 @@
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0 -D __INTEL_OPENCL__=1</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugVF|Win32'">
@@ -185,7 +185,7 @@
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0 -D __INTEL_OPENCL__=1</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -244,7 +244,7 @@
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0 -D __INTEL_OPENCL__=1</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseVF|Win32'">
@@ -302,7 +302,7 @@
       <Device>1</Device>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules>
-      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0</OTHER>
+      <OTHER>-D PREFER_SHORT4=1 -cl-std=CL2.0 -D __INTEL_OPENCL__=1</OTHER>
     </Intel_OpenCL_Build_Rules>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -85,6 +85,7 @@ typedef struct _AFS_OPENCL {
     int motion_count_temp_max; //motion_count_temp_mapの最大要素数(確保したメモリの量)
     HMODULE hModuleDLL;        //afs.aufのハンドル (リソース取得時に使用)
     bool bSVMAvail;            //SVM (Fine Grain)が利用可能かどうか
+    bool bIntelGPU;            //Intel GPUかどうか
     AFS_OPENCL_SUBMIT submit;
 } AFS_OPENCL;
 

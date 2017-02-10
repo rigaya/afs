@@ -210,11 +210,19 @@ void merge_mask(ushort2 masky, ushort2 maskc, ushort2 *restrict mask0, ushort2 *
     // | v2 | v2 | v0 | v0 |  maskv
     ushort2 masku = (maskc & (ushort2)0x00ff) | (maskc << (ushort2)8);
     ushort2 maskv = (maskc & (ushort2)0xff00) | (maskc >> (ushort2)8);
-
-    ushort2 mask0u = as_ushort2( as_int(masku) | (as_int(masku) << 8) | (as_int(masku) >> 8) );
-    ushort2 mask0v = as_ushort2( as_int(maskv) | (as_int(maskv) << 8) | (as_int(maskv) >> 8) );
-
+#if __INTEL_OPENCL__
+    uint masktemp0 = as_uint(maskc) >> 16;                                 //|  0 |  0 | v2 | u2 |
+    uint masktemp1 = intel_sub_group_shuffle_down(as_uint(maskc), 0u, 1u); //| v6 | v6 | v4 | v4 |
+    masktemp0 |= (as_uint(maskc) | masktemp1);                             //| v2 | u2 | v0 | u0 |
+    ushort2 maskc0 = as_ushort2(masktemp0);                                //   +    +    +    +
+                                                                           //| v4 | v4 | v2 | u2 |
+    ushort2 mask0u = (maskc0 & (ushort2)0x00ff) | (maskc0 << (ushort2)8);
+    ushort2 mask0v = (maskc0 & (ushort2)0xff00) | (maskc0 >> (ushort2)8);
+    
+    *mask0 = masky & mask0u & mask0v;
+#else
     *mask0 = masky & masku & maskv;
+#endif
     *mask1 = masky | masku | maskv;
 
     *mask0 &= (ushort2)0xcccc;
