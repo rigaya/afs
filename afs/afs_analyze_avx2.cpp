@@ -268,11 +268,11 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, c
 
     y1 = _mm256_or_si256(y0, y6);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    y6 = _mm256_or_si256(y6, _mm256_or_si256(_mm256_slli256_si256(y6, 2), _mm256_slli256_si256(y6, 2)));
+    y6 = _mm256_or_si256(y6, _mm256_srli256_si256(y6, 2));
     y0 = _mm256_and_si256(y0, y6);
     y1 = _mm256_or_si256(y1, y7);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    y7 = _mm256_or_si256(y7, _mm256_or_si256(_mm256_slli256_si256(y7, 2), _mm256_slli256_si256(y7, 2)));
+    y7 = _mm256_or_si256(y7, _mm256_srli256_si256(y7, 2));
     y0 = _mm256_and_si256(y0, y7);
     y2 = _mm256_srai_epi16(y0, 8);
 #if 0
@@ -289,11 +289,11 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, c
 
     y1 = _mm256_or_si256(y0, y6);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    y6 = _mm256_or_si256(y6, _mm256_or_si256(_mm256_slli256_si256(y6, 2), _mm256_slli256_si256(y6, 2)));
+    y6 = _mm256_or_si256(y6, _mm256_srli256_si256(y6, 2));
     y0 = _mm256_and_si256(y0, y6);
     y1 = _mm256_or_si256(y1, y7);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    y7 = _mm256_or_si256(y7, _mm256_or_si256(_mm256_slli256_si256(y7, 2), _mm256_slli256_si256(y7, 2)));
+    y7 = _mm256_or_si256(y7, _mm256_srli256_si256(y7, 2));
     y0 = _mm256_and_si256(y0, y7);
     y0 = _mm256_srai_epi16(y0, 8);
 #if 0

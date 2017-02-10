@@ -237,11 +237,11 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m128i& xY0, c
 
     x1 = _mm_or_si128(x0, x6);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    x6 = _mm_or_si128(x6, _mm_or_si128(_mm_srli_si128(x6, 2), _mm_slli_si128(x6, 2)));
+    x6 = _mm_or_si128(x6, _mm_srli_si128(x6, 2));
     x0 = _mm_and_si128(x0, x6);
     x1 = _mm_or_si128(x1, x7);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    x7 = _mm_or_si128(x7, _mm_or_si128(_mm_srli_si128(x7, 2), _mm_slli_si128(x7, 2)));
+    x7 = _mm_or_si128(x7, _mm_srli_si128(x7, 2));
     x0 = _mm_and_si128(x0, x7);
     x1 = _mm_slli_epi16(x1, 8);
     x2 = _mm_srai_epi16(x0, 8);
@@ -258,11 +258,11 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m128i& xY0, c
 
     x1 = _mm_or_si128(x0, x6);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    x6 = _mm_or_si128(x6, _mm_or_si128(_mm_srli_si128(x6, 2), _mm_slli_si128(x6, 2)));
+    x6 = _mm_or_si128(x6, _mm_srli_si128(x6, 2));
     x0 = _mm_and_si128(x0, x6);
     x1 = _mm_or_si128(x1, x7);
     //YUV422で間引かれている色差は、1ピクセル分マスクを広げて論理和をとる
-    x7 = _mm_or_si128(x7, _mm_or_si128(_mm_srli_si128(x7, 2), _mm_slli_si128(x7, 2)));
+    x7 = _mm_or_si128(x7, _mm_srli_si128(x7, 2));
     x0 = _mm_and_si128(x0, x7);
     x1 = _mm_slli_epi16(x1, 8);
     x0 = _mm_srai_epi16(x0, 8);
