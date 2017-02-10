@@ -42,8 +42,8 @@ __constant uchar shift_deint = 0x01u;
 
 DATA4 analyze_motion(DATA4 p0, DATA4 p1, uchar thre_motion, uchar thre_shift) {
     DATA4 absy = CONVERT_DATA4(abs(convert_short4(p1) - convert_short4(p0)));
-    DATA4 mask = 0;
-    mask |= ((DATA4)thre_motion > absy) ? (DATA4)motion_flag  : (DATA4)0;
+    DATA4 mask;
+    mask  = ((DATA4)thre_motion > absy) ? (DATA4)motion_flag  : (DATA4)0;
     mask |= ((DATA4)thre_shift  > absy) ? (DATA4)motion_shift : (DATA4)0;
     return mask;
 }
