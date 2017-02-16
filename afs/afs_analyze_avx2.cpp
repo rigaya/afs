@@ -316,7 +316,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     PIXEL_YC *p0 = (PIXEL_YC *)_p0;
     PIXEL_YC *p1 = (PIXEL_YC *)_p1;
     const int step6 = step * 6;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -369,7 +369,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-            for (int jw = 0; jw < 3; jw++, ptr_p[0] += 32, ptr_p[1] += 32, buf_ptr += 128) {
+            for (int jw = 0; jw < 3; jw++, ptr_p[0] += 32, ptr_p[1] += 32, buf_ptr += ((COMPRESS_BUF) ? 64 : 128)) {
                 //ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 //ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
                 y0 = _mm256_loadu_si256((__m256i *)(ptr_p[0] + step6));
@@ -405,14 +405,24 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
 #else
                 y1 = _mm256_blendv_epi8(y0, y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
 #endif
-                //y7 = _mm256_load_si256((__m256i *)(buf_ptr + 0 * BLOCK_SIZE_YCP * 6));
-                //y6 = _mm256_load_si256((__m256i *)(buf_ptr + 1 * BLOCK_SIZE_YCP * 6));
+
+#if COMPRESS_BUF
+                y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
+                y6 = _mm256_abs_epi16(y7);      //絶対値がcountの値
+                y7 = _mm256_srai_epi16(y7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
                 y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+#endif
                 y6 = _mm256_and_si256(y6, _mm256_and_si256(_mm256_xor_si256(y2, y7), y1));
                 y6 = _mm256_subs_epi8(y6, y1);
+#if COMPRESS_BUF
+                y2 = _mm256_sign_epi16(y6, y2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
+#else
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
                 _mm256_store_si256((__m256i *)(buf_ptr + 32), y6);
+#endif
 
                 y0 = y6;
                 y0 = _mm256_cmpgt_epi8(y0, _mm256_load_si256((__m256i *)pb_thre_count));
@@ -438,12 +448,24 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
 #else
                 y1 = _mm256_blendv_epi8(y0, y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
 #endif
+
+#if COMPRESS_BUF
+                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+                y4 = _mm256_abs_epi16(y5);      //絶対値がcountの値
+                y5 = _mm256_srai_epi16(y5, 15);
+#else
                 y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
                 y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
+#endif
                 y4 = _mm256_and_si256(y4, _mm256_and_si256(_mm256_xor_si256(y2, y5), y1));
                 y4 = _mm256_subs_epi8(y4, y1);
+#if COMPRESS_BUF
+                y2 = _mm256_sign_epi16(y4, y2);
+                _mm256_store_si256((__m256i *)(buf_ptr + 32), y2);
+#else
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y2);
                 _mm256_store_si256((__m256i *)(buf_ptr + 96), y4);
+#endif
                 y0 = y4;
                 y0 = _mm256_cmpgt_epi8(y0, _mm256_load_si256((__m256i *)pb_thre_count));
                 y0 = _mm256_srli_epi16(y0, 4);
@@ -513,7 +535,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     PIXEL_YC *p0 = (PIXEL_YC *)_p0;
     PIXEL_YC *p1 = (PIXEL_YC *)_p1;
     const int step6 = step * 6;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -576,7 +598,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 128) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += ((COMPRESS_BUF) ? 64 : 128)) {
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
                 //afs_analyze_1_mmx_loop
@@ -599,13 +621,24 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, y3);
+#if COMPRESS_BUF
+                y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
+                y6 = _mm256_abs_epi16(y7);      //絶対値がcountの値
+                y7 = _mm256_srai_epi16(y7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
                 y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+#endif
                 y7 = _mm256_xor_si256(y7, y1);
                 y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y1, y7)), y0);
                 y6 = _mm256_subs_epi16(y6, y0);
+#if COMPRESS_BUF
+                y1 = _mm256_sign_epi16(y6, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
+#else
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
                 _mm256_store_si256((__m256i *)(buf_ptr + 32), y6);
+#endif
                 
                 y1 = y6;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count1));
@@ -618,12 +651,23 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, y3);
+#if COMPRESS_BUF
+                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+                y4 = _mm256_abs_epi16(y5);      //絶対値がcountの値
+                y5 = _mm256_srai_epi16(y5, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
                 y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
+#endif
                 y4 = _mm256_and_si256(_mm256_and_si256(y4, _mm256_xor_si256(y1, y5)), y0);
                 y4 = _mm256_subs_epi16(y4, y0);
+#if COMPRESS_BUF
+                y1 = _mm256_sign_epi16(y4, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                _mm256_store_si256((__m256i *)(buf_ptr + 32), y1);
+#else
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y1);
                 _mm256_store_si256((__m256i *)(buf_ptr + 96), y4);
+#endif
                 y1 = y4;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count1));
                 y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i *)pw_mask_1stripe_1));
@@ -693,7 +737,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     PIXEL_YC *p0 = (PIXEL_YC *)_p0;
     PIXEL_YC *p1 = (PIXEL_YC *)_p1;
     const int step6 = step * 6;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -755,7 +799,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 128) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += ((COMPRESS_BUF) ? 64 : 128)) {
                 y3 = _mm256_load_si256((__m256i *)(pw_thre_motion[jw]));
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
@@ -779,12 +823,23 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, _mm256_load_si256((__m256i *)pw_thre_deint));
+#if COMPRESS_BUF
+                y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
+                y6 = _mm256_abs_epi16(y7);      //絶対値がcountの値
+                y7 = _mm256_srai_epi16(y7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
                 y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+#endif
                 y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y1, y7)), y0);
                 y6 = _mm256_subs_epi16(y6, y0);
+#if COMPRESS_BUF
+                y1 = _mm256_sign_epi16(y6, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
+#else
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
                 _mm256_store_si256((__m256i *)(buf_ptr + 32), y6);
+#endif
                 
                 y1 = y6;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count2));
@@ -797,12 +852,23 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y0 = _mm256_abs_epi16(y1);
                 y1 = _mm256_cmpeq_epi16(y1, y0);
                 y0 = _mm256_cmpgt_epi16(y0, _mm256_load_si256((__m256i *)pw_thre_deint));
+#if COMPRESS_BUF
+                y5 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+                y4 = _mm256_abs_epi16(y5);      //絶対値がcountの値
+                y5 = _mm256_srai_epi16(y5, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 y5 = _mm256_load_si256((__m256i *)(buf_ptr + 64));
                 y4 = _mm256_load_si256((__m256i *)(buf_ptr + 96));
+#endif
                 y4 = _mm256_and_si256(_mm256_and_si256(y4, _mm256_xor_si256(y1, y5)), y0);
                 y4 = _mm256_subs_epi16(y4, y0);
+#if COMPRESS_BUF
+                y1 = _mm256_sign_epi16(y4, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                _mm256_store_si256((__m256i *)(buf_ptr + 32), y1);
+#else
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y1);
                 _mm256_store_si256((__m256i *)(buf_ptr + 96), y4);
+#endif
                 y1 = y4;
                 y1 = _mm256_cmpgt_epi16(y1, _mm256_load_si256((__m256i *)pw_thre_count2));
                 y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i *)pw_mask_2stripe_1));
@@ -882,12 +948,23 @@ static __m256i __forceinline afs_analyze_motion(__m256i y0, __m256i y1, int i_th
 
 static __m256i __forceinline afs_analyze_element_stripe_nv16(__m256i y0, __m256i y2, BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m256i y6, y7;
+#if COMPRESS_BUF
+    y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
+    y6 = _mm256_abs_epi16(y7);      //絶対値がcountの値
+    y7 = _mm256_srai_epi16(y7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
     y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
     y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
+#endif
     y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y2, y7)), y0);
     y6 = _mm256_subs_epi8(y6, y0);
+#if COMPRESS_BUF
+    y2 = _mm256_sign_epi16(y6, y2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+    _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
+#else
     _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
     _mm256_store_si256((__m256i *)(buf_ptr + 32), y6);
+#endif
 
     y0 = y6;
     y0 = _mm256_cmpgt_epi8(y0, _mm256_load_si256((__m256i *)pb_thre_count));
@@ -910,7 +987,7 @@ static void __forceinline afs_analyze_stripe_nv16(__m256i& y0, __m256i& y1, BYTE
     y5 = _mm256_unpackhi_epi8(y1, y0);
     //
     y0 = afs_analyze_element_stripe_nv16(y4, _mm256_unpacklo_epi8(y2, y2), buf_ptr +  0, pw_mask_12stripe);
-    y1 = afs_analyze_element_stripe_nv16(y5, _mm256_unpackhi_epi8(y2, y2), buf_ptr + 64, pw_mask_12stripe);
+    y1 = afs_analyze_element_stripe_nv16(y5, _mm256_unpackhi_epi8(y2, y2), buf_ptr + ((COMPRESS_BUF) ? 32 : 64), pw_mask_12stripe);
 }
 
 //出力 y0, y1 ... 16bit幅で16pixelずつ(計32pixel)のマスクデータ
@@ -935,7 +1012,7 @@ static void __forceinline afs_analyze_count_stripe_nv16(__m256i& y0, __m256i& y1
     //analyze shift
     y3 = _mm256_loadu_si256((__m256i *)(ptr[0]));
     y4 = _mm256_loadu_si256((__m256i *)(ptr[1]+step));
-    afs_analyze_stripe_nv16(y3, y4, buf_ptr + 128, pw_mask_12stripe_1);
+    afs_analyze_stripe_nv16(y3, y4, buf_ptr + ((COMPRESS_BUF) ? 64 : 128), pw_mask_12stripe_1);
 
     //gather flags
     y0 = _mm256_or_si256(y0, _mm256_unpacklo_epi8(_mm256_setzero_si256(), y6));
@@ -948,7 +1025,7 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
     BYTE *p0 = (BYTE *)_p0;
     BYTE *p1 = (BYTE *)_p1;
     const int frame_size = step * max_h;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -1002,11 +1079,11 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
-        for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += 512) {
+        for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += ((COMPRESS_BUF) ? 256 : 512)) {
             //Y
             afs_analyze_count_stripe_nv16(tmpY0, tmpY1, ptr_p0,              ptr_p1,              buf_ptr +   0, 0, step, tb_order, ih);
             //C
-            afs_analyze_count_stripe_nv16(tmpC0, tmpC1, ptr_p0 + frame_size, ptr_p1 + frame_size, buf_ptr + 256, 1, step, tb_order, ih);
+            afs_analyze_count_stripe_nv16(tmpC0, tmpC1, ptr_p0 + frame_size, ptr_p1 + frame_size, buf_ptr + ((COMPRESS_BUF) ? 128 : 256), 1, step, tb_order, ih);
 
             afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, y0, y1);
             _mm256_store_si256((__m256i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), y0);

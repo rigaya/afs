@@ -87,6 +87,7 @@ const int BLOCK_SIZE_YCP = 256;
 #define SIMD_DEBUG         0 //SIMD処理をデバッグする
 #define CHECK_PERFORMANCE  0 //パフォーマンスレポートを出力する
 #define ENABLE_OPENCL      1
+#define COMPRESS_BUF       1
 
 #if ENABLE_SUB_THREADS
 //サブスレッド scan_frame スレッド用 --------------------------------------------------------

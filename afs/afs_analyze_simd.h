@@ -393,7 +393,7 @@ static void __forceinline __stdcall afs_analyze_shrink_info_simd_plus(BYTE *dst,
 */
 static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     const int step6 = step * 6;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -454,7 +454,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
         for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
             _mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
             _mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 64) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += ((COMPRESS_BUF) ? 32 : 64)) {
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
                 x0 = _mm_loadu_si128((__m128i *)(ptr_p0 + step6));
@@ -494,12 +494,31 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
                 x0 = _mm_cmpgt_epi16(x0, _mm_load_si128((__m128i *)pw_thre_shift));
                 x0 = _mm_packs_epi16(x0, x0);
                 x1 = _mm_unpacklo_epi8(x1, x0);
+#if COMPRESS_BUF
+                x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
+#if USE_SSSE3
+                x6 = _mm_abs_epi16(x7); //絶対値がcountの値
+#else
+                x6 = _mm_srli_epi16(_mm_slli_epi16(x7, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+                x7 = _mm_srai_epi16(x7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
                 x6 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#endif
                 x6 = _mm_and_si128(_mm_and_si128(x6, _mm_xor_si128(x2, x7)), x1);
                 x6 = _mm_subs_epi8(x6, x1);
+#if COMPRESS_BUF
+#if USE_SSSE3
+                x2 = _mm_sign_epi16(x6, x2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+                x2 = _mm_or_si128(x6, _mm_slli_epi16(x2, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+                _mm_store_si128((__m128i *)(buf_ptr +  0), x2);
+#else
                 _mm_store_si128((__m128i *)(buf_ptr +  0), x2);
                 _mm_store_si128((__m128i *)(buf_ptr + 16), x6);
+#endif
 
                 x0 = x6;
                 x0 = _mm_cmpgt_epi8(x0, _mm_load_si128((__m128i *)pb_thre_count));
@@ -525,12 +544,31 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
                 x0 = _mm_cmpgt_epi16(x0, _mm_load_si128((__m128i *)pw_thre_shift));
                 x0 = _mm_packs_epi16(x0, x0);
                 x1 = _mm_unpacklo_epi8(x1, x0);
+#if COMPRESS_BUF
+                x5 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#if USE_SSSE3
+                x4 = _mm_abs_epi16(x5); //絶対値がcountの値
+#else
+                x4 = _mm_srli_epi16(_mm_slli_epi16(x5, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+                x5 = _mm_srai_epi16(x5, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 x5 = _mm_load_si128((__m128i *)(buf_ptr + 32));
                 x4 = _mm_load_si128((__m128i *)(buf_ptr + 48));
+#endif
                 x4 = _mm_and_si128(_mm_and_si128(x4, _mm_xor_si128(x2, x5)), x1);
                 x4 = _mm_subs_epi8(x4, x1);
+#if COMPRESS_BUF
+#if USE_SSSE3
+                x2 = _mm_sign_epi16(x4, x2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+                x2 = _mm_or_si128(x4, _mm_slli_epi16(x2, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+                _mm_store_si128((__m128i *)(buf_ptr + 16), x2);
+#else
                 _mm_store_si128((__m128i *)(buf_ptr + 32), x2);
                 _mm_store_si128((__m128i *)(buf_ptr + 48), x4);
+#endif
                 x0 = x4;
                 x0 = _mm_cmpgt_epi8(x0, _mm_load_si128((__m128i *)pb_thre_count));
                 x0 = _mm_srli_epi16(x0, 4);
@@ -600,7 +638,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 
 static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     const int step6 = step * 6;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -671,7 +709,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
         for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
             _mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
             _mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 64) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += ((COMPRESS_BUF) ? 32 : 64)) {
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
                 //afs_analyze_1_mmx_loop
@@ -705,13 +743,31 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
                 x0 = _mm_subs_epi16(x0, x1);
 #endif
                 x0 = _mm_cmpgt_epi16(x0, x3);
+#if COMPRESS_BUF
+                x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
+#if USE_SSSE3
+                x6 = _mm_abs_epi16(x7); //絶対値がcountの値
+#else
+                x6 = _mm_srli_epi16(_mm_slli_epi16(x7, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+                x7 = _mm_srai_epi16(x7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
                 x6 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#endif
                 x6 = _mm_and_si128(_mm_and_si128(x6, _mm_xor_si128(x1, x7)), x0);
                 x6 = _mm_subs_epi16(x6, x0);
+#if COMPRESS_BUF
+#if USE_SSSE3
+                x1 = _mm_sign_epi16(x6, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+                x1 = _mm_or_si128(x6, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+                _mm_store_si128((__m128i *)(buf_ptr +  0), x1);
+#else
                 _mm_store_si128((__m128i *)(buf_ptr +  0), x1);
                 _mm_store_si128((__m128i *)(buf_ptr + 16), x6);
-
+#endif
 
                 x1 = x6;
                 x1 = _mm_cmpgt_epi16(x1, _mm_load_si128((__m128i *)pw_thre_count1));
@@ -733,12 +789,31 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
                 x0 = _mm_subs_epi16(x0, x1);
 #endif
                 x0 = _mm_cmpgt_epi16(x0, x3);
+#if COMPRESS_BUF
+                x5 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#if USE_SSSE3
+                x4 = _mm_abs_epi16(x5); //絶対値がcountの値
+#else
+                x4 = _mm_srli_epi16(_mm_slli_epi16(x5, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+                x5 = _mm_srai_epi16(x5, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 x5 = _mm_load_si128((__m128i *)(buf_ptr + 32));
                 x4 = _mm_load_si128((__m128i *)(buf_ptr + 48));
+#endif
                 x4 = _mm_and_si128(_mm_and_si128(x4, _mm_xor_si128(x1, x5)), x0);
                 x4 = _mm_subs_epi16(x4, x0);
+#if COMPRESS_BUF
+#if USE_SSSE3
+                x1 = _mm_sign_epi16(x4, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+                x1 = _mm_or_si128(x4, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+                _mm_store_si128((__m128i *)(buf_ptr + 16), x1);
+#else
                 _mm_store_si128((__m128i *)(buf_ptr + 32), x1);
                 _mm_store_si128((__m128i *)(buf_ptr + 48), x4);
+#endif
                 
                 x1 = x4;
                 x1 = _mm_cmpgt_epi16(x1, _mm_load_si128((__m128i *)pw_thre_count1));
@@ -807,7 +882,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
 
 static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC *p0, PIXEL_YC *p1, int tb_order, int width, int step, int si_pitch, int h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     const int step6 = step * 6;
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -877,7 +952,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
         for (int kw = 0; kw < width; kw += 8, buf2_ptr += 8) {
             _mm_prefetch((char *)ptr_p0 + (step6 << 1), _MM_HINT_T0);
             _mm_prefetch((char *)ptr_p1 + (step6 << 1), _MM_HINT_T0);
-            for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 64) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += ((COMPRESS_BUF) ? 32 : 64)) {
                 x3 = _mm_load_si128((__m128i *)(pw_thre_motion[jw]));
                 ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
                 ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
@@ -912,12 +987,31 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
                 x0 = _mm_subs_epi16(x0, x1);
 #endif
                 x0 = _mm_cmpgt_epi16(x0, _mm_load_si128((__m128i *)pw_thre_deint));
+#if COMPRESS_BUF
+                x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
+#if USE_SSSE3
+                x6 = _mm_abs_epi16(x7); //絶対値がcountの値
+#else
+                x6 = _mm_srli_epi16(_mm_slli_epi16(x7, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+                x7 = _mm_srai_epi16(x7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
                 x6 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#endif
                 x6 = _mm_and_si128(_mm_and_si128(x6, _mm_xor_si128(x1, x7)), x0);
                 x6 = _mm_subs_epi16(x6, x0);
+#if COMPRESS_BUF
+#if USE_SSSE3
+                x1 = _mm_sign_epi16(x6, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+                x1 = _mm_or_si128(x6, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+                _mm_store_si128((__m128i *)(buf_ptr +  0), x1);
+#else
                 _mm_store_si128((__m128i *)(buf_ptr +  0), x1);
                 _mm_store_si128((__m128i *)(buf_ptr + 16), x6);
+#endif
                 x1 = x6;
                 x1 = _mm_cmpgt_epi16(x1, _mm_load_si128((__m128i *)pw_thre_count2));
                 x1 = _mm_and_si128(x1, _mm_load_si128((__m128i *)pw_mask_2stripe_0));
@@ -937,12 +1031,31 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
                 x0 = _mm_subs_epi16(x0, x1);
 #endif
                 x0 = _mm_cmpgt_epi16(x0, _mm_load_si128((__m128i *)pw_thre_deint));
+#if COMPRESS_BUF
+                x5 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#if USE_SSSE3
+                x4 = _mm_abs_epi16(x5); //絶対値がcountの値
+#else
+                x4 = _mm_srli_epi16(_mm_slli_epi16(x5, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+                x5 = _mm_srai_epi16(x5, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
                 x5 = _mm_load_si128((__m128i *)(buf_ptr + 32));
                 x4 = _mm_load_si128((__m128i *)(buf_ptr + 48));
+#endif
                 x4 = _mm_and_si128(_mm_and_si128(x4, _mm_xor_si128(x1, x5)), x0);
                 x4 = _mm_subs_epi16(x4, x0);
+#if COMPRESS_BUF
+#if USE_SSSE3
+                x1 = _mm_sign_epi16(x4, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+                x1 = _mm_or_si128(x4, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+                _mm_store_si128((__m128i *)(buf_ptr + 16), x1);
+#else
                 _mm_store_si128((__m128i *)(buf_ptr + 32), x1);
                 _mm_store_si128((__m128i *)(buf_ptr + 48), x4);
+#endif
                 x1 = x4;
                 x1 = _mm_cmpgt_epi16(x1, _mm_load_si128((__m128i *)pw_thre_count2));
                 x1 = _mm_and_si128(x1, _mm_load_si128((__m128i *)pw_mask_2stripe_1));
@@ -1037,12 +1150,31 @@ static __m128i __forceinline afs_analyze_motion(__m128i x0, __m128i x1, int i_th
 
 static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i x2, BYTE *buf_ptr, const BYTE *pw_mask_12stripe) {
     __m128i x6, x7;
+#if COMPRESS_BUF
+    x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
+#if USE_SSSE3
+    x6 = _mm_abs_epi16(x7); //絶対値がcountの値
+#else
+    x6 = _mm_srli_epi16(_mm_slli_epi16(x7, 1), 1); //最上位ビットを取り除いたものがcountの値
+#endif
+    x7 = _mm_srai_epi16(x7, 15); //符号付きとしてシフトし、0xffffか0x0000を作る
+#else
     x7 = _mm_load_si128((__m128i *)(buf_ptr +  0));
     x6 = _mm_load_si128((__m128i *)(buf_ptr + 16));
+#endif
     x6 = _mm_and_si128(_mm_and_si128(x6, _mm_xor_si128(x2, x7)), x0);
     x6 = _mm_subs_epi8(x6, x0);
+#if COMPRESS_BUF
+#if USE_SSSE3
+    x2 = _mm_sign_epi16(x6, x2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+#else
+    x2 = _mm_or_si128(x6, _mm_slli_epi16(x2, 15));  //符号の状況を示すフラグを最上位ビットに格納する
+#endif
+    _mm_store_si128((__m128i *)(buf_ptr +  0), x2);
+#else
     _mm_store_si128((__m128i *)(buf_ptr +  0), x2);
     _mm_store_si128((__m128i *)(buf_ptr + 16), x6);
+#endif
 
     x0 = x6;
     x0 = _mm_cmpgt_epi8(x0, _mm_load_si128((__m128i *)pb_thre_count));
@@ -1065,7 +1197,7 @@ static void __forceinline afs_analyze_stripe_nv16(__m128i& x0, __m128i& x1, BYTE
     x5 = _mm_unpackhi_epi8(x1, x0);
     //
     x0 = afs_analyze_element_stripe_nv16(x4, _mm_unpacklo_epi8(x2, x2), buf_ptr +  0, pw_mask_12stripe);
-    x1 = afs_analyze_element_stripe_nv16(x5, _mm_unpackhi_epi8(x2, x2), buf_ptr + 32, pw_mask_12stripe);
+    x1 = afs_analyze_element_stripe_nv16(x5, _mm_unpackhi_epi8(x2, x2), buf_ptr + ((COMPRESS_BUF) ? 16 : 32), pw_mask_12stripe);
 }
 
 //出力 x0, x1 ... 16bit幅で8pixelずつ(計16pixel)のマスクデータ
@@ -1090,7 +1222,7 @@ static void __forceinline afs_analyze_count_stripe_nv16(__m128i& x0, __m128i& x1
     //analyze shift
     x3 = _mm_loadu_si128((__m128i *)(ptr[0]));
     x4 = _mm_loadu_si128((__m128i *)(ptr[1]+step));
-    afs_analyze_stripe_nv16(x3, x4, buf_ptr + 64, pw_mask_12stripe_1);
+    afs_analyze_stripe_nv16(x3, x4, buf_ptr + ((COMPRESS_BUF) ? 32 : 64), pw_mask_12stripe_1);
 
     //gather flags
     x0 = _mm_or_si128(x0, _mm_unpacklo_epi8(_mm_setzero_si128(), x6));
@@ -1101,7 +1233,7 @@ static void __forceinline afs_analyze_count_stripe_nv16(__m128i& x0, __m128i& x1
 
 static void __forceinline __stdcall afs_analyze_12_nv16_simd_plus2(BYTE *dst, BYTE *p0, BYTE *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     const int frame_size = step * max_h; 
-    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * 4;
+    const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
     const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
@@ -1155,11 +1287,11 @@ static void __forceinline __stdcall afs_analyze_12_nv16_simd_plus2(BYTE *dst, BY
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
-        for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += 256) {
+        for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16, ptr_p0 += 16, ptr_p1 += 16, buf_ptr += ((COMPRESS_BUF) ? 128 : 256)) {
             //Y
             afs_analyze_count_stripe_nv16(tmpY0, tmpY1, ptr_p0,              ptr_p1,              buf_ptr +   0, 0, step, tb_order, ih);
             //C
-            afs_analyze_count_stripe_nv16(tmpC0, tmpC1, ptr_p0 + frame_size, ptr_p1 + frame_size, buf_ptr + 128, 1, step, tb_order, ih);
+            afs_analyze_count_stripe_nv16(tmpC0, tmpC1, ptr_p0 + frame_size, ptr_p1 + frame_size, buf_ptr + ((COMPRESS_BUF) ? 64 : 128), 1, step, tb_order, ih);
 
             afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, x0, x1);
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), x0);
