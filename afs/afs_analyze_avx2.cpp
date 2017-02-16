@@ -49,7 +49,7 @@ static _declspec(align(32)) BYTE pb_thre_motion[3][32]   = { 0 };
 static const BYTE mshufmask[] = { 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0x01, 0x00, 0xf0, 0xf0, 0xf0, 0xf0, };
 
 static __forceinline int count_motion(__m256i y0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
-    DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
+    DWORD heightMask = ((DWORD)(y - top) < (DWORD)y_limit) ? 0xffffffff : 0x00;
 #if 1
 
     //_mm256_movemask_epi8は最上位ビットの取り出しであるから、最上位ビットさえ意識すればよい

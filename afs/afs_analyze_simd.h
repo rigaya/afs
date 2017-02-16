@@ -45,7 +45,7 @@ static const _declspec(align(16)) BYTE pb_mask_12stripe_01[16] = { 0x33, 0x33, 0
 static const _declspec(align(16)) BYTE pb_mask_12motion_01[16] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 
 static __forceinline int count_motion(__m128i x0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
-    DWORD heightMask = 0 - ((DWORD)(y - top) < (DWORD)y_limit);
+    DWORD heightMask = ((DWORD)(y - top) < (DWORD)y_limit) ? 0xffffffff : 0x00;
 #if 1
     //_mm256_movemask_epi8は最上位ビットの取り出しであるから、最上位ビットさえ意識すればよい
     //ここで行いたいのは、「0x40ビットが立っていないこと」であるから、
