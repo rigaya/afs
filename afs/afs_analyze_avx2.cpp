@@ -248,7 +248,7 @@ static __m256i __forceinline afs_analyze_shrink_info_sub_avx2(BYTE *src, __m128i
 #if 0
     y0 = _mm256_permute4x64_epi64(y0, _MM_SHUFFLE(3,1,2,0));
 
-    xOut0 = _mm256_castsi128_si256(y0);
+    xOut0 = _mm256_castsi256_si128(y0);
     xOut1 = _mm256_extractf128_si256(y0, 1);
 #else
     xOut0 = _mm256_castsi256_si128(_mm256_permute4x64_epi64(y0, _MM_SHUFFLE(3,1,2,0)));
