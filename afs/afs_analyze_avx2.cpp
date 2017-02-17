@@ -327,7 +327,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     int ih;
     
     BYTE *ptr_dst = (BYTE *)dst;
-    BYTE *ptr_p[2] = { (BYTE *)p0, (BYTE *)p1 };
+    BYTE *ptr_p0 = (BYTE *)p0;
+    BYTE *ptr_p1 = (BYTE *)p1;
+    BYTE *ptr[2];
     BYTE __declspec(align(32)) tmp16pix[96];
     BYTE __declspec(align(32)) buffer[BUFFER_SIZE + BLOCK_SIZE_YCP * 8];
     buf_ptr = buffer;
@@ -341,11 +343,11 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
         //buffer[i] = 0x00;
 
     for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-        for (int jw = 0; jw < 3; jw++, ptr_p[0] += 32, ptr_p[1] += 32) {
-            y0 = _mm256_loadu_si256((__m256i *)ptr_p[0]);
-            y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p[1]));
-            _mm_prefetch((char *)ptr_p[0] + step6, _MM_HINT_T0);
-            _mm_prefetch((char *)ptr_p[1] + step6, _MM_HINT_T0);
+        for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
+            y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
+            y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1));
+            _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+            _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
             y0 = _mm256_abs_epi16(y0);
             y3 = _mm256_load_si256((__m256i *)pw_thre_motion[jw]);
             y2 = _mm256_load_si256((__m256i *)pw_thre_shift);
@@ -364,17 +366,17 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     __m64 m7 = *(__m64 *)(mshufmask + (is_latter_field(1, tb_order) << 2));
     
     for (ih = 1; ih < h; ih++, p0 += step, p1 += step, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
-        ptr_p[0] = (BYTE *)p0;
-        ptr_p[1] = (BYTE *)p1;
+        ptr_p0 = (BYTE *)p0;
+        ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-            for (int jw = 0; jw < 3; jw++, ptr_p[0] += 32, ptr_p[1] += 32, buf_ptr += ((COMPRESS_BUF) ? 64 : 128)) {
-                //ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
-                //ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
-                y0 = _mm256_loadu_si256((__m256i *)(ptr_p[0] + step6));
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32, buf_ptr += ((COMPRESS_BUF) ? 64 : 128)) {
+                ptr[((tb_order == 0) + ih + 0) & 0x01] = ptr_p1;
+                ptr[((tb_order == 0) + ih + 1) & 0x01] = ptr_p0;
+                y0 = _mm256_loadu_si256((__m256i *)(ptr_p0 + step6));
                 y1 = y0;
-                y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)(ptr_p[1]+step6)));
+                y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)(ptr_p1+step6)));
                 y0 = _mm256_abs_epi16(y0);
                 y3 = _mm256_load_si256((__m256i *)pw_thre_motion[jw]);
                 y2 = _mm256_load_si256((__m256i *)pw_thre_shift);
@@ -384,10 +386,10 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0));
                 y3 = _mm256_or_si256(y3, y2);
 
-                _mm_prefetch((char *)ptr_p[0] + (step6<<1), _MM_HINT_T0);
-                _mm_prefetch((char *)ptr_p[1] + (step6<<1), _MM_HINT_T0);
+                _mm_prefetch((char *)ptr_p0 + (step6<<1), _MM_HINT_T0);
+                _mm_prefetch((char *)ptr_p1 + (step6<<1), _MM_HINT_T0);
             
-                y2 = _mm256_loadu_si256((__m256i *)ptr_p[0]);
+                y2 = _mm256_loadu_si256((__m256i *)ptr_p0);
                 y2 = _mm256_sub_epi16(y2, y1);
                 y0 = _mm256_abs_epi16(y2);
                 y2 = _mm256_cmpeq_epi16(y2, y0);
@@ -430,8 +432,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y0 = _mm256_and_si256(y0, _mm256_load_si256((__m256i *)pw_mask_12stripe_0));
                 y3 = _mm256_or_si256(y3, y0);
             
-                y2 = _mm256_loadu_si256((__m256i *)(ptr_p[tb_order != (ih & 1)]));
-                y2 = _mm256_sub_epi16(y2, _mm256_loadu_si256((__m256i *)(ptr_p[tb_order == (ih & 1)]+step6)));
+                y2 = _mm256_loadu_si256((__m256i *)(ptr[0]));
+                y2 = _mm256_sub_epi16(y2, _mm256_loadu_si256((__m256i *)(ptr[1]+step6)));
                 y0 = _mm256_abs_epi16(y2);
                 y2 = _mm256_cmpeq_epi16(y2, y0);
                 y1 = y0;
