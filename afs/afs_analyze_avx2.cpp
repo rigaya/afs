@@ -400,9 +400,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y1 = _mm256_packs_epi16(y1, y1);
                 y0 = _mm256_packs_epi16(y0, y0);
                 y1 = _mm256_unpacklo_epi8(y1, y0);
-#elif 0
+#elif 1
                 y0 = _mm256_slli_epi16(y0, 8);
-                y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
+                y1 = _mm256_srli_epi16(y1, 8);
                 y1 = _mm256_or_si256(y1, y0);
 #else
                 y1 = _mm256_blendv_epi8(y0, y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
@@ -443,9 +443,9 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y1 = _mm256_packs_epi16(y1, y1);
                 y0 = _mm256_packs_epi16(y0, y0);
                 y1 = _mm256_unpacklo_epi8(y1, y0);
-#elif 0
+#elif 1
                 y0 = _mm256_slli_epi16(y0, 8);
-                y1 = _mm256_and_si256(y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
+                y1 = _mm256_srli_epi16(y1, 8);
                 y1 = _mm256_or_si256(y1, y0);
 #else
                 y1 = _mm256_blendv_epi8(y0, y1, _mm256_load_si256((__m256i*)pw_mask_lowbyte));
