@@ -261,17 +261,21 @@ void source_cache_expire(int frame) {
 
 void free_source_cache(void) {
     clear_source_cache();
+
+#if ENABLE_OPENCL
     if (g_afs.afs_mode & AFS_MODE_OPENCL) {
         afs_opencl_release_buffer(&g_afs);
     }
+#endif
     if (g_afs.source_array[0].map != NULL) {
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
             if (g_afs.source_array[i].map) {
-                if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+#if ENABLE_OPENCL
+                if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
                     clSVMFree(g_afs.opencl.ctx, g_afs.source_array[i].map);
-                } else {
+                else
+#endif //#if ENABLE_OPENCL
                     _aligned_free(g_afs.source_array[i].map);
-                }
                 g_afs.source_array[i].map = NULL;
             }
             g_afs.source_array[i].status = 0;
@@ -284,17 +288,22 @@ void free_source_cache(void) {
 BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
     int source_w = max(g_afs.source_w, si_pitch(max_w, afs_mode));
     int baseAddressAlign = 64;
+#if ENABLE_OPENCL
     if (g_afs.afs_mode & AFS_MODE_OPENCL) {
         if (afs_opencl_source_buffer_pitch(&g_afs, source_w, max_h, &source_w, &baseAddressAlign)) {
             return FALSE;
         }
     }
+#endif //#if ENABLE_OPENCL
     const int size = source_w * max_h;
     const int cache_nv16 = (afs_mode & AFS_MODE_CACHE_NV16) != 0;
 
     if (g_afs.source_array[0].map != NULL) {
         if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w < source_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
-            (g_afs.afs_mode & AFS_MODE_OPENCL) ? afs_opencl_release_buffer(&g_afs) : free_source_cache();
+#if ENABLE_OPENCL
+            (g_afs.afs_mode & AFS_MODE_OPENCL) ? afs_opencl_release_buffer(&g_afs) :
+#endif //#if ENABLE_OPENCL
+                free_source_cache();
         }
     }
 
@@ -302,11 +311,13 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
         const int size = source_w * max_h;
         const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + 63) & ~63;
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
-            if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+#if ENABLE_OPENCL
+            if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
                 g_afs.source_array[i].map = clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_ONLY|CL_MEM_SVM_FINE_GRAIN_BUFFER, frame_size_bytes, 0);
-            } else {
+            else
+#endif //#if ENABLE_OPENCL
                 g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, baseAddressAlign);
-            }
+
             if (g_afs.source_array[i].map == nullptr) {
                 free_source_cache();
                 return FALSE;
@@ -315,12 +326,13 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
             g_afs.source_array[i].status = 0;
         }
         g_afs.source_w = source_w;
-
+#if ENABLE_OPENCL
         if (g_afs.afs_mode & AFS_MODE_OPENCL) {
             if (afs_opencl_create_source_buffer(&g_afs, source_w, max_h)) {
                 return FALSE;
             }
-        } 
+        }
+#endif //#if ENABLE_OPENCL
     }
     if (frame_n > 0 || g_afs.source_frame_n < 0) g_afs.source_frame_n = frame_n;
     g_afs.source_h = max_h;
@@ -501,11 +513,12 @@ void free_analyze_cache() {
         }
         for (int i = 0; i < _countof(g_afs.analyze_cachep); i++) {
             if (g_afs.analyze_cachep[i] != nullptr) {
-                if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+#if ENABLE_OPENCL
+                if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
                     clSVMFree(g_afs.opencl.ctx, g_afs.analyze_cachep[i]);
-                } else {
+                else
+#endif //#if ENABLE_OPENCL
                     _aligned_free(g_afs.analyze_cachep[i]);
-                }
             }
         }
         memset(g_afs.analyze_cachep, 0, sizeof(g_afs.analyze_cachep));
@@ -923,11 +936,13 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
         }
 
         for (int i = 0; i < AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM; i++) {
-            if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
+#if ENABLE_OPENCL
+            if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
                 g_afs.analyze_cachep[i] = (unsigned char*)clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_WRITE|CL_MEM_SVM_FINE_GRAIN_BUFFER, sizeof(unsigned char) * size, 0);
-            } else {
+            else
+#endif //#if ENABLE_OPENCL
                 g_afs.analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, 64);
-            }
+
             if (g_afs.analyze_cachep[i] == nullptr) {
                 return FALSE;
             }
@@ -955,10 +970,11 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
         }
         g_afs.scan_arg.type = -1;
     }
-
+#if ENABLE_OPENCL
     if ((g_afs.afs_mode & AFS_MODE_OPENCL) && g_afs.opencl.scan_mem[0] == nullptr) {
         afs_opencl_create_scan_buffer(&g_afs, si_w, h);
     }
+#endif //#if ENABLE_OPENCL
 
     g_afs.scan_frame_n = frame_n;
     g_afs.scan_w = w;
@@ -981,6 +997,7 @@ bool inline scan_frame_result_cached(int frame, int mode, int tb_order, int thre
          (mode == 1 && sp->mode == 1 && sp->thre_deint == thre_deint && sp->thre_Ymotion == thre_Ymotion && sp->thre_Cmotion == thre_Cmotion));
 }
 
+#if ENABLE_OPENCL
 void scan_frame_opencl_submit(int frame, int source_w,
     int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip, cl_event *wait) {
     const int p0_idx = ((frame  )&(AFS_SOURCE_CACHE_NUM-1));
@@ -990,9 +1007,16 @@ void scan_frame_opencl_submit(int frame, int source_w,
         tb_order, g_afs.scan_w, source_w, g_afs.scan_h, g_afs.source_h,
         thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, mc_clip, wait, nullptr);
 }
+#endif //#if ENABLE_OPENCL
+
+#if ENABLE_OPENCL
+typedef cl_event AFS_CL_EVENT;
+#else
+typedef int AFS_CL_EVENT;
+#endif
 
 void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
-                int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip, cl_event *wait) {
+                int mode, int tb_order, int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion, AFS_SCAN_CLIP *mc_clip, AFS_CL_EVENT *wait) {
     if (!force && scan_frame_result_cached(frame, mode, tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion))
         return;
 
@@ -1005,7 +1029,7 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
     sp->thre_shift = thre_shift, sp->thre_deint = thre_deint;
     sp->thre_Ymotion = thre_Ymotion, sp->thre_Cmotion = thre_Cmotion;
     sp->clip.top = sp->clip.bottom = sp->clip.left = sp->clip.right = -1;
-
+#if ENABLE_OPENCL
     if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
         clSetUserEventStatus(*wait, CL_COMPLETE);
     } else if (g_afs.afs_mode & AFS_MODE_OPENCL) {
@@ -1026,9 +1050,9 @@ void scan_frame(int frame, int force, int source_w, void *p1, void *p0,
         afs_opencl_count_motion_temp_map(&g_afs, sp_idx);
 
         afs_opencl_queue_finish(&g_afs);
-    } else {
+    } else
+#endif //#if ENABLE_OPENCL
         analyze_stripe((mode == 0), sp, p1, p0, source_w, mc_clip);
-    }
     return;
 }
 
@@ -1064,6 +1088,7 @@ void count_motion(int frame, AFS_SCAN_CLIP *mc_clip) {
     func_compare_debug(mc_debug, motion_count);
 #endif
     int *mc_ptr = motion_count;
+#if ENABLE_OPENCL
     if (g_afs.afs_mode & (AFS_MODE_OPENCL | AFS_MODE_OPENCL_SVMF)) {
         //OpenCLモードの場合は、OpenCL(afs_opencl_analyze_12_nv16())で求めた部分和をここで集計する
         //相当するOpenCLのタスクが完了している必要がある
@@ -1075,7 +1100,9 @@ void count_motion(int frame, AFS_SCAN_CLIP *mc_clip) {
             motion_count[0] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+0];
             motion_count[1] += g_afs.opencl.motion_count_temp_map[sp_idx][2*i+1];
         }
-    } else if (afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].mc_count && 0 == memcmp(&g_afs.scan_motion_clip[frame & 15], mc_clip, sizeof(mc_clip[0]))) {
+    } else
+#endif //#if ENABLE_OPENCL
+        if (afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].mc_count && 0 == memcmp(&g_afs.scan_motion_clip[frame & 15], mc_clip, sizeof(mc_clip[0]))) {
         mc_ptr = g_afs.scan_motion_count[frame & 15];
 #if SIMD_DEBUG
         func_compare_debug(mc_debug, mc_ptr);
@@ -1120,6 +1147,9 @@ unsigned char* get_stripe_info(int frame, int mode) {
         error_message_box(__LINE__, "afs_func.merge_scan");
 #endif
 
+#if !ENABLE_OPENCL
+    if (FALSE) {
+#else
     if (sp->status >= 3) {
         //AFS_MODE_OPENCL_SVMFの時ここに来る
         //analyze_frame_opencl_submit()でタスクを投入済みということ
@@ -1141,6 +1171,7 @@ unsigned char* get_stripe_info(int frame, int mode) {
         afs_opencl_scan_buffer_map(&g_afs, p1_idx);
         afs_opencl_stripe_buffer_map(&g_afs, dst_idx);
         afs_opencl_queue_finish(&g_afs);
+#endif //#if !ENABLE_OPENCL
     } else {
 #if ENABLE_SUB_THREADS
         g_afs.sub_thread.afs_mode = g_afs.afs_mode;
@@ -1272,6 +1303,7 @@ unsigned char analyze_frame(int frame, int drop, int smooth, int force24, int co
     return status;
 }
 
+#if ENABLE_OPENCL
 void analyze_frame_opencl_submit(int frame, cl_event *event) {
     const int si_w = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     for (int i = 0; i < 4; i++) {
@@ -1290,6 +1322,7 @@ void analyze_frame_opencl_submit(int frame, cl_event *event) {
         //afs_func.get_count.stripe()は元通り、get_stripe_infoで実行する
     }
 }
+#endif //#if ENABLE_OPENCL
 
 // シーンチェンジ解析
 
@@ -2108,15 +2141,16 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     g_afs.afs_mode |= (fpip->yc_size == 2) ? AFS_MODE_AVIUTL_YUY2 : AFS_MODE_AVIUTL_YC48;
     g_afs.afs_mode |= (yuy2upsample & (fpip->yc_size != 2)) ? AFS_MODE_YUY2UP : 0x00;
     g_afs.afs_mode |= (cache_nv16_mode) ? AFS_MODE_CACHE_NV16 : AFS_MODE_CACHE_YC48;
+#if ENABLE_OPENCL
     g_afs.afs_mode |= (use_opencl) ? AFS_MODE_OPENCL : 0x00;
     g_afs.afs_mode |= (use_opencl_svm) ? AFS_MODE_OPENCL_SVMF : 0x00;
-
     if (use_opencl) {
         if (afs_opencl_init(&g_afs)) {
             error_modal(fp, fpip->editp, "OpenCLの初期化に失敗しました。");
             return TRUE;
         }
     }
+#endif
 
 #ifdef AFSVF
     tb_order = fp->check[10] ? !tb_order : tb_order;
@@ -2211,9 +2245,10 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     QPC_GET_COUNTER(QPC_YCP_CACHE);
     QPC_ADD(QPC_INIT, QPC_INIT, QPC_START);
     QPC_ADD(QPC_YCP_CACHE, QPC_YCP_CACHE, QPC_INIT);
+    AFS_CL_EVENT analyze_start[9] ={ 0 };
+#if ENABLE_OPENCL
     //OpenCL使用中なら別スレッドを使ってタスクを先行投入する
     BOOL source_cache_hit[10] = { hit, 0 };
-    cl_event analyze_start[9] = { 0 };
     if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
         for (int i = -1; i <= 7; i++) {
             prev_hit = hit;
@@ -2228,6 +2263,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
         }
     }
     hit = source_cache_hit[0];
+#endif //#if ENABLE_OPENCL
     for (int i = -1; i <= 7; i++) {
         QPC_GET_COUNTER(QPC_INIT);
         ycp1 = ycp0;
@@ -2238,9 +2274,11 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             return TRUE;
         }
         QPC_GET_COUNTER(QPC_YCP_CACHE);
+#if ENABLE_OPENCL
         if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
             hit = source_cache_hit[i+2];
         }
+#endif //#if ENABLE_OPENCL
         scan_frame(fpip->frame + i, (!prev_hit || !hit), g_afs.source_w, ycp1, ycp0,
             (analyze == 0 ? 0 : 1), tb_order, thre_shift, thre_deint, thre_Ymotion, thre_Cmotion, &clip, &analyze_start[i+1]);
         QPC_GET_COUNTER(QPC_SCAN_FRAME);
@@ -2255,6 +2293,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
     }
 
     const int si_w = si_pitch(fpip->w, g_afs.afs_mode);
+#if ENABLE_OPENCL
     if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF) {
         for (int i = 0; i <= 2; i++) {
             if (fpip->frame + i < fpip->frame_n) {
@@ -2280,6 +2319,7 @@ BOOL func_proc( FILTER *fp,FILTER_PROC_INFO *fpip )
             count_motion(fpip->frame + i, &clip);
         }
     }
+#endif //#if ENABLE_OPENCL
 
     // 共有メモリ、解析情報キャッシュ読み出し
     QPC_GET_COUNTER(QPC_INIT);
@@ -2908,12 +2948,14 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
         set_combo_item("フル解析", AFS_MODE_CACHE_YC48);
     }
     set_combo_item("簡易高速解析", AFS_MODE_CACHE_NV16);
+#if ENABLE_OPENCL
     if (0 == afs_opencl_open_device(&g_afs, fp->dll_hinst)) {
         set_combo_item("簡易高速解析 (OpenCL)", AFS_MODE_CACHE_NV16 | AFS_MODE_OPENCL);
         if (g_afs.opencl.bSVMAvail) {
             set_combo_item("簡易高速解析 (OpenCL SVM)", AFS_MODE_CACHE_NV16 | AFS_MODE_OPENCL | AFS_MODE_OPENCL_SVMF);
         }
     }
+#endif //#if ENABLE_OPENCL
     SendMessage(cx_proc_mode, CB_SETCURSEL, 0, 0);
 #endif
 }

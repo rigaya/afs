@@ -86,7 +86,6 @@ const int BLOCK_SIZE_YCP = 256;
 #define BACKGROUND_THREAD_BELOW_NORMAL 0 //バックグラウンドスレッドの優先度を下げる
 #define SIMD_DEBUG         0 //SIMD処理をデバッグする
 #define CHECK_PERFORMANCE  0 //パフォーマンスレポートを出力する
-#define ENABLE_OPENCL      1
 #define COMPRESS_BUF       1
 
 #if ENABLE_SUB_THREADS
@@ -186,7 +185,9 @@ typedef struct AFS_CONTEXT {
     AFS_SCAN_CLIP scan_motion_clip[AFS_SCAN_CACHE_NUM];
 
     AFS_STRIPE_DATA stripe_array[AFS_STRIPE_CACHE_NUM];
+#if ENABLE_OPENCL
     AFS_OPENCL opencl;
+#endif
 
     AFS_EX_DATA ex_data;
 } AFS_CONTEXT;

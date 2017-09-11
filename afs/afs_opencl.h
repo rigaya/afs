@@ -1,11 +1,13 @@
 ﻿#pragma once
 
-#include <CL/cl.h>
 #include <thread>
 #include <future>
 #include "queue_spsp.h"
 
 struct AFS_CONTEXT;
+
+#if ENABLE_OPENCL
+#include <CL/cl.h>
 
 enum {
     AFS_OPENCL_DEVICE_UNCHECKED = 0,
@@ -125,3 +127,5 @@ void afs_opencl_analyze_12_nv16_submit(AFS_CONTEXT *afs, int dst_idx, int p0_idx
     const cl_event *wait, cl_event *event);
 void afs_opencl_merge_scan_nv16_submit(AFS_CONTEXT *afs, int dst_idx, int p0_idx, int p1_idx, int si_w, int h,
     const cl_event *wait, cl_event *event);
+
+#endif //#if ENABLE_OPENCL

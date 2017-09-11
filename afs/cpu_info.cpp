@@ -353,14 +353,14 @@ double getCPUMaxTurboClock(unsigned int num_thread) {
     return resultClock;
 }
 
-#if ENABLE_OPENCL
+#if ENABLE_OPENCL_INFO
 #include "cl_func.h"
 #endif
 
 #pragma warning (push)
 #pragma warning (disable: 4100)
 double getCPUDefaultClockOpenCL() {
-#if !ENABLE_OPENCL
+#if !ENABLE_OPENCL_INFO
     return 0.0;
 #else
     int frequency = 0;
@@ -384,7 +384,7 @@ double getCPUDefaultClockOpenCL() {
         cl_release(&data, &cl);
     }
     return frequency / 1000.0;
-#endif // !ENABLE_OPENCL
+#endif // !ENABLE_OPENCL_INFO
 }
 #pragma warning (pop)
 

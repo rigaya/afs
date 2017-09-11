@@ -7,8 +7,10 @@
 #include <string>
 #include <algorithm>
 #include "afs.h"
-#pragma comment(lib, "opencl.lib")
 #pragma comment(lib, "shlwapi.lib")
+
+#if ENABLE_OPENCL
+#pragma comment(lib, "opencl.lib")
 
 #include "afs_opencl.cl"
 #include "afs_merge_scan.cl"
@@ -856,3 +858,5 @@ static unsigned __stdcall afs_opencl_submit_thread_func(void *ptr) {
     _endthreadex(0);
     return 0;
 }
+
+#endif //#if ENABLE_OPENCL
