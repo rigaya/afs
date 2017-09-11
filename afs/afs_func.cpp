@@ -70,6 +70,17 @@ static DWORD get_availableSIMD() {
     __cpuid(CPUInfo, 7);
     if ((simd & AVX) && (CPUInfo[1] & 0x00000020))
         simd |= AVX2;
+    if (simd & AVX2) {
+        __cpuid(CPUInfo, 0);
+        char vendor[16] = { 0 };
+        memcpy(vendor + 0, &CPUInfo[1], sizeof(CPUInfo[1]));
+        memcpy(vendor + 4, &CPUInfo[3], sizeof(CPUInfo[3]));
+        memcpy(vendor + 8, &CPUInfo[2], sizeof(CPUInfo[2]));
+        //if (strcmp(vendor, "GenuineIntel") == 0) {
+        if (strcmp(vendor, "AuthenticAMD") != 0) {
+            simd |= AVX2FAST;
+        }
+    }
 #endif
     return simd;
 }

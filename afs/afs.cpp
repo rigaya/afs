@@ -67,7 +67,7 @@ static inline int si_pitch(int x, unsigned int afs_mode) {
 }
 
 static __declspec(noinline) void avx2_dummy_if_avail() {
-    if (afs_func.simd_avail & AVX2) {
+    if (afs_func.simd_avail & AVX2FAST) {
         __asm {
             vpxor ymm0, ymm0, ymm0
             vzeroupper
