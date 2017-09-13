@@ -510,7 +510,11 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
                 x6 = _mm_subs_epi8(x6, x1);
 #if COMPRESS_BUF
 #if USE_SSSE3
-                x2 = _mm_sign_epi16(x6, x2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                x0 = _mm_andnot_si128(x2, x6);
+                x2 = _mm_sign_epi16(x6, x2);
+                x2 = _mm_or_si128(x2, x0);
 #else
                 x2 = _mm_or_si128(x6, _mm_slli_epi16(x2, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif
@@ -560,7 +564,11 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
                 x4 = _mm_subs_epi8(x4, x1);
 #if COMPRESS_BUF
 #if USE_SSSE3
-                x2 = _mm_sign_epi16(x4, x2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                x0 = _mm_andnot_si128(x2, x4);
+                x2 = _mm_sign_epi16(x4, x2);
+                x2 = _mm_or_si128(x2, x0);
 #else
                 x2 = _mm_or_si128(x4, _mm_slli_epi16(x2, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif
@@ -759,7 +767,11 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
                 x6 = _mm_subs_epi16(x6, x0);
 #if COMPRESS_BUF
 #if USE_SSSE3
-                x1 = _mm_sign_epi16(x6, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                x0 = _mm_andnot_si128(x1, x6);
+                x1 = _mm_sign_epi16(x6, x1);
+                x1 = _mm_or_si128(x1, x0);
 #else
                 x1 = _mm_or_si128(x6, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif
@@ -805,7 +817,11 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
                 x4 = _mm_subs_epi16(x4, x0);
 #if COMPRESS_BUF
 #if USE_SSSE3
-                x1 = _mm_sign_epi16(x4, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                x0 = _mm_andnot_si128(x1, x4);
+                x1 = _mm_sign_epi16(x4, x1);
+                x1 = _mm_or_si128(x1, x0);
 #else
                 x1 = _mm_or_si128(x4, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif
@@ -1003,7 +1019,11 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
                 x6 = _mm_subs_epi16(x6, x0);
 #if COMPRESS_BUF
 #if USE_SSSE3
-                x1 = _mm_sign_epi16(x6, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                x0 = _mm_andnot_si128(x1, x6);
+                x1 = _mm_sign_epi16(x6, x1);
+                x1 = _mm_or_si128(x1, x0);
 #else
                 x1 = _mm_or_si128(x6, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif
@@ -1047,7 +1067,11 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
                 x4 = _mm_subs_epi16(x4, x0);
 #if COMPRESS_BUF
 #if USE_SSSE3
-                x1 = _mm_sign_epi16(x4, x1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                x0 = _mm_andnot_si128(x1, x4);
+                x1 = _mm_sign_epi16(x4, x1);
+                x1 = _mm_or_si128(x1, x0);
 #else
                 x1 = _mm_or_si128(x4, _mm_slli_epi16(x1, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif
@@ -1166,7 +1190,11 @@ static __m128i __forceinline afs_analyze_element_stripe_nv16(__m128i x0, __m128i
     x6 = _mm_subs_epi8(x6, x0);
 #if COMPRESS_BUF
 #if USE_SSSE3
-    x2 = _mm_sign_epi16(x6, x2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+    //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+    //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+    x0 = _mm_andnot_si128(x2, x6);
+    x2 = _mm_sign_epi16(x6, x2);
+    x2 = _mm_or_si128(x2, x0);
 #else
     x2 = _mm_or_si128(x6, _mm_slli_epi16(x2, 15));  //符号の状況を示すフラグを最上位ビットに格納する
 #endif

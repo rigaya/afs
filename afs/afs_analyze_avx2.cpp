@@ -419,7 +419,11 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y6 = _mm256_and_si256(y6, _mm256_and_si256(_mm256_xor_si256(y2, y7), y1));
                 y6 = _mm256_subs_epi8(y6, y1);
 #if COMPRESS_BUF
-                y2 = _mm256_sign_epi16(y6, y2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                y0 = _mm256_andnot_si256(y2, y6);
+                y2 = _mm256_sign_epi16(y6, y2);
+                y2 = _mm256_or_si256(y2, y0);
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
 #else
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
@@ -462,7 +466,11 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y4 = _mm256_and_si256(y4, _mm256_and_si256(_mm256_xor_si256(y2, y5), y1));
                 y4 = _mm256_subs_epi8(y4, y1);
 #if COMPRESS_BUF
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                y0 = _mm256_andnot_si256(y2, y4);
                 y2 = _mm256_sign_epi16(y4, y2);
+                y2 = _mm256_or_si256(y2, y0);
                 _mm256_store_si256((__m256i *)(buf_ptr + 32), y2);
 #else
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y2);
@@ -635,7 +643,11 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y1, y7)), y0);
                 y6 = _mm256_subs_epi16(y6, y0);
 #if COMPRESS_BUF
-                y1 = _mm256_sign_epi16(y6, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                y0 = _mm256_andnot_si256(y1, y6);
+                y1 = _mm256_sign_epi16(y6, y1);
+                y1 = _mm256_or_si256(y1, y0);
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
 #else
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
@@ -664,7 +676,11 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y4 = _mm256_and_si256(_mm256_and_si256(y4, _mm256_xor_si256(y1, y5)), y0);
                 y4 = _mm256_subs_epi16(y4, y0);
 #if COMPRESS_BUF
-                y1 = _mm256_sign_epi16(y4, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                y0 = _mm256_andnot_si256(y1, y4);
+                y1 = _mm256_sign_epi16(y4, y1);
+                y1 = _mm256_or_si256(y1, y0);
                 _mm256_store_si256((__m256i *)(buf_ptr + 32), y1);
 #else
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y1);
@@ -836,7 +852,11 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y1, y7)), y0);
                 y6 = _mm256_subs_epi16(y6, y0);
 #if COMPRESS_BUF
-                y1 = _mm256_sign_epi16(y6, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                y0 = _mm256_andnot_si256(y1, y6);
+                y1 = _mm256_sign_epi16(y6, y1);
+                y1 = _mm256_or_si256(y1, y0);
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
 #else
                 _mm256_store_si256((__m256i *)(buf_ptr +  0), y1);
@@ -865,7 +885,11 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y4 = _mm256_and_si256(_mm256_and_si256(y4, _mm256_xor_si256(y1, y5)), y0);
                 y4 = _mm256_subs_epi16(y4, y0);
 #if COMPRESS_BUF
-                y1 = _mm256_sign_epi16(y4, y1); //符号の状況を示すフラグをcountの正負として圧縮格納する
+                //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+                //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+                y0 = _mm256_andnot_si256(y1, y4);
+                y1 = _mm256_sign_epi16(y4, y1);
+                y1 = _mm256_or_si256(y1, y0);
                 _mm256_store_si256((__m256i *)(buf_ptr + 32), y1);
 #else
                 _mm256_store_si256((__m256i *)(buf_ptr + 64), y1);
@@ -961,7 +985,11 @@ static __m256i __forceinline afs_analyze_element_stripe_nv16(__m256i y0, __m256i
     y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y2, y7)), y0);
     y6 = _mm256_subs_epi8(y6, y0);
 #if COMPRESS_BUF
-    y2 = _mm256_sign_epi16(y6, y2); //符号の状況を示すフラグをcountの正負として圧縮格納する
+    //_mm_sign_epi16を使用して、符号の状況を示すフラグを0xffffならカウントを負の値にして格納、0x0000ならそのまま正の値で格納する
+    //ただ、_mm_sign_epi16はフラグが0だと戻り値が0になってしまうので、そこはあとから加算する
+    y0 = _mm256_andnot_si256(y2, y6);
+    y2 = _mm256_sign_epi16(y6, y2);
+    y2 = _mm256_or_si256(y2, y0);
     _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
 #else
     _mm256_store_si256((__m256i *)(buf_ptr +  0), y2);
