@@ -46,8 +46,6 @@ static _declspec(align(32)) BYTE pb_thre_shift[32]       = { 0 };
 static _declspec(align(32)) BYTE pb_thre_deint[32]       = { 0 };
 static _declspec(align(32)) BYTE pb_thre_motion[3][32]   = { 0 };
 
-static const BYTE mshufmask[] = { 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0x01, 0x00, 0xf0, 0xf0, 0xf0, 0xf0 };
-
 static __forceinline int count_motion(__m256i y0, BYTE mc_mask[BLOCK_SIZE_YCP], int x, int y, int y_limit, int top) {
     DWORD heightMask = ((DWORD)(y - top) < (DWORD)y_limit) ? 0xffffffff : 0x00;
 #if 1
@@ -363,9 +361,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     }
 
     __m64 m0 = _mm_setzero_si64();
-    __m64 m7 = *(__m64 *)(mshufmask + (is_latter_field(1, tb_order) << 2));
     
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -506,14 +503,17 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
                 y2 = _mm256_or_si256(y2, y1);
                 y2 = _mm256_or_si256(y2, y7);
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
+                //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
+                const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
                 int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-                m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7)); //is_latter_field(ih, tb_order)なら上位32bitで加算
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
             }
             dst += si_pitch;
         }
     }
     //残りの4ライン
-    for ( ; ih < h + 4; ih++, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for ( ; ih < h + 4; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -531,7 +531,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
             //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-            m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7));
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
         }
         dst += si_pitch;
     }
@@ -591,7 +592,6 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     }
 
     __m64 m0 = _mm_setzero_si64();
-    __m64 m7 = *(__m64 *)(mshufmask + (is_latter_field(1, tb_order) << 2));
         
  // if(abs_01diff < thre_motion) flag |= motion;
  // (new_sign, abs_diff) <= last - *p;
@@ -602,7 +602,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
         
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -715,14 +715,17 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y2 = _mm256_or_si256(y2, y1);
                 y2 = _mm256_or_si256(y2, y7);
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
+                //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
+                const int is_latter_feild = is_latter_field(ih, tb_order);
                 int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-                m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7)); //is_latter_field(ih, tb_order)なら上位32bitで加算
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
             }
             dst += si_pitch;
         }
     }
     //残りの4ライン
-    for ( ; ih < h + 4; ih++, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for ( ; ih < h + 4; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -740,7 +743,8 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
             const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-            m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7));
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
         }
         dst += si_pitch;
     }
@@ -800,7 +804,6 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     }
 
     __m64 m0 = _mm_setzero_si64();
-    __m64 m7 = *(__m64 *)(mshufmask + (is_latter_field(1, tb_order) << 2));
         
  // if(abs_01diff < thre_motion) flag |= motion;
  // (new_sign, abs_diff) <= last - *p;
@@ -811,7 +814,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
         
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -924,14 +927,17 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y2 = _mm256_or_si256(y2, y1);
                 y2 = _mm256_or_si256(y2, y7);
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
+                //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
+                const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
                 int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-                m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7)); //is_latter_field(ih, tb_order)なら上位32bitで加算
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
             }
             dst += si_pitch;
         }
     }
     //残りの4ライン
-    for ( ; ih < h + 4; ih++, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for ( ; ih < h + 4; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -946,8 +952,11 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             y2 = _mm256_or_si256(y2, y7);
             _mm256_storeu_si256((__m256i*)ptr_dst, y2);
             _mm256_store_si256((__m256i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm256_setzero_si256());
+            //const int is_latter_feild = is_latter_field(ih - 4, tb_order);
+            const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-            m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7)); //is_latter_field(ih, tb_order)なら上位32bitで加算
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3,1,3,0)));
         }
         dst += si_pitch;
     }
@@ -1101,10 +1110,10 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
         afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, y0, y1);
         _mm256_store_si256((__m256i*)(buf2_ptr), y0);
     }
-    __m64 m0 = _mm_setzero_si64();
-    __m64 m7 = *(__m64 *)(mshufmask + (is_latter_field(1, tb_order) << 2));
 
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    __m64 m0 = _mm_setzero_si64();
+
+    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -1137,14 +1146,16 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
                 y2 = _mm256_or_si256(y2, y1);
                 y2 = _mm256_or_si256(y2, y7);
                 _mm256_storeu_si256((__m256i*)ptr_dst, y2);
+                const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
                 int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-                m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7)); //is_latter_field(ih, tb_order)なら上位32bitで加算
+                __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+                m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3, 1, 3, 0)));
             }
             dst += si_pitch;
         }
     }
     //残りの4ライン
-    for (; ih < h + 4; ih++, m7 = _mm_shuffle_pi16(m7, _MM_SHUFFLE(1, 0, 3, 2))) {
+    for (; ih < h + 4; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -1159,8 +1170,10 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
             y2 = _mm256_or_si256(y2, y7);
             _mm256_storeu_si256((__m256i*)ptr_dst, y2);
             _mm256_store_si256((__m256i*)(buf2_ptr + ((ih+0)&7) * BLOCK_SIZE_YCP), _mm256_setzero_si256());
+            const int is_latter_feild = is_latter_field(ih, tb_order); //ih-4でもihでも答えは同じ
             int count = count_motion(y2, mc_mask, kw, ih-4, mc_scan_y_limit, scan_t);
-            m0 = _mm_add_pi32(m0, _mm_shuffle_pi8(_m_from_int(count), m7)); //is_latter_field(ih, tb_order)なら上位32bitで加算
+            __m64 m1 = _m_from_int(count << (is_latter_feild * 16));
+            m0 = _mm_add_pi32(m0, _mm_shuffle_pi16(m1, _MM_SHUFFLE(3, 1, 3, 0)));
         }
         dst += si_pitch;
     }
