@@ -138,10 +138,9 @@ int shared_int_idx(int x, int y, int dep) {
 
 void count_flags_skip(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, ushort2 *restrict count_shift) {
     ushort2 deint, shift, mask;
-    mask = (dat0 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)))
-         ^ (dat1 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)));
-    deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
-    shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
+    mask = (dat0 ^ dat1) & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8));
+    deint = dat0         & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
+    shift = dat0         & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
     mask >>= (ushort2)1; //最初はshiftの位置にしかビットはたっていない
     //*count_deint &= mask; //deintにマスクはいらない
     *count_shift &= mask;
@@ -151,10 +150,9 @@ void count_flags_skip(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint,
 
 void count_flags(ushort2 dat0, ushort2 dat1, ushort2 *restrict count_deint, ushort2 *restrict count_shift) {
     ushort2 deint, shift, mask;
-    mask = (dat0 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)))
-         ^ (dat1 & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8)));
-    deint = dat0 & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
-    shift = dat0 & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
+    mask = (dat0 ^ dat1) & (ushort2)(non_shift_sign  | shift_sign  | (non_shift_sign <<8) | (shift_sign <<8));
+    deint = dat0         & (ushort2)(non_shift_deint | shift_deint | (non_shift_deint<<8) | (shift_deint<<8));
+    shift = dat0         & (ushort2)(non_shift_shift | shift_shift | (non_shift_shift<<8) | (shift_shift<<8));
     mask |= (mask<<(ushort2)1);
     mask |= (mask>>(ushort2)2);
     *count_deint &= mask;
@@ -254,7 +252,7 @@ __kernel void afs_analyze_12_nv16_kernel(
     int gid = get_group_id(1);
     int imgx = get_global_id(0);
     int imgy = gid * BLOCK_LOOP_Y * BLOCK_Y + ly;
-    int imgy_block_fin = (gid * BLOCK_LOOP_Y + 1) * BLOCK_Y;
+    const int imgy_block_fin = min(h, ((gid + 1) * BLOCK_LOOP_Y) * BLOCK_Y);
     ushort2 motion_count_01 = (ushort2)0;
 #if !PREFER_IMAGE
     src_p0y += imgx + source_w_int * imgy;
@@ -276,16 +274,16 @@ __kernel void afs_analyze_12_nv16_kernel(
     //sharedの SHARED_Y-4 ～ SHARED_Y-1 を埋める
     if (ly < 4) {
         uchar4 mask;
-        mask = (imgy-4+ly >= 0) ? CALL_ANALYZE(src_p0y, src_p1y, -4+ly) : (uchar4)0;
-        ptr_shared[shared_int_idx(0, -4+ly, 0)] = as_int(mask);
-        mask = (imgy-4+ly >= 0) ? CALL_ANALYZE(src_p0c, src_p1c, -4+ly) : (uchar4)0;
-        ptr_shared[shared_int_idx(0, -4+ly, 1)] = as_int(mask);
+        mask = CALL_ANALYZE(src_p0y, src_p1y, 0);
+        ptr_shared[shared_int_idx(0, ly, 0)] = as_int(mask);
+        mask = CALL_ANALYZE(src_p0c, src_p1c, 0);
+        ptr_shared[shared_int_idx(0, ly, 1)] = as_int(mask);
     }
     ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 2)] = 0;
     //ptr_shared[shared_int_idx(0, ly+BLOCK_Y, 3)] = 0;
 
     for (uint iloop = 0; iloop <= BLOCK_LOOP_Y; iloop++,
-        ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y, imgy_block_fin += BLOCK_Y,
+        ptr_dst += BLOCK_Y * si_pitch_int, imgy += BLOCK_Y,
 #if !PREFER_IMAGE
         src_p0y += BLOCK_Y * source_w_int, src_p0c += BLOCK_Y * source_w_int,
         src_p1y += BLOCK_Y * source_w_int, src_p1c += BLOCK_Y * source_w_int,
@@ -294,10 +292,10 @@ __kernel void afs_analyze_12_nv16_kernel(
     ) {
         { //差分情報を計算
             uchar4 mask;
-            mask = (imgy < h) ? CALL_ANALYZE(src_p0y, src_p1y, 0) : (uchar4)0;
-            ptr_shared[shared_int_idx(0, ly, 0)] = as_int(mask);
-            mask = (imgy < h) ? CALL_ANALYZE(src_p0c, src_p1c, 0) : (uchar4)0;
-            ptr_shared[shared_int_idx(0, ly, 1)] = as_int(mask);
+            mask = (imgy < h) ? CALL_ANALYZE(src_p0y, src_p1y, 4) : (uchar4)0;
+            ptr_shared[shared_int_idx(0, ly+4, 0)] = as_int(mask);
+            mask = (imgy < h) ? CALL_ANALYZE(src_p0c, src_p1c, 4) : (uchar4)0;
+            ptr_shared[shared_int_idx(0, ly+4, 1)] = as_int(mask);
             barrier(CLK_LOCAL_MEM_FENCE);
         }
         ushort2 mask1;
@@ -320,7 +318,7 @@ __kernel void afs_analyze_12_nv16_kernel(
             mask4 |= mask5 | mask6;
             mask4 &= (ushort2)0x3333;
             mask1 |= mask4 | mask7;
-            if (imgx < width_int && (imgy - 4) < min(h, imgy_block_fin) && ly - 4 >= 0) {
+            if (imgx < width_int && (imgy - 4) < imgy_block_fin && ly - 4 >= 0) {
                 //motion_countの実行
                 if ((((uint)imgx - scan_left) < scan_width) && (((uint)(imgy - 4) - scan_top) < scan_height)) {
                     ushort2 motion_flag = ((~mask1) & (ushort2)0x4040) >> (ushort2)6;
