@@ -653,7 +653,6 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
                 y7 = _mm256_load_si256((__m256i *)(buf_ptr +  0));
                 y6 = _mm256_load_si256((__m256i *)(buf_ptr + 32));
 #endif
-                y7 = _mm256_xor_si256(y7, y1);
                 y6 = _mm256_and_si256(_mm256_and_si256(y6, _mm256_xor_si256(y1, y7)), y0);
                 y6 = _mm256_subs_epi16(y6, y0);
 #if COMPRESS_BUF
