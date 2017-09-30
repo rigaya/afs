@@ -23,18 +23,18 @@ void __stdcall afs_analyze_set_threshold_nv16_avx(int thre_shift, int thre_deint
     afs_analyze_set_threshold_nv16_simd(thre_shift, thre_deint, thre_Ymotion, thre_Cmotion);
 }
 
-void __stdcall afs_analyze_12_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
-    afs_analyze_12_simd_plus2(dst, (PIXEL_YC *)p0, (PIXEL_YC *)p1, tb_order, width, step, si_pitch, h, motion_count, mc_clip);
+void __stdcall afs_analyze_12_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+    afs_analyze_12_simd_plus2(dst, (PIXEL_YC *)p0, (PIXEL_YC *)p1, tb_order, width, step, si_pitch, h_start, h_fin, height, motion_count, mc_clip);
 }
-void __stdcall afs_analyze_1_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
-    afs_analyze_1_simd_plus2(dst, (PIXEL_YC *)p0, (PIXEL_YC *)p1, tb_order, width, step, si_pitch, h, motion_count, mc_clip);
+void __stdcall afs_analyze_1_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+    afs_analyze_1_simd_plus2(dst, (PIXEL_YC *)p0, (PIXEL_YC *)p1, tb_order, width, step, si_pitch, h_start, h_fin, height, motion_count, mc_clip);
 }
-void __stdcall afs_analyze_2_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
-    afs_analyze_2_simd_plus2(dst, (PIXEL_YC *)p0, (PIXEL_YC *)p1, tb_order, width, step, si_pitch, h, motion_count, mc_clip);
+void __stdcall afs_analyze_2_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+    afs_analyze_2_simd_plus2(dst, (PIXEL_YC *)p0, (PIXEL_YC *)p1, tb_order, width, step, si_pitch, h_start, h_fin, height, motion_count, mc_clip);
 }
 
-void __stdcall afs_analyze_12_nv16_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
-    afs_analyze_12_nv16_simd_plus2(dst, (BYTE *)p0, (BYTE *)p1, tb_order, width, step, si_pitch, h, max_h, motion_count, mc_clip);
+void __stdcall afs_analyze_12_nv16_avx_plus2(BYTE *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+    afs_analyze_12_nv16_simd_plus2(dst, (BYTE *)p0, (BYTE *)p1, tb_order, width, step, si_pitch, h_start, h_fin, height, h_max, motion_count, mc_clip);
 }
 
 #include "afs_yuy2up_simd.h"

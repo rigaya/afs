@@ -800,23 +800,33 @@ void thread_func_analyze_frame(const int id) {
     SCR_TYPE *const p0 = (SCR_TYPE *)g_afs.scan_arg.p0;
     SCR_TYPE *const p1 = (SCR_TYPE *)g_afs.scan_arg.p1;
     PIXEL_YC *const workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
-    int pos_x = ((int)(g_afs.scan_w * id / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
-    int x_fin = ((int)(g_afs.scan_w * (id+1) / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+    int scan_worker_x = (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP;
+    int scan_worker_y = g_afs.scan_worker_n / scan_worker_x;
+    while ((g_afs.scan_worker_n % scan_worker_y) != 0) {
+        scan_worker_y--;
+    }
+    scan_worker_x = g_afs.scan_worker_n / scan_worker_y;
+    int id_x = id % scan_worker_x;
+    int id_y = id / scan_worker_x;
+    int pos_y = ((int)(g_afs.scan_h * id_y / (double)scan_worker_y + 0.5));
+    int y_fin = ((int)(g_afs.scan_h * (id_y+1) / (double)scan_worker_y + 0.5));
+    int pos_x = ((int)(g_afs.scan_w * id_x / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+    int x_fin = ((int)(g_afs.scan_w * (id_x+1) / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     AFS_SCAN_CLIP clip_thread = *g_afs.scan_arg.clip;
     int thread_mc_local[2] = { 0 };
-    if (id < g_afs.scan_worker_n - 1) {
+    if (id_x < scan_worker_x - 1) {
         if (func_analyze.shrink_info) {
             for (; pos_x < x_fin; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; pos_x < x_fin; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
         }
     } else {
@@ -832,32 +842,32 @@ void thread_func_analyze_frame(const int id) {
             afs_analyze_mmx(workp, p0 + g_afs.scan_w-4, p1 + g_afs.scan_w-4, g_afs.scan_arg.tb_order, g_afs.scan_arg.max_w, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             afs_analyze_shrink_info_mmx(test_buf + g_afs.scan_w-4, workp, g_afs.scan_h, g_afs.scan_arg.si_pitch);
         }
-        pos_x = ((int)(g_afs.scan_w * id / (double)g_afs.scan_worker_n + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+        pos_x = ((int)(g_afs.scan_w * id_x / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
 #endif
         x_fin = g_afs.scan_w;
         if (func_analyze.shrink_info) {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
             if (pos_x < g_afs.scan_w) {
                 analyze_block = ((g_afs.scan_w - pos_x) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, pos_x - (g_afs.scan_w-analyze_block));
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
                 analyze_block = min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
             if (pos_x < g_afs.scan_w) {
                 analyze_block = ((g_afs.scan_w - pos_x) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, pos_x - (g_afs.scan_w-analyze_block));
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
         }
     }

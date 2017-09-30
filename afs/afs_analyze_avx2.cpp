@@ -310,13 +310,13 @@ static void __forceinline afs_analyze_shrink_info_sub_nv16(const __m256i& yY0, c
     y0 = _mm256_or_si256(y0, y1);
 }
 
-void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     PIXEL_YC *p0 = (PIXEL_YC *)_p0;
     PIXEL_YC *p1 = (PIXEL_YC *)_p1;
     const int step6 = step * 6;
     const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
-    const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+    const int mc_scan_y_limit = (height - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
     __m128i xShrinked0, xShrinked1;
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
@@ -340,29 +340,36 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     //for (int i = 0; i < BUFFER_SIZE; i++)
         //buffer[i] = 0x00;
 
-    for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-        for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
-            y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
-            y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1));
-            _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
-            _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
-            y0 = _mm256_abs_epi16(y0);
-            y3 = _mm256_load_si256((__m256i *)pw_thre_motion[jw]);
-            y2 = _mm256_load_si256((__m256i *)pw_thre_shift);
-            y3 = _mm256_cmpgt_epi16(y3, y0);
-            y2 = _mm256_cmpgt_epi16(y2, y0);
-            y3 = _mm256_and_si256(y3, _mm256_load_si256((__m256i *)pw_mask_2motion_0));
-            y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0));
-            y3 = _mm256_or_si256(y3, y2);
-            _mm256_store_si256((__m256i *)(tmp16pix + jw*32), y3);
+    if (h_start == 0) {
+        for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
+                y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
+                y0 = _mm256_sub_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1));
+                _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+                _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
+                y0 = _mm256_abs_epi16(y0);
+                y3 = _mm256_load_si256((__m256i *)pw_thre_motion[jw]);
+                y2 = _mm256_load_si256((__m256i *)pw_thre_shift);
+                y3 = _mm256_cmpgt_epi16(y3, y0);
+                y2 = _mm256_cmpgt_epi16(y2, y0);
+                y3 = _mm256_and_si256(y3, _mm256_load_si256((__m256i *)pw_mask_2motion_0));
+                y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0));
+                y3 = _mm256_or_si256(y3, y2);
+                _mm256_store_si256((__m256i *)(tmp16pix + jw*32), y3);
+            }
+            y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
+            _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
         }
-        y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
-        _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
+    } else {
+        p0 += step * (h_start - 1);
+        p1 += step * (h_start - 1);
+        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
-    
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
+
+    int h_loop_fin = min(height, h_fin + 4);
+    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -486,7 +493,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), xShrinked0);
         }
 
-        if (ih >= 4) {
+        if (ih >= h_start + 4) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -513,7 +520,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
         }
     }
     //残りの4ライン
-    for ( ; ih < h + 4; ih++) {
+    h_loop_fin = min(height + 4, h_fin + 4);
+    for ( ; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -542,13 +550,13 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     _mm_empty();
 }
 
-void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     PIXEL_YC *p0 = (PIXEL_YC *)_p0;
     PIXEL_YC *p1 = (PIXEL_YC *)_p1;
     const int step6 = step * 6;
     const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
-    const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+    const int mc_scan_y_limit = (height - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
     __m128i xShrinked0, xShrinked1;
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
@@ -573,22 +581,28 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     for (int i = 0; i < BUFFER_SIZE; i++)
         buffer[i] = 0x00;
 
-    for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-        for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
-            //afs_analyze_1_mmx_sub
-            y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
-            y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1)); //y0 = *p0 - *p1
-            _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
-            _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
-            y0 = _mm256_abs_epi16(y0); //y0 = abs(*p0 - *p1)
-            y2 = y3;
-            y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_motion > abs(*p0 - *p1))
-            y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0)); //y2 &= 4000h
+    if (h_start == 0) {
+        for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
+                //afs_analyze_1_mmx_sub
+                y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
+                y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1)); //y0 = *p0 - *p1
+                _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+                _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
+                y0 = _mm256_abs_epi16(y0); //y0 = abs(*p0 - *p1)
+                y2 = y3;
+                y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_motion > abs(*p0 - *p1))
+                y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_1motion_0)); //y2 &= 4000h
             
-            _mm256_store_si256((__m256i *)(tmp16pix + jw*32), y2);
+                _mm256_store_si256((__m256i *)(tmp16pix + jw*32), y2);
+            }
+            y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
+            _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
         }
-        y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
-        _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
+    } else {
+        p0 += step * (h_start - 1);
+        p1 += step * (h_start - 1);
+        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
@@ -601,8 +615,8 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // if(abs_diff < thre_shift/deint) count = 0;
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
-        
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
+    int h_loop_fin = min(height, h_fin + 4);
+    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -698,7 +712,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), xShrinked0);
         }
 
-        if (ih >= 4) {
+        if (ih >= h_start + 4) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -725,7 +739,8 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         }
     }
     //残りの4ライン
-    for ( ; ih < h + 4; ih++) {
+    h_loop_fin = min(height + 4, h_fin + 4);
+    for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -755,13 +770,13 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     _mm_empty();
 }
 
-void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     PIXEL_YC *p0 = (PIXEL_YC *)_p0;
     PIXEL_YC *p1 = (PIXEL_YC *)_p1;
     const int step6 = step * 6;
     const int BUFFER_SIZE = BLOCK_SIZE_YCP * 6 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
-    const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+    const int mc_scan_y_limit = (height - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
     __m128i xShrinked0, xShrinked1;
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
@@ -784,23 +799,29 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     for (int i = 0; i < BUFFER_SIZE; i++)
         buffer[i] = 0x00;
 
-    for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
-        for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
-            y3 = _mm256_load_si256((__m256i *)(pw_thre_motion[jw]));
-            //afs_analyze_2_mmx_sub
-            y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
-            y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1)); //y0 = *p0 - *p1
-            _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
-            _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
-            y0 = _mm256_abs_epi16(y0); //y0 = abs(*p0 - *p1)
-            y2 = y3;
-            y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_motion > abs(*p0 - *p1))
-            y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_2motion_0)); //y2 &= 4000h
-            
-            _mm256_store_si256((__m256i *)(tmp16pix + jw*32), y2);
+    if (h_start == 0) {
+        for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
+            for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
+                y3 = _mm256_load_si256((__m256i *)(pw_thre_motion[jw]));
+                //afs_analyze_2_mmx_sub
+                y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
+                y0 = _mm256_subs_epi16(y0, _mm256_loadu_si256((__m256i *)ptr_p1)); //y0 = *p0 - *p1
+                _mm_prefetch((char *)ptr_p0 + step6, _MM_HINT_T0);
+                _mm_prefetch((char *)ptr_p1 + step6, _MM_HINT_T0);
+                y0 = _mm256_abs_epi16(y0); //y0 = abs(*p0 - *p1)
+                y2 = y3;
+                y2 = _mm256_cmpgt_epi16(y2, y0); //y2 = (thre_motion > abs(*p0 - *p1))
+                y2 = _mm256_and_si256(y2, _mm256_load_si256((__m256i *)pw_mask_2motion_0)); //y2 &= 4000h
+
+                _mm256_store_si256((__m256i *)(tmp16pix + jw*32), y2);
+            }
+            y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
+            _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
         }
-        y0 = afs_analyze_shrink_info_sub_avx2<TRUE>(tmp16pix, xShrinked0, xShrinked1);
-        _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
+    } else {
+        p0 += step * (h_start - 1);
+        p1 += step * (h_start - 1);
+        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
@@ -813,8 +834,9 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // if(abs_diff < thre_shift/deint) count = 0;
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
-        
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
+
+    int h_loop_fin = min(height, h_fin + 4);
+    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -910,7 +932,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), xShrinked0);
         }
 
-        if (ih >= 4) {
+        if (ih >= h_start + 4) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -937,7 +959,8 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         }
     }
     //残りの4ライン
-    for ( ; ih < h + 4; ih++) {
+    h_loop_fin = min(height + 4, h_fin + 4);
+    for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -1060,13 +1083,13 @@ static void __forceinline afs_analyze_count_stripe_nv16(__m256i& y0, __m256i& y1
     y1 = _mm256_or_si256(y1, y4);
 }
 
-void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h, int max_h, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
+void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip) {
     BYTE *p0 = (BYTE *)_p0;
     BYTE *p1 = (BYTE *)_p1;
-    const int frame_size = step * max_h;
+    const int frame_size = step * h_max;
     const int BUFFER_SIZE = BLOCK_SIZE_YCP * 4 * ((COMPRESS_BUF) ? 2 : 4);
     const int scan_t = mc_clip->top;
-    const int mc_scan_y_limit = (h - mc_clip->bottom - scan_t) & ~1;
+    const int mc_scan_y_limit = (height - mc_clip->bottom - scan_t) & ~1;
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
     __m256i y0, y1, y2, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
@@ -1087,33 +1110,40 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
     for (int i = 0; i < BUFFER_SIZE; i++)
         buffer[i] = 0x00;
 
-    for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32, ptr_p0 += 32, ptr_p1 += 32) {
-        //Y
-        _mm_prefetch((char *)ptr_p0 + step, _MM_HINT_T0);
-        _mm_prefetch((char *)ptr_p1 + step, _MM_HINT_T0);
-        y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
-        y1 = _mm256_loadu_si256((__m256i *)ptr_p1);
-        tmpY0 = afs_analyze_motion(y0, y1, 0);
+    if (h_start == 0) {
+        for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32, ptr_p0 += 32, ptr_p1 += 32) {
+            //Y
+            _mm_prefetch((char *)ptr_p0 + step, _MM_HINT_T0);
+            _mm_prefetch((char *)ptr_p1 + step, _MM_HINT_T0);
+            y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
+            y1 = _mm256_loadu_si256((__m256i *)ptr_p1);
+            tmpY0 = afs_analyze_motion(y0, y1, 0);
 
-        //C
-        _mm_prefetch((char *)ptr_p0 + frame_size + step, _MM_HINT_T0);
-        _mm_prefetch((char *)ptr_p1 + frame_size + step, _MM_HINT_T0);
-        y0 = _mm256_loadu_si256((__m256i *)(ptr_p0 + frame_size));
-        y1 = _mm256_loadu_si256((__m256i *)(ptr_p1 + frame_size));
-        tmpC0 = afs_analyze_motion(y0, y1, 1);
+            //C
+            _mm_prefetch((char *)ptr_p0 + frame_size + step, _MM_HINT_T0);
+            _mm_prefetch((char *)ptr_p1 + frame_size + step, _MM_HINT_T0);
+            y0 = _mm256_loadu_si256((__m256i *)(ptr_p0 + frame_size));
+            y1 = _mm256_loadu_si256((__m256i *)(ptr_p1 + frame_size));
+            tmpC0 = afs_analyze_motion(y0, y1, 1);
 
-        tmpY1 = _mm256_unpackhi_epi8(_mm256_setzero_si256(), tmpY0);
-        tmpY0 = _mm256_unpacklo_epi8(_mm256_setzero_si256(), tmpY0);
-        tmpC1 = _mm256_unpackhi_epi8(_mm256_setzero_si256(), tmpC0);
-        tmpC0 = _mm256_unpacklo_epi8(_mm256_setzero_si256(), tmpC0);
+            tmpY1 = _mm256_unpackhi_epi8(_mm256_setzero_si256(), tmpY0);
+            tmpY0 = _mm256_unpacklo_epi8(_mm256_setzero_si256(), tmpY0);
+            tmpC1 = _mm256_unpackhi_epi8(_mm256_setzero_si256(), tmpC0);
+            tmpC0 = _mm256_unpacklo_epi8(_mm256_setzero_si256(), tmpC0);
 
-        afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, y0, y1);
-        _mm256_store_si256((__m256i*)(buf2_ptr), y0);
+            afs_analyze_shrink_info_sub_nv16(tmpY0, tmpY1, tmpC0, tmpC1, y0, y1);
+            _mm256_store_si256((__m256i*)(buf2_ptr), y0);
+        }
+    } else {
+        p0 += step * (h_start - 1);
+        p1 += step * (h_start - 1);
+        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
 
-    for (ih = 1; ih < h; ih++, p0 += step, p1 += step) {
+    int h_loop_fin = min(height, h_fin + 4);
+    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -1129,7 +1159,7 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
             _mm256_store_si256((__m256i*)(buf2_ptr + (((ih+1) & 7)) * BLOCK_SIZE_YCP), y1);
         }
 
-        if (ih >= 4) {
+        if (ih >= h_start + 4) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -1155,7 +1185,8 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
         }
     }
     //残りの4ライン
-    for (; ih < h + 4; ih++) {
+    h_loop_fin = min(height + 4, h_fin + 4);
+    for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
         for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
