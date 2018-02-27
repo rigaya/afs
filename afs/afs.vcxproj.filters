@@ -75,6 +75,12 @@
     <ClCompile Include="afs_opencl.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="afs_analyze_avx2_xbyak.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="afs_analyze_xbyak.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="afs_yuy2up_mmx.h">

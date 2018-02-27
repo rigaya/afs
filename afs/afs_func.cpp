@@ -94,10 +94,17 @@ static const struct {
     AFS_FUNC_ANALYZE analyze[2];
 } FUNC_ANALYZE_LIST[] = {
     //set_thresholdで変数を渡しているため、これら5つの関数は必ずセットで
+#if AFS_USE_XBYAK
+    { AVX2|AVX|POPCNT, {
+        { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx2,      NULL, { NULL,                           afs_analyze_1_avx2_plus2,       afs_analyze_2_avx2_plus2 } },
+        { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx2, NULL, { afs_analyze_12_nv16_avx2_plus2, afs_analyze_12_nv16_avx2_plus2, NULL                     } }
+    } },
+#else
     { AVX2|AVX|POPCNT, {
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx2,      NULL, { afs_analyze_12_avx2_plus2,      afs_analyze_1_avx2_plus2,       afs_analyze_2_avx2_plus2 } },
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx2, NULL, { afs_analyze_12_nv16_avx2_plus2, afs_analyze_12_nv16_avx2_plus2, NULL                     } }
     } },
+#endif
     { AVX|POPCNT|SSE41|SSSE3|SSE2, {
         { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx,      NULL, { afs_analyze_12_avx_plus2,      afs_analyze_1_avx_plus2,       afs_analyze_2_avx_plus2 } },
         { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx, NULL, { afs_analyze_12_nv16_avx_plus2, afs_analyze_12_nv16_avx_plus2, NULL                    } },

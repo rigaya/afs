@@ -28,6 +28,10 @@
 #include "afs_yuy2up_simd.h"
 #include "cpu_info.h"
 
+#if AFS_USE_XBYAK
+#include "afs_analyze_xbyak.h"
+#endif //#if AFS_USE_XBYAK
+
 #ifndef AFSVF
 static TCHAR filter_name[] = "自動フィールドシフト";
 #ifndef AFSNFS
@@ -796,9 +800,14 @@ BOOL func_save_end(FILTER *fp, void *editp) {
 // 解析関数ワーカースレッド
 template<typename SCR_TYPE>
 void thread_func_analyze_frame(const int id) {
-    const AFS_FUNC_ANALYZE func_analyze = afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
-    const int min_analyze_cycle = func_analyze.min_cycle;
-    const int max_block_size = func_analyze.max_block_size;
+    AFS_FUNC_ANALYZE f_analyze = afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
+#if AFS_USE_XBYAK
+    if (f_analyze.analyze_main[0] == NULL) {
+        f_analyze.analyze_main[0] = (func_analyze)g_afs.xbyak_analyze12->getCode();
+    }
+#endif //#if AFS_USE_XBYAK
+    const int min_analyze_cycle = f_analyze.min_cycle;
+    const int max_block_size = f_analyze.max_block_size;
     int analyze_block = min_analyze_cycle;
     SCR_TYPE *const p0 = (SCR_TYPE *)g_afs.scan_arg.p0;
     SCR_TYPE *const p1 = (SCR_TYPE *)g_afs.scan_arg.p1;
@@ -818,18 +827,18 @@ void thread_func_analyze_frame(const int id) {
     AFS_SCAN_CLIP clip_thread = *g_afs.scan_arg.clip;
     int thread_mc_local[2] = { 0 };
     if (id_x < scan_worker_x - 1) {
-        if (func_analyze.shrink_info) {
+        if (f_analyze.shrink_info) {
             for (; pos_x < x_fin; pos_x += analyze_block) {
                 analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
-                func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
+                f_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                f_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; pos_x < x_fin; pos_x += analyze_block) {
                 analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                f_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
         }
     } else {
@@ -848,29 +857,29 @@ void thread_func_analyze_frame(const int id) {
         pos_x = ((int)(g_afs.scan_w * id_x / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
 #endif
         x_fin = g_afs.scan_w;
-        if (func_analyze.shrink_info) {
+        if (f_analyze.shrink_info) {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
                 analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
-                func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
+                f_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                f_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
             if (pos_x < g_afs.scan_w) {
                 analyze_block = ((g_afs.scan_w - pos_x) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, pos_x - (g_afs.scan_w-analyze_block));
-                func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
-                func_analyze.shrink_info(g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
+                f_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                f_analyze.shrink_info(g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
                 analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                f_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
             if (pos_x < g_afs.scan_w) {
                 analyze_block = ((g_afs.scan_w - pos_x) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, pos_x - (g_afs.scan_w-analyze_block));
-                func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
+                f_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + g_afs.scan_w-analyze_block, p0 + g_afs.scan_w-analyze_block, p1 + g_afs.scan_w-analyze_block, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
         }
     }
@@ -899,7 +908,8 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
 #if SIMD_DEBUG
     afs_analyze_set_threshold_mmx(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
 #endif
-    afs_func.analyze[afs_cache_nv16(g_afs.afs_mode)].set_threshold(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
+    const AFS_FUNC_ANALYZE func_analyze = afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
+    func_analyze.set_threshold(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
     g_afs.scan_arg.type     = type;
     g_afs.scan_arg.afs_mode = g_afs.afs_mode;
     g_afs.scan_arg.dst      = sp->map;
@@ -909,6 +919,20 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
     g_afs.scan_arg.source_w = source_w;
     g_afs.scan_arg.si_pitch = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     g_afs.scan_arg.clip     = mc_clip;
+#if AFS_USE_XBYAK
+    if (func_analyze.analyze_main[0] == NULL) {
+        if (g_afs.xbyak_analyze12 != nullptr) {
+            if (g_afs.xbyak_analyze12->checkprm(g_afs.scan_arg.tb_order, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, mc_clip->top, mc_clip->bottom)) {
+                delete g_afs.xbyak_analyze12;
+                g_afs.xbyak_analyze12 = nullptr;
+            }
+        }
+        if (g_afs.xbyak_analyze12 == nullptr) {
+                g_afs.xbyak_analyze12 = new AFSAnalyzeXbyakAVX2((afs_func.simd_avail & AVX2FAST) == 0,
+                    g_afs.scan_arg.tb_order, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, mc_clip->top, mc_clip->bottom);
+        }
+    }
+#endif //#if AFS_USE_XBYAK
     for (int i = 0; i < g_afs.scan_worker_n; i++)
         SetEvent(g_afs.hEvent_worker_awake[i]);
     WaitForMultipleObjects(g_afs.scan_worker_n, g_afs.hEvent_worker_sleep, TRUE, INFINITE);

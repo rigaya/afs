@@ -2,6 +2,8 @@
 
 #include "filter.h"
 
+#define AFS_USE_XBYAK 1
+
 #define AFS_SOURCE_CACHE_NUM 16
 #define AFS_SCAN_CACHE_NUM   16
 #define AFS_SCAN_WORKER_MAX  64
@@ -48,6 +50,10 @@ static inline AFS_SCAN_CLIP scan_clip(int top, int bottom, int left, int right) 
     return clip;
 }
 
+#if AFS_USE_XBYAK
+class AFSAnalyzeXbyak;
+#endif //#if AFS_USE_XBYAK
+
 typedef struct {
     int afs_mode;
     int type;
@@ -85,7 +91,7 @@ const int BLOCK_SIZE_YCP = 256;
 #define ANALYZE_BACKGROUND (0 & SCAN_BACKGROUND) //analyze処理をバックグラウンドで行う (バグってるので使用中止)
 #define BACKGROUND_THREAD_BELOW_NORMAL 0 //バックグラウンドスレッドの優先度を下げる
 #define SIMD_DEBUG         0 //SIMD処理をデバッグする
-#define CHECK_PERFORMANCE  0 //パフォーマンスレポートを出力する
+#define CHECK_PERFORMANCE  1 //パフォーマンスレポートを出力する
 #define COMPRESS_BUF       1
 
 #if ENABLE_SUB_THREADS
@@ -153,7 +159,6 @@ typedef struct {
     int status, frame, file_id, video_number, yuy2upsample;
 } AFS_SOURCE_DATA;
 
-
 typedef struct AFS_CONTEXT {
 #if ENABLE_SUB_THREADS
     AFS_SUB_THREAD sub_thread;
@@ -188,6 +193,9 @@ typedef struct AFS_CONTEXT {
 #if ENABLE_OPENCL
     AFS_OPENCL opencl;
 #endif
+#if AFS_USE_XBYAK
+    AFSAnalyzeXbyak *xbyak_analyze12;
+#endif //#if AFS_USE_XBYAK
 
     AFS_EX_DATA ex_data;
 } AFS_CONTEXT;
