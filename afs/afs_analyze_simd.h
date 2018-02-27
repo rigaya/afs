@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <algorithm>
 #include "simd_util.h"
 #include "afs.h"
 #include "afs_convert_const.h"
@@ -7,8 +8,8 @@
 void __forceinline afs_analyze_get_local_scan_clip(AFS_SCAN_CLIP *clip_thread, const AFS_SCAN_CLIP *clip, int pos_x, int analyze_block, int scan_w, int left_additional_clip) {
     int left_clip = clip->left - pos_x;
     int right_clip = pos_x + analyze_block - (scan_w - clip->right);
-    clip_thread->left  = max(0, left_clip) + left_additional_clip;
-    clip_thread->right = max(0, right_clip);
+    clip_thread->left  = std::max(0, left_clip) + left_additional_clip;
+    clip_thread->right = std::max(0, right_clip);
 }
 
 static const _declspec(align(16)) BYTE pb_thre_count[16]       = { 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03, 0x02, 0x03 };
@@ -452,7 +453,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
 
     __m64 m0 = _mm_setzero_si64();
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -623,7 +624,7 @@ static void __forceinline __stdcall afs_analyze_12_simd_plus2(BYTE *dst, PIXEL_Y
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
@@ -723,7 +724,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -884,7 +885,7 @@ static void __forceinline __stdcall afs_analyze_1_simd_plus2(BYTE *dst, PIXEL_YC
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
@@ -981,7 +982,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_dst = (BYTE *)dst;
         ptr_p0 = (BYTE *)p0;
@@ -1141,7 +1142,7 @@ static void __forceinline __stdcall afs_analyze_2_simd_plus2(BYTE *dst, PIXEL_YC
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
@@ -1340,7 +1341,7 @@ static void __forceinline __stdcall afs_analyze_12_nv16_simd_plus2(BYTE *dst, BY
 
     __m64 m0 = _mm_setzero_si64();
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -1383,7 +1384,7 @@ static void __forceinline __stdcall afs_analyze_12_nv16_simd_plus2(BYTE *dst, BY
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;

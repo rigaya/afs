@@ -3,6 +3,8 @@
 #include <emmintrin.h>
 #include <smmintrin.h>
 #include <immintrin.h>
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 #include "afs.h"
 #include "afs_convert_const.h"
@@ -368,7 +370,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
 
     __m64 m0 = _mm_setzero_si64();
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -520,7 +522,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for ( ; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
@@ -615,7 +617,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // if(abs_diff < thre_shift/deint) count = 0;
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -738,7 +740,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
@@ -834,7 +836,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -958,7 +960,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;
@@ -1141,7 +1143,7 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
 
     __m64 m0 = _mm_setzero_si64();
 
-    int h_loop_fin = min(height, h_fin + 4);
+    int h_loop_fin = std::min(height, h_fin + 4);
     for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
@@ -1184,7 +1186,7 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
         }
     }
     //残りの4ライン
-    h_loop_fin = min(height + 4, h_fin + 4);
+    h_loop_fin = std::min(height + 4, h_fin + 4);
     for (; ih < h_loop_fin; ih++) {
         ptr_dst = (BYTE *)dst;
         buf2_ptr = buffer + BUFFER_SIZE;

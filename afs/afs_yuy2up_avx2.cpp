@@ -1,6 +1,8 @@
 ﻿#define USE_AVX   1
 #define USE_AVX2  1
 #include <immintrin.h>
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 #include "filter.h"
 #include "simd_util.h"

@@ -1,6 +1,8 @@
 ﻿#define USE_AVX   1
 #define USE_AVX2  1
 #include <immintrin.h> //イントリンシック命令 AVX / AVX2
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 #include "afs.h"
 #include "afs_convert_const.h"

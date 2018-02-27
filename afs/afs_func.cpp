@@ -1,4 +1,6 @@
-﻿#include <Windows.h>
+﻿#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
 #include <intrin.h>
 #include "filter.h"
 #include "afs_func.h"

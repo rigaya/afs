@@ -4,10 +4,13 @@
 // 自動フィールドシフト ビデオフィルタプラグイン for AviUtl
 #endif
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #include <process.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include "filter.h"
 #include "afs_server.h"
 
@@ -286,7 +289,7 @@ void free_source_cache(void) {
 }
 
 BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
-    int source_w = max(g_afs.source_w, si_pitch(max_w, afs_mode));
+    int source_w = std::max(g_afs.source_w, si_pitch(max_w, afs_mode));
     int baseAddressAlign = 64;
 #if ENABLE_OPENCL
     if (g_afs.afs_mode & AFS_MODE_OPENCL) {
@@ -357,7 +360,7 @@ BOOL inline check_source_cache_hit(int frame, int file_id, int video_number, int
 }
 
 BOOL inline check_source_cache_hit(FILTER *fp, FILTER_PROC_INFO *fpip, int frame) {
-    frame = max(0, min(frame, fpip->frame_n - 1));
+    frame = std::max(0, std::min(frame, fpip->frame_n - 1));
     int file_id, video_number;
 #ifndef AFSNFS
     if (fp->exfunc->get_source_video_number(fpip->editp, frame, &file_id, &video_number) != TRUE)
@@ -450,7 +453,7 @@ void fill_this_ycp(FILTER *fp, FILTER_PROC_INFO *fpip) {
 
 void* get_ycp_cache(FILTER *fp, FILTER_PROC_INFO *fpip, int frame, int *hit) {
     int upper_limit = fpip->frame_n - 1;
-    frame = max(0, min(frame, upper_limit));
+    frame = std::max(0, std::min(frame, upper_limit));
 
 #ifndef AFSVF
     return get_source_cache(fp, fpip->editp, frame, fpip->w, fpip->max_w, fpip->h, hit);
@@ -801,7 +804,7 @@ void thread_func_analyze_frame(const int id) {
     SCR_TYPE *const p1 = (SCR_TYPE *)g_afs.scan_arg.p1;
     PIXEL_YC *const workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
     int scan_worker_x = (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP;
-    int scan_worker_y = g_afs.scan_worker_n / scan_worker_x;
+    int scan_worker_y = std::max(g_afs.scan_worker_n / scan_worker_x, 1);
     while ((g_afs.scan_worker_n % scan_worker_y) != 0) {
         scan_worker_y--;
     }
@@ -817,14 +820,14 @@ void thread_func_analyze_frame(const int id) {
     if (id_x < scan_worker_x - 1) {
         if (func_analyze.shrink_info) {
             for (; pos_x < x_fin; pos_x += analyze_block) {
-                analyze_block = min(x_fin - pos_x, max_block_size);
+                analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
                 func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
             }
         } else {
             for (; pos_x < x_fin; pos_x += analyze_block) {
-                analyze_block = min(x_fin - pos_x, max_block_size);
+                analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
                 func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
@@ -847,7 +850,7 @@ void thread_func_analyze_frame(const int id) {
         x_fin = g_afs.scan_w;
         if (func_analyze.shrink_info) {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
-                analyze_block = min(x_fin - pos_x, max_block_size);
+                analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
                 func_analyze.analyze_main[g_afs.scan_arg.type]((BYTE *)workp, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
                 func_analyze.shrink_info(g_afs.scan_arg.dst + pos_x, workp, g_afs.scan_h, analyze_block, g_afs.scan_arg.si_pitch);
@@ -860,7 +863,7 @@ void thread_func_analyze_frame(const int id) {
             }
         } else {
             for (; x_fin - pos_x > max_block_size; pos_x += analyze_block) {
-                analyze_block = min(x_fin - pos_x, max_block_size);
+                analyze_block = std::min(x_fin - pos_x, max_block_size);
                 afs_analyze_get_local_scan_clip(&clip_thread, g_afs.scan_arg.clip, pos_x, analyze_block, g_afs.scan_w, 0);
                 func_analyze.analyze_main[g_afs.scan_arg.type](g_afs.scan_arg.dst + pos_x, p0 + pos_x, p1 + pos_x, g_afs.scan_arg.tb_order, analyze_block, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, pos_y, y_fin, g_afs.scan_h, g_afs.source_h, thread_mc_local, &clip_thread);
             }
