@@ -72,6 +72,19 @@ static DWORD get_availableSIMD() {
     __cpuid(CPUInfo, 7);
     if ((simd & AVX) && (CPUInfo[1] & 0x00000020))
         simd |= AVX2;
+    if ((simd & AVX) && ((xgetbv >> 5) & 7) == 7) {
+        if (CPUInfo[1] & (1u << 16)) simd |= AVX512F;
+        if (simd & AVX512F) {
+            if (CPUInfo[1] & (1u << 17)) simd |= AVX512DQ;
+            if (CPUInfo[1] & (1u << 21)) simd |= AVX512IFMA;
+            if (CPUInfo[1] & (1u << 26)) simd |= AVX512PF;
+            if (CPUInfo[1] & (1u << 27)) simd |= AVX512ER;
+            if (CPUInfo[1] & (1u << 28)) simd |= AVX512CD;
+            if (CPUInfo[1] & (1u << 30)) simd |= AVX512BW;
+            if (CPUInfo[1] & (1u << 31)) simd |= AVX512VL;
+            if (CPUInfo[2] & (1u <<  1)) simd |= AVX512VBMI;
+        }
+    }
     if (simd & AVX2) {
         __cpuid(CPUInfo, 0);
         char vendor[16] = { 0 };
@@ -95,6 +108,10 @@ static const struct {
 } FUNC_ANALYZE_LIST[] = {
     //set_thresholdで変数を渡しているため、これら5つの関数は必ずセットで
 #if AFS_USE_XBYAK
+    { AVX512F|AVX512BW|AVX2|AVX|POPCNT, {
+        { 63, 64, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx512,    NULL, { NULL,                           NULL,                           NULL                     } },
+        { 63, 64, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx2, NULL, { afs_analyze_12_nv16_avx2_plus2, afs_analyze_12_nv16_avx2_plus2, NULL                     } }
+    } },
     { AVX2|AVX|POPCNT, {
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx2,      NULL, { NULL,                           afs_analyze_1_avx2_plus2,       afs_analyze_2_avx2_plus2 } },
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx2, NULL, { afs_analyze_12_nv16_avx2_plus2, afs_analyze_12_nv16_avx2_plus2, NULL                     } }

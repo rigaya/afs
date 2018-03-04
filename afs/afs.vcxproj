@@ -389,6 +389,7 @@
   <ItemGroup>
     <ClCompile Include="afs.cpp" />
     <ClInclude Include="afs_analyze_avx2_xbyak.hpp" />
+    <ClCompile Include="afs_analyze_avx512_xbyak.cpp" />
     <ClInclude Include="afs_analyze_xbyak.h" />
     <ClCompile Include="afs_convert_avx2.cpp">
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions</EnableEnhancedInstructionSet>

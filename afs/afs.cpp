@@ -938,8 +938,13 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
             }
         }
         if (g_afs.xbyak_analyze12 == nullptr) {
+            if (afs_func.simd_avail & AVX512BW) {
+                g_afs.xbyak_analyze12 = new AFSAnalyzeXbyakAVX512(
+                    g_afs.scan_arg.tb_order, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, mc_clip->top, mc_clip->bottom);
+            } else {
                 g_afs.xbyak_analyze12 = new AFSAnalyzeXbyakAVX2((afs_func.simd_avail & AVX2FAST) == 0,
                     g_afs.scan_arg.tb_order, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, mc_clip->top, mc_clip->bottom);
+            }
         }
     }
 #endif //#if AFS_USE_XBYAK

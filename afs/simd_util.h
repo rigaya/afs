@@ -28,16 +28,25 @@ extern "C" {
 #endif  /* defined (__cplusplus) */
 
 enum {
-    NONE     = 0x0000,
-    SSE2     = 0x0001,
-    SSE3     = 0x0002,
-    SSSE3    = 0x0004,
-    SSE41    = 0x0008,
-    SSE42    = 0x0010,
-    POPCNT   = 0x0020,
-    AVX      = 0x0040,
-    AVX2     = 0x0080,
-    AVX2FAST = 0x0100,
+    NONE       = 0x000000,
+    SSE2       = 0x000001,
+    SSE3       = 0x000002,
+    SSSE3      = 0x000004,
+    SSE41      = 0x000008,
+    SSE42      = 0x000010,
+    POPCNT     = 0x000020,
+    AVX        = 0x000040,
+    AVX2       = 0x000080,
+    AVX2FAST   = 0x000100,
+    AVX512F    = 0x000200,
+    AVX512DQ   = 0x000400,
+    AVX512IFMA = 0x000800,
+    AVX512PF   = 0x001000,
+    AVX512ER   = 0x002000,
+    AVX512CD   = 0x004000,
+    AVX512BW   = 0x008000,
+    AVX512VL   = 0x010000,
+    AVX512VBMI = 0x020000,
 };
 
 #define CLAMP(x, low, high) (((x) > (high))? (high) : ((x) < (low))? (low) : (x))

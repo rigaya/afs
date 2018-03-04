@@ -171,6 +171,7 @@ void __stdcall afs_analyze_set_threshold_sse4_1(int thre_shift, int thre_deint, 
 void __stdcall afs_analyze_set_threshold_sse4_1_popcnt(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 void __stdcall afs_analyze_set_threshold_avx(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 void __stdcall afs_analyze_set_threshold_avx2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
+void __stdcall afs_analyze_set_threshold_avx512(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 
 void __stdcall afs_analyze_set_threshold_nv16_sse2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 void __stdcall afs_analyze_set_threshold_nv16_ssse3(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
