@@ -812,18 +812,28 @@ void thread_func_analyze_frame(const int id) {
     SCR_TYPE *const p0 = (SCR_TYPE *)g_afs.scan_arg.p0;
     SCR_TYPE *const p1 = (SCR_TYPE *)g_afs.scan_arg.p1;
     PIXEL_YC *const workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
-    int scan_worker_x = (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP;
-    int scan_worker_y = std::max(g_afs.scan_worker_n / scan_worker_x, 1);
-    while ((g_afs.scan_worker_n % scan_worker_y) != 0) {
-        scan_worker_y--;
+    //ブロックサイズの決定
+    const int scan_worker_x_limit_lower = std::min(g_afs.scan_worker_n, std::max(1, (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP));
+    const int scan_worker_x_limit_upper = std::max(1, g_afs.scan_w / 64);
+    int scan_worker_x, scan_worker_y;
+    for (int scan_worker_active = g_afs.scan_worker_n; ; scan_worker_active--) {
+        for (scan_worker_x = scan_worker_x_limit_lower; scan_worker_x <= scan_worker_x_limit_upper; scan_worker_x++) {
+            scan_worker_y = scan_worker_active / scan_worker_x;
+            if (scan_worker_active - scan_worker_y * scan_worker_x == 0) {
+                goto block_size_set;
+            }
+        }
     }
-    scan_worker_x = g_afs.scan_worker_n / scan_worker_y;
-    int id_x = id % scan_worker_x;
+    block_size_set:
+    if (id >= scan_worker_x * scan_worker_y) {
+        return;
+    }
     int id_y = id / scan_worker_x;
-    int pos_y = ((int)(g_afs.scan_h * id_y / (double)scan_worker_y + 0.5));
-    int y_fin = ((int)(g_afs.scan_h * (id_y+1) / (double)scan_worker_y + 0.5));
+    int id_x = id - id_y * scan_worker_x;
+    int pos_y = ((int)(g_afs.scan_h * id_y / (double)scan_worker_y + 0.5)) & ~1;
+    int y_fin = (id_y == scan_worker_y - 1) ? g_afs.scan_h : ((int)(g_afs.scan_h * (id_y+1) / (double)scan_worker_y + 0.5)) & ~1;
     int pos_x = ((int)(g_afs.scan_w * id_x / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
-    int x_fin = ((int)(g_afs.scan_w * (id_x+1) / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+    int x_fin = (id_x == scan_worker_x - 1) ? g_afs.scan_w : ((int)(g_afs.scan_w * (id_x+1) / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     AFS_SCAN_CLIP clip_thread = *g_afs.scan_arg.clip;
     int thread_mc_local[2] = { 0 };
     if (id_x < scan_worker_x - 1) {
