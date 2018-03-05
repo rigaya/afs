@@ -266,7 +266,9 @@ void AFSAnalyzeXbyakAVX2::init_mc_mask(const int stack_ptr_mc_mask_offset) {
     vperm2i128(ymm0, ymm2, ymm1, (2<<4) + 0); //あとでvpacksswbするので [i+ 0, i+16]
     vperm2i128(ymm1, ymm2, ymm1, (3<<4) + 1); //あとでvpacksswbするので [i+ 8, i+24]
 
-    mov(edx, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left
+    xor(edx, edx);
+    dec(edx);
+    add(edx, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left
     vpbroadcastw(ymm2, dx); //mc_clip->left - 1
     mov(ecx, dword[ecx + offsetof(AFS_SCAN_CLIP, right)]); //mc_clip->right
     mov(edx, eax); //width
@@ -702,7 +704,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_count_motion(int stack_ptr_mc_mask_offset)
 
     mov(esi, ebp);
     xor(eax, eax);
-    sub(esi, top); //ih - top
+    sub(esi, top+4); //ih - 4 - top
     cmp(esi, mc_scan_y_limit);
     sbb(eax, 0); //((DW0RD)(y -top) < (DW0RD)y_limit) ? 0xffffffff : 0x00;
 

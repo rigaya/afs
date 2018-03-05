@@ -50,7 +50,7 @@ alignas(64) static const uint16_t PACK_YC48_SHUFFLE_AVX512[32] = {
     48, 51, 54, 57, 60, 63,  2,  5,  8, 11, 14, 17, 20, 23, 26, 29
 };
 
-static const BYTE pb_mshufmask[] = { 4, 5, 6, 1, 0, 1, 1, 3, 4, 5, 6, 7, 0, 1, 1, 3 };
+static const BYTE pb_mshufmask[] = { 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3 };
 
 void __stdcall afs_analyze_set_threshold_avx512(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion) {
     __m512i z0, z1;
@@ -313,74 +313,46 @@ void AFSAnalyzeXbyakAVX512::copy_pw_thre_motion_to_stack(const Xbyak::Address& s
 //zmm0-zmm7 ... 使用
 void AFSAnalyzeXbyakAVX512::init_mc_mask(const int stack_ptr_mc_mask_offset) {
     using namespace Xbyak;
-    if (BLOCK_SIZE_YCP > 256) {
-        vmovdqa32(zmm2, zword[pw_index]); //[i+ 0, i+ 8, i+16, i+24]
-        vpternlogd(zmm7, zmm7, zmm7, 0xff);
-        vpsrlw(zmm7, zmm7, 15);
-        vpsllw(zmm7, zmm7, 5); //32
-        vpaddw(zmm1, zmm2, zmm7); //[i+32, i+40, i+48, i+56]
-        vpsllw(zmm7, zmm7, 1); //64
-        vshufi64x2(zmm0, zmm2, zmm1, _MM_SHUFFLE(2, 0, 2, 0)); //あとでvpacksswbするので [i+ 0, i+16, i+32, i+48]
-        vshufi64x2(zmm1, zmm2, zmm1, _MM_SHUFFLE(3, 1, 3, 1)); //あとでvpacksswbするので [i+ 8, i+24, i+40, i+56]
+    vmovdqa32(zmm2, zword[pw_index]); //[i+ 0, i+ 8, i+16, i+24]
+    vpternlogd(zmm7, zmm7, zmm7, 0xff);
+    vpsrlw(zmm7, zmm7, 15);
+    vpsllw(zmm7, zmm7, 5); //32
+    vpaddw(zmm1, zmm2, zmm7); //[i+32, i+40, i+48, i+56]
+    vpsllw(zmm7, zmm7, 1); //64
+    vshufi64x2(zmm0, zmm2, zmm1, _MM_SHUFFLE(2, 0, 2, 0)); //あとでvpacksswbするので [i+ 0, i+16, i+32, i+48]
+    vshufi64x2(zmm1, zmm2, zmm1, _MM_SHUFFLE(3, 1, 3, 1)); //あとでvpacksswbするので [i+ 8, i+24, i+40, i+56]
 
-        mov(edx, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left
-        vpbroadcastw(zmm2, dx); //mc_clip->left - 1
-        mov(ecx, dword[ecx + offsetof(AFS_SCAN_CLIP, right)]); //mc_clip->right
-        mov(edx, eax); //width
-        sub(edx, ecx); //width - mc_clip->right
-        vpbroadcastw(zmm3, dx); //width - mc_clip->right
+    xor(edx, edx);
+    dec(edx);
+    add(edx, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left
+    vpbroadcastw(zmm2, dx); //mc_clip->left - 1
+    mov(ecx, dword[ecx + offsetof(AFS_SCAN_CLIP, right)]); //mc_clip->right
+    mov(edx, eax); //width
+    sub(edx, ecx); //width - mc_clip->right
+    vpbroadcastw(zmm3, dx); //width - mc_clip->right
 
-        lea(edx, ptr[esp + stack_ptr_mc_mask_offset]);
-        mov(ecx, BLOCK_SIZE_YCP / 64);
-        static_assert(BLOCK_SIZE_YCP % 64 == 0, "BLOCK_SIZE_YCP should be mod64.");
-        L("init_mc_mask_loop1"); {
-            vpcmpgtw(k3, zmm0, zmm2); // ([i+ 0] > (mc_clip->left - 1)) = ([i+ 0] >= mc_clip->left)
-            vpcmpgtw(k2, zmm3, zmm0); // mc_clip->right > [i+ 0]
-            kandd(k2, k2, k3);    // mc_clip->left <= [i+ 0] < mc_clip->right
-            vpmovm2w(zmm4, k2);
+    lea(edx, ptr[esp + stack_ptr_mc_mask_offset]);
+    mov(ecx, BLOCK_SIZE_YCP / 64);
+    static_assert(BLOCK_SIZE_YCP % 64 == 0, "BLOCK_SIZE_YCP should be mod64.");
+    L("init_mc_mask_loop1"); {
+        vpcmpgtw(k3, zmm0, zmm2); // ([i+ 0] > (mc_clip->left - 1)) = ([i+ 0] >= mc_clip->left)
+        vpcmpgtw(k2, zmm3, zmm0); // mc_clip->right > [i+ 0]
+        kandd(k2, k2, k3);    // mc_clip->left <= [i+ 0] < mc_clip->right
+        vpmovm2w(zmm4, k2);
 
-            vpcmpgtw(k3, zmm1, zmm2); // ([i+8] > (mc_clip->left - 1)) = ([i+16] >= mc_clip->left)
-            vpcmpgtw(k2, zmm3, zmm1); // mc_clip->right > [i+8]
-            kandd(k2, k2, k3);    // mc_clip->left <= [i+8] < mc_clip->right
-            vpmovm2w(zmm5, k2);
+        vpcmpgtw(k3, zmm1, zmm2); // ([i+8] > (mc_clip->left - 1)) = ([i+16] >= mc_clip->left)
+        vpcmpgtw(k2, zmm3, zmm1); // mc_clip->right > [i+8]
+        kandd(k2, k2, k3);    // mc_clip->left <= [i+8] < mc_clip->right
+        vpmovm2w(zmm5, k2);
 
-            vpacksswb(zmm4, zmm4, zmm5);
-            vmovdqa32(zword[edx], zmm4);
+        vpacksswb(zmm4, zmm4, zmm5);
+        vmovdqa32(zword[edx], zmm4);
 
-            vpaddw(zmm0, zmm0, zmm7); //[i+ 0] += 64 
-            vpaddw(zmm1, zmm1, zmm7); //[i+ 8] += 64 
-            add(edx, 64);
-            dec(ecx);
-            jnz("init_mc_mask_loop1");
-        }
-    } else {
-        vmovdqa32(zmm0, zword[pb_index]); //[i+ 0, i+ 8, i+16, i+24]
-        vpternlogd(zmm7, zmm7, zmm7, 0xff);
-        vpsrlw(zmm7, zmm7, 15);
-        vpsllw(zmm7, zmm7, 6); //64
-
-        mov(edx, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left
-        vpbroadcastb(zmm2, dl); //mc_clip->left - 1
-        mov(ecx, dword[ecx + offsetof(AFS_SCAN_CLIP, right)]); //mc_clip->right
-        mov(edx, eax); //width
-        sub(edx, ecx); //width - mc_clip->right
-        vpbroadcastb(zmm3, dl); //width - mc_clip->right
-
-        lea(edx, ptr[esp + stack_ptr_mc_mask_offset]);
-        mov(ecx, BLOCK_SIZE_YCP / 64);
-        static_assert(BLOCK_SIZE_YCP % 64 == 0, "BLOCK_SIZE_YCP should be mod64.");
-        L("init_mc_mask_loop1"); {
-            vpcmpgtb(k3, zmm0, zmm2); // ([i+ 0] > (mc_clip->left - 1)) = ([i+ 0] >= mc_clip->left)
-            vpcmpgtb(k2, zmm3, zmm0); // mc_clip->right > [i+ 0]
-            kandq(k2, k2, k3);    // mc_clip->left <= [i+ 0] < mc_clip->right
-            vpmovm2b(zmm4, k2);
-            vmovdqa32(zword[edx], zmm4);
-
-            vpaddw(zmm0, zmm0, zmm7); //[i+ 0] += 64 
-            add(edx, 64);
-            dec(ecx);
-            jnz("init_mc_mask_loop1");
-        }
+        vpaddw(zmm0, zmm0, zmm7); //[i+ 0] += 64 
+        vpaddw(zmm1, zmm1, zmm7); //[i+ 8] += 64 
+        add(edx, 64);
+        dec(ecx);
+        jnz("init_mc_mask_loop1");
     }
 }
 
@@ -814,7 +786,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_count_motion(int stack_ptr_mc_mask_offse
 
     mov(esi, ebp);
     xor(eax, eax);
-    sub(esi, top); //ih - top
+    sub(esi, top+4); //ih - 4 - top
     cmp(esi, mc_scan_y_limit);
     sbb(eax, 0); //((DW0RD)(y -top) < (DW0RD)y_limit) ? 0xffffffff : 0x00;
     movd(mm2, eax);

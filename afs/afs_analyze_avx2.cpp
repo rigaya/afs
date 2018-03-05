@@ -57,7 +57,7 @@ static const _declspec(align(32)) BYTE Array_SUFFLE_YCP_COMPRESSED[32] = {
 };
 
 #if AFS_USE_XBYAK
-static const BYTE pb_mshufmask[] = { 4, 5, 6, 1, 0, 1, 1, 3, 4, 5, 6, 7, 0, 1, 1, 3 };
+static const BYTE pb_mshufmask[] = { 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3 };
 
 #include "afs_analyze_avx2_xbyak.hpp"
 
