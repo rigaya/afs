@@ -335,7 +335,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
     //BYTE *ptr[2];
-    int ih;
+    int ih, h_dst_start;
     
     BYTE *ptr_dst = (BYTE *)dst;
     BYTE *ptr_p0 = (BYTE *)p0;
@@ -354,6 +354,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
         buffer[i] = 0x00;
 
     if (h_start == 0) {
+        h_start++;
+        h_dst_start = 4;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
             for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
                 y0 = _mm256_loadu_si256((__m256i *)ptr_p0);
@@ -374,15 +376,21 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
             _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
         }
     } else {
+        h_dst_start = h_start + 4;
+        dst += si_pitch * h_start;
+        //少し、解析領域をオーバーラップさせる
+        //こうすることで、縦方向分割の縞検出が安定する
+        if (h_start > 2) {
+            h_start -= 2;
+        }
         p0 += step * (h_start - 1);
         p1 += step * (h_start - 1);
-        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
 
     int h_loop_fin = std::min(height, h_fin + 4);
-    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
+    for (ih = h_start; ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -506,7 +514,7 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), xShrinked0);
         }
 
-        if (ih >= h_start + 4) {
+        if (ih >= h_dst_start) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -575,7 +583,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
     BYTE *ptr[2];
-    int ih;
+    int ih, h_dst_start;
     
     BYTE *ptr_dst = (BYTE *)dst;
     BYTE *ptr_p0 = (BYTE *)p0;
@@ -595,6 +603,8 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         buffer[i] = 0x00;
 
     if (h_start == 0) {
+        h_start++;
+        h_dst_start = 4;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
             for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
                 //afs_analyze_1_mmx_sub
@@ -613,9 +623,13 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
         }
     } else {
+        h_dst_start = h_start + 4;
+        dst += si_pitch * h_start;
+        if (h_start > 2) {
+            h_start -= 2;
+        }
         p0 += step * (h_start - 1);
         p1 += step * (h_start - 1);
-        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
@@ -629,7 +643,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // count += count_add;
  // if(count >= thre_count) flag |= stripe;
     int h_loop_fin = std::min(height, h_fin + 4);
-    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
+    for (ih = h_start; ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -724,7 +738,7 @@ void __stdcall afs_analyze_1_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), xShrinked0);
         }
 
-        if (ih >= h_start + 4) {
+        if (ih >= h_dst_start) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -794,7 +808,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
     __m256i y0, y1, y2, y3, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
     BYTE *ptr[2];
-    int ih;
+    int ih, h_dst_start;
     
     BYTE *ptr_dst = (BYTE *)dst;
     BYTE *ptr_p0 = (BYTE *)p0;
@@ -812,6 +826,8 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
         buffer[i] = 0x00;
 
     if (h_start == 0) {
+        h_start++;
+        h_dst_start = 4;
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {
             for (int jw = 0; jw < 3; jw++, ptr_p0 += 32, ptr_p1 += 32) {
                 y3 = _mm256_load_si256((__m256i *)(pw_thre_motion[jw]));
@@ -831,9 +847,15 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             _mm_store_si128((__m128i*)(buf2_ptr), xShrinked0);
         }
     } else {
+        h_dst_start = h_start + 4;
+        dst += si_pitch * h_start;
+        //少し、解析領域をオーバーラップさせる
+        //こうすることで、縦方向分割の縞検出が安定する
+        if (h_start > 2) {
+            h_start -= 2;
+        }
         p0 += step * (h_start - 1);
         p1 += step * (h_start - 1);
-        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
@@ -848,7 +870,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
  // if(count >= thre_count) flag |= stripe;
 
     int h_loop_fin = std::min(height, h_fin + 4);
-    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
+    for (ih = h_start; ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -944,7 +966,7 @@ void __stdcall afs_analyze_2_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb_
             _mm_store_si128((__m128i*)(buf2_ptr + (((ih+0) & 7)) * BLOCK_SIZE_YCP), xShrinked0);
         }
 
-        if (ih >= h_start + 4) {
+        if (ih >= h_dst_start) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {
@@ -1105,7 +1127,7 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
     BYTE __declspec(align(32)) mc_mask[BLOCK_SIZE_YCP];
     __m256i y0, y1, y2, y4, y5, y6, y7;
     BYTE *buf_ptr, *buf2_ptr;
-    int ih;
+    int ih, h_dst_start;
 
     BYTE *ptr_dst = (BYTE *)dst;
     BYTE *ptr_p0 = (BYTE *)p0;
@@ -1123,6 +1145,8 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
         buffer[i] = 0x00;
 
     if (h_start == 0) {
+        h_start++;
+        h_dst_start = 4;
         for (int kw = 0; kw < width; kw += 32, buf2_ptr += 32, ptr_p0 += 32, ptr_p1 += 32) {
             //Y
             _mm_prefetch((char *)ptr_p0 + step, _MM_HINT_T0);
@@ -1147,15 +1171,21 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
             _mm256_store_si256((__m256i*)(buf2_ptr), y0);
         }
     } else {
+        h_dst_start = h_start + 4;
+        dst += si_pitch * h_start;
+        //少し、解析領域をオーバーラップさせる
+        //こうすることで、縦方向分割の縞検出が安定する
+        if (h_start > 2) {
+            h_start -= 2;
+        }
         p0 += step * (h_start - 1);
         p1 += step * (h_start - 1);
-        dst += si_pitch * h_start;
     }
 
     __m64 m0 = _mm_setzero_si64();
 
     int h_loop_fin = std::min(height, h_fin + 4);
-    for (ih = h_start + ((h_start == 0) ? 1 : 0); ih < h_loop_fin; ih++, p0 += step, p1 += step) {
+    for (ih = h_start; ih < h_loop_fin; ih++, p0 += step, p1 += step) {
         ptr_p0 = (BYTE *)p0;
         ptr_p1 = (BYTE *)p1;
         buf_ptr = buffer;
@@ -1171,7 +1201,7 @@ void __stdcall afs_analyze_12_nv16_avx2_plus2(BYTE *dst, void *_p0, void *_p1, i
             _mm256_store_si256((__m256i*)(buf2_ptr + (((ih+1) & 7)) * BLOCK_SIZE_YCP), y1);
         }
 
-        if (ih >= h_start + 4) {
+        if (ih >= h_dst_start) {
             buf2_ptr = buffer + BUFFER_SIZE;
             ptr_dst = (BYTE *)dst;
             for (int kw = 0; kw < width; kw += 32, ptr_dst += 32, buf2_ptr += 32) {

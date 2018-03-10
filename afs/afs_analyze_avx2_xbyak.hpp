@@ -166,6 +166,12 @@ AFSAnalyzeXbyakAVX2::AFSAnalyzeXbyakAVX2(
         imul(ecx, ebp, si_pitch);
         add(stack_ptr_dst, ecx); // dst += si_pitch * h_start;
 
+        //少し、解析領域をオーバーラップさせる
+        //こうすることで、縦方向分割の縞検出が安定する
+        mov(eax, ebp);
+        sub(eax, 2);   //h_start-2
+        cmovg(ebp, eax); //if (h_start>2) h_start = h_start-2
+
         mov(eax, ebp);
         dec(eax);
         imul(eax, eax, step6);
