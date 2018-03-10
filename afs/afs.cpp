@@ -834,6 +834,9 @@ void thread_func_analyze_frame(const int id) {
     int y_fin = (id_y == scan_worker_y - 1) ? g_afs.scan_h : ((int)(g_afs.scan_h * (id_y+1) / (double)scan_worker_y + 0.5)) & ~1;
     int pos_x = ((int)(g_afs.scan_w * id_x / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     int x_fin = (id_x == scan_worker_x - 1) ? g_afs.scan_w : ((int)(g_afs.scan_w * (id_x+1) / (double)scan_worker_x + 0.5) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
+    if (pos_y == y_fin || pos_x == x_fin) {
+        return; //念のため
+    }
     AFS_SCAN_CLIP clip_thread = *g_afs.scan_arg.clip;
     int thread_mc_local[2] = { 0 };
     if (id_x < scan_worker_x - 1) {
