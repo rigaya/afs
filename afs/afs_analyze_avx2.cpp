@@ -350,8 +350,8 @@ void __stdcall afs_analyze_12_avx2_plus2(BYTE *dst, void *_p0, void *_p1, int tb
     const int mc_scan_x_limit = width - mc_clip->right;
     for (int i = mc_clip->left; i < mc_scan_x_limit; i++)
         mc_mask[i] = 0xff;
-    //for (int i = 0; i < BUFFER_SIZE; i++)
-        //buffer[i] = 0x00;
+    for (int i = 0; i < BUFFER_SIZE; i++)
+        buffer[i] = 0x00;
 
     if (h_start == 0) {
         for (int kw = 0; kw < width; kw += 16, buf2_ptr += 16) {

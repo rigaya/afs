@@ -157,6 +157,13 @@ AFSAnalyzeXbyakAVX512::AFSAnalyzeXbyakAVX512(
     
     mov(stack_orig_esp_offset, eax); //and(esp, -32)の差分を保存
 
+    //bufferを0初期化
+    cld();
+    mov(ecx, BUFFER_SIZE);
+    xor(eax, eax);
+    lea(edi, stack_ptr_buffer);
+    rep(); db(0xAA); //rep stosb
+
     //関数引数の取り出し
     mov(ecx, dword[ebp + 4 +  4]); //関数引数: BYTE *dst
     mov(stack_ptr_dst, ecx);
@@ -827,6 +834,8 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop3(int step6, int si_pitch,
 
     align();
     L("afs_analyze_loop3_h"); {
+        cmp(ebp, stack_ptr_h_fin_l3);
+        jge("afs_analyze_loop3_h_fin", T_NEAR);
         //dstの取り出しと更新
         mov(ebx, stack_ptr_dst);
         lea(eax, ptr[ebx + si_pitch]);
@@ -849,9 +858,9 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop3(int step6, int si_pitch,
         }
         pshufw(mm0, mm0, _MM_SHUFFLE(1, 0, 3, 2));
         inc(ebp);
-        cmp(ebp, stack_ptr_h_fin_l3);
-        jb("afs_analyze_loop3_h");
+        jmp("afs_analyze_loop3_h", T_NEAR);
     }
+    L("afs_analyze_loop3_h_fin");
 }
 
 //ebp ... ih
