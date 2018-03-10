@@ -257,6 +257,7 @@ void get_afs_func_list(AFS_FUNC *func_list) {
     for (int i = 0; i < _countof(FUNC_ANALYZE_LIST); i++) {
         if ((FUNC_ANALYZE_LIST[i].simd & simd_avail) == FUNC_ANALYZE_LIST[i].simd) {
             memcpy(func_list->analyze, FUNC_ANALYZE_LIST[i].analyze, sizeof(func_list->analyze));
+            func_list->simd_used = FUNC_ANALYZE_LIST[i].simd;
             break;
         }
     }
@@ -314,4 +315,15 @@ void get_afs_func_list(AFS_FUNC *func_list) {
             break;
         }
     }
+}
+
+const char *simd_str(DWORD simd) {
+    if (simd & AVX512VBMI) return "avx512vbmi/avx2";
+    if (simd & AVX512BW)   return "avx512bw/avx2";
+    if (simd & AVX512F)    return "avx512f/avx2";
+    if (simd & AVX2)       return "avx2";
+    if (simd & AVX)        return "avx";
+    if (simd & SSE41)      return "sse4.1";
+    if (simd & SSSE3)      return "ssse3";
+    return "sse2";
 }

@@ -2950,6 +2950,10 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
     int top = 325;
     HINSTANCE hinst = fp->dll_hinst;
 
+    char buf[256];
+    sprintf_s(buf, "%s (%s)", filter_name, simd_str(afs_func.simd_used));
+    SendMessage(hwnd, WM_SETTEXT, 0, (LPARAM)buf);
+
     b_font = CreateFont(14, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "Meiryo UI");
 
     b_default = CreateWindow("BUTTON", "デフォルト", WS_CHILD|WS_VISIBLE|WS_GROUP|WS_TABSTOP|BS_PUSHBUTTON|BS_VCENTER, 212, top, 90, 18, hwnd, (HMENU)ID_BUTTON_DEFAULT, hinst, NULL);

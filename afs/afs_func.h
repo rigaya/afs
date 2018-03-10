@@ -50,9 +50,11 @@ typedef struct {
     AFS_FUNC_GET_COUNT         get_count;
     //simd avail
     DWORD                      simd_avail;
+    DWORD                      simd_used;
 } AFS_FUNC;
 
 void get_afs_func_list(AFS_FUNC *func_list);
+const char *simd_str(DWORD simd);
 
 void __stdcall afs_blend_sse2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_sse4_1(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
