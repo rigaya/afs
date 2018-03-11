@@ -25,7 +25,7 @@ public:
         : Xbyak::CodeGenerator(size, userPtr) { };
 
     virtual ~AFSAnalyzeXbyak() { };
-    virtual int checkprm(int tb_order, int step, int si_pitch, int h, int max_h, int mc_scan_top, int mc_scan_bottom);
+    virtual int checkprm(int tb_order, int step, int si_pitch, int h, int max_h, int mc_scan_top, int mc_scan_bottom) const;
 };
 
 class AFSAnalyzeXbyakAVX2 : public AFSAnalyzeXbyak {

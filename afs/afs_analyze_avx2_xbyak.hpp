@@ -23,17 +23,17 @@
 // [esp + 48] int *motion_count
 // [esp + 52] AFS_SCAN_CLIP *mc_clip
 
-int AFSAnalyzeXbyak::checkprm(int tb_order, int step, int si_pitch, int h, int max_h, int mc_scan_top, int mc_scan_bottom) {
+int AFSAnalyzeXbyak::checkprm(int tb_order, int step, int si_pitch, int h, int max_h, int mc_scan_top, int mc_scan_bottom) const {
     AFSAnalyzeParam prmcmp;
     memcpy(&prmcmp, &param, sizeof(param));
-    param.h = h;
-    param.si_pitch = si_pitch;
-    param.max_h = max_h;
-    param.tb_order = tb_order;
-    param.si_pitch = si_pitch;
-    param.step = step;
-    param.mc_scan_top = mc_scan_top;
-    param.mc_scan_bottom = mc_scan_bottom;
+    prmcmp.h = h;
+    prmcmp.si_pitch = si_pitch;
+    prmcmp.max_h = max_h;
+    prmcmp.tb_order = tb_order;
+    prmcmp.si_pitch = si_pitch;
+    prmcmp.step = step;
+    prmcmp.mc_scan_top = mc_scan_top;
+    prmcmp.mc_scan_bottom = mc_scan_bottom;
     return memcmp(&prmcmp, &param, sizeof(param));
 }
 
