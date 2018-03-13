@@ -801,17 +801,15 @@ BOOL func_save_end(FILTER *fp, void *editp) {
 template<typename SCR_TYPE>
 void thread_func_analyze_frame(const int id) {
     AFS_FUNC_ANALYZE f_analyze = afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
-#if AFS_USE_XBYAK
-    if (f_analyze.analyze_main[0] == NULL) {
-        f_analyze.analyze_main[0] = (func_analyze)g_afs.xbyak_analyze12->getCode();
-    }
-#endif //#if AFS_USE_XBYAK
     const int min_analyze_cycle = f_analyze.min_cycle;
     const int max_block_size = f_analyze.max_block_size;
     int analyze_block = min_analyze_cycle;
     SCR_TYPE *const p0 = (SCR_TYPE *)g_afs.scan_arg.p0;
     SCR_TYPE *const p1 = (SCR_TYPE *)g_afs.scan_arg.p1;
     PIXEL_YC *const workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
+    if (f_analyze.analyze_main[0] == nullptr) {
+        f_analyze.analyze_main[0] = (func_analyze)g_afs.xbyak_analyze12->getCode();
+    }
     //ブロックサイズの決定
     const int scan_worker_x_limit_lower = std::min(g_afs.scan_worker_n, std::max(1, (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP));
     const int scan_worker_x_limit_upper = std::max(1, g_afs.scan_w / 64);
@@ -921,8 +919,8 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
 #if SIMD_DEBUG
     afs_analyze_set_threshold_mmx(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
 #endif
-    const AFS_FUNC_ANALYZE func_analyze = afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
-    func_analyze.set_threshold(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
+    AFS_FUNC_ANALYZE *f_analyze = &afs_func.analyze[afs_cache_nv16(g_afs.scan_arg.afs_mode)];
+    f_analyze->set_threshold(sp->thre_shift, sp->thre_deint, sp->thre_Ymotion, sp->thre_Cmotion);
     g_afs.scan_arg.type     = type;
     g_afs.scan_arg.afs_mode = g_afs.afs_mode;
     g_afs.scan_arg.dst      = sp->map;
@@ -933,11 +931,12 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
     g_afs.scan_arg.si_pitch = si_pitch(g_afs.scan_w, g_afs.afs_mode);
     g_afs.scan_arg.clip     = mc_clip;
 #if AFS_USE_XBYAK
-    if (func_analyze.analyze_main[0] == NULL) {
+    if (f_analyze->analyze_main[0] == NULL) {
         if (g_afs.xbyak_analyze12 != nullptr) {
             if (g_afs.xbyak_analyze12->checkprm(g_afs.scan_arg.tb_order, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, mc_clip->top, mc_clip->bottom)) {
                 delete g_afs.xbyak_analyze12;
                 g_afs.xbyak_analyze12 = nullptr;
+                f_analyze->analyze_main[0] = nullptr;
             }
         }
         if (g_afs.xbyak_analyze12 == nullptr) {
