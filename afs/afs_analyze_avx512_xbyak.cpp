@@ -771,7 +771,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_2_internal(int stack_ptr_mc_mask_o
     //vpord(zmm1, zmm1, zword[ecx + eax]);
     //vpord(zmm0, zmm0, zmm1);
     vpternlogd(zmm0, zmm1, zword[ecx + eax], TL_R0 | TL_R1 | TL_R2);
-    vmovdqa32(zword[ebx], zmm0);
+    vmovdqu8(zword[ebx], zmm0);
 
     afs_analyze_count_motion(stack_ptr_mc_mask_offset);
 }
@@ -906,7 +906,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop3_internal(int stack_ptr_mc_mask_off
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpord(zmm0, zmm0, zword[ecx + eax]);
 
-    vmovdqa32(zword[ebx], zmm0);
+    vmovdqu8(zword[ebx], zmm0);
     mov(esi, ebp); //ebp
     and(esi, 7);
     shl(esi, BLOCK_SIZE_YCP_LOG2);

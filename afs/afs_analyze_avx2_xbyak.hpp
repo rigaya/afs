@@ -689,7 +689,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2_2_internal(int stack_ptr_mc_mask_off
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm1, ymm1, yword[ecx + eax]);
     vpor(ymm0, ymm0, ymm1);
-    vmovdqa(yword[ebx], ymm0);
+    vmovdqu(yword[ebx], ymm0);
 
     afs_analyze_count_motion(stack_ptr_mc_mask_offset);
 }
@@ -818,7 +818,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3_internal(int stack_ptr_mc_mask_offse
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm0, ymm0, yword[ecx + eax]);
 
-    vmovdqa(yword[ebx], ymm0);
+    vmovdqu(yword[ebx], ymm0);
     mov(esi, ebp); //ebp
     and(esi, 7);
     shl(esi, BLOCK_SIZE_YCP_LOG2);
