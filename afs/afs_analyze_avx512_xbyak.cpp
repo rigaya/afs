@@ -552,6 +552,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2(int step6, int si_pitch,
             vmovdqa32(zmm5, stack_ptr_pw_thre_motion); //broadcast不可
             //zmm6のpw_thre_shiftは、afs_shrink_infoの呼び出しで破棄されるのでここでロード
             vmovdqa32(zmm6, zword[pw_thre_shift]);
+            vmovdqa32(zmm4, zword[pw_thre_deint]);
             call("afs_analyze_loop2_1_internal");
             vmovdqa32(zword[esp + stack_ptr_tmp16pix_offset + 0], zmm3);
 
@@ -631,6 +632,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     Zmm zmm7_pb_thre_count(zmm7);
     Zmm zmm6_pw_thre_shift(zmm6);
     Zmm zmm5_pw_thre_motion(zmm5);
+    Zmm zmm4_pw_thre_deint(zmm4);
     align();
     L("afs_analyze_loop2_1_internal");
     //analyze motion
@@ -640,9 +642,9 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     vpabsw(zmm0, zmm0);
     vpcmpgtw(k3, zmm5_pw_thre_motion, zmm0); //0x0400
     vpcmpgtw(k2, zmm6_pw_thre_shift, zmm0);  //0x4000
-    vmovdqa32(zmm4, zword[pw_mask_2motion_0]);
-    vmovdqu16(zmm3 | k3 | T_z, zmm4); //0x0400
-    vpsllw(zmm2 | k2 | T_z, zmm4, 4); //0x0400 -> 0x4000
+    vmovdqa32(zmm2, zword[pw_mask_2motion_0]);
+    vmovdqu16(zmm3 | k3 | T_z, zmm2); //0x0400
+    vpsllw(zmm2 | k2 | T_z, zmm2, 4); //0x0400 -> 0x4000
     vpord(zmm3, zmm3, zmm2);
 
     prefetcht0(ptr[esi + step6 * 2]);
@@ -653,29 +655,29 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     vpsubw(zmm2, zmm2, zmm1);
     vpabsw(zmm0, zmm2);
     vpcmpeqw(k2, zmm2, zmm0);
-    vpcmpgtw(k1, zmm0, zword[pw_thre_deint]);
+    vpcmpgtw(k1, zmm0, zmm4_pw_thre_deint);
     vpcmpgtw(k3, zmm0, zmm6_pw_thre_shift);
     vpmovm2w(zmm1, k1);
     vpmovm2w(zmm0, k3);
     vmovdqu8(zmm1 | k5, zmm0); //zmm0を上位バイトに
 
     vmovdqa32(zmm0, zword[ebx]);
-    vpabsw(zmm4, zmm0);       //絶対値がcountの値
+    vpabsw(zmm2, zmm0);       //絶対値がcountの値
     vpmovw2m(k1, zmm0);       //符号を取り出し
     //vpsraw(zmm0, zmm0, 15);   //符号付きとしてシフトし、0xffffか0x0000を作る
     kxord(k1, k2, k1);
     //vpxord(zmm0, zmm2, zmm0);
 
-    vpandd(zmm4, zmm4, zmm1);
-    vmovdqu16(zmm4 | k1 | T_z, zmm4);
+    vpandd(zmm2, zmm2, zmm1);
+    vmovdqu16(zmm2 | k1 | T_z, zmm2);
 
-    vpsubsb(zmm0, zmm4, zmm1);
+    vpsubsb(zmm0, zmm2, zmm1);
     //vpandd(zmm0, zmm4, zmm0);
     //vpsubsb(zmm0, zmm0, zmm1);
 
     vmovdqa32(zmm2, zmm0);
-    vpxord(zmm4, zmm4, zmm4);
-    vpsubw(zmm2 | k2, zmm4, zmm2); //フラグが負(0xffff)なら、カウントを負に
+    vpxord(zmm1, zmm1, zmm1);
+    vpsubw(zmm2 | k2, zmm1, zmm2); //フラグが負(0xffff)なら、カウントを負に
     //vpandnd(zmm4, zmm2, zmm0);  //フラグが負(0xffff)なら、カウントを0に
     //vpsignw(zmm2, zmm0, zmm2); //フラグが負(0xffff)なら、カウントを負に
     //vpord(zmm2, zmm2, zmm4);    //フラグが0だった場合の加算
@@ -694,29 +696,29 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     vpsubw(zmm2, zmm2, zword[esi + eax + step6]);
     vpabsw(zmm0, zmm2);
     vpcmpeqw(k2, zmm2, zmm0);
-    vpcmpgtw(k1, zmm0, zword[pw_thre_deint]);
+    vpcmpgtw(k1, zmm0, zmm4_pw_thre_deint);
     vpcmpgtw(k3, zmm0, zmm6_pw_thre_shift);
     vpmovm2w(zmm1, k1);
     vpmovm2w(zmm0, k3);
     vmovdqu8(zmm1 | k5, zmm0); //zmm0を上位バイトに
 
     vmovdqa32(zmm0, zword[ebx+64]);
-    vpabsw(zmm4, zmm0);      //絶対値がcountの値
+    vpabsw(zmm2, zmm0);      //絶対値がcountの値
     vpmovw2m(k1, zmm0);       //符号を取り出し
     //vpsraw(zmm0, zmm0, 15);  //符号付きとしてシフトし、0xffffか0x0000を作る
     kxord(k1, k2, k1);
     //vpxord(zmm0, zmm2, zmm0);
 
-    vpandd(zmm4, zmm4, zmm1);
-    vmovdqu16(zmm4 | k1 | T_z, zmm4);
+    vpandd(zmm2, zmm2, zmm1);
+    vmovdqu16(zmm2 | k1 | T_z, zmm2);
 
-    vpsubsb(zmm0, zmm4, zmm1);
+    vpsubsb(zmm0, zmm2, zmm1);
     //vpandd(zmm0, zmm4, zmm0);
     //vpsubsb(zmm0, zmm0, zmm1);
 
     vmovdqa32(zmm2, zmm0);
-    vpxord(zmm4, zmm4, zmm4);
-    vpsubw(zmm2 | k2, zmm4, zmm2); //フラグが負(0xffff)なら、カウントを負に
+    vpxord(zmm1, zmm1, zmm1);
+    vpsubw(zmm2 | k2, zmm1, zmm2); //フラグが負(0xffff)なら、カウントを負に
     //vpandnd(zmm4, zmm2, zmm0);  //フラグが負(0xffff)なら、カウントを0に
     //vpsignw(zmm2, zmm0, zmm2); //フラグが負(0xffff)なら、カウントを負に
     //vpord(zmm2, zmm2, zmm4);    //フラグが0だった場合の加算
