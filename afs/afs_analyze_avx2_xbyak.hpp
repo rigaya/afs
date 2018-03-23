@@ -136,18 +136,18 @@ AFSAnalyzeXbyakAVX2::AFSAnalyzeXbyakAVX2(
     //関数引数の取り出し
     mov(esi, dword[ebp + 4 + 8]); //関数引数: void *_p0
     mov(edi, dword[ebp + 4 + 12]); //関数引数: void *_p1
-    mov(eax, dword[ebp + 4 + 20]); //関数引数: int width
-    mov(stack_ptr_width, eax);
-    mov(ebx, dword[ebp + 4 + 48]); //関数引数: int *motion_count
-    mov(stack_ptr_motion_count, ebx);
+    mov(ebx, dword[ebp + 4 + 20]); //関数引数: int width
+    mov(stack_ptr_width, ebx);
+    mov(edx, dword[ebp + 4 + 48]); //関数引数: int *motion_count
+    mov(stack_ptr_motion_count, edx);
     mov(ecx, edi);
     sub(ecx, esi); //p1 - p0
     movd(mm7, ecx); // 64| 0 | p1 - p0 |0 ... 下位がp1 - p0
 
     mov(ecx, dword[ebp + 4 + 52]); //関数引数: AFS_SCAN_CLIP *mc_clip
-    mov(ebp, dword[ebp + 4 + 32]); //関数引数: int h_start
-    lea(edx, ptr[ebp + 4]);
-    mov(stack_ptr_h_start_plus4, edx);
+    mov(edx, dword[ebp + 4 + 32]); //関数引数: int h_start
+    lea(eax, ptr[edx + 4]);
+    mov(stack_ptr_h_start_plus4, eax);
 
     //mc_clipの初期化
     init_mc_mask(stack_ptr_mc_mask_offset);
@@ -155,24 +155,24 @@ AFSAnalyzeXbyakAVX2::AFSAnalyzeXbyakAVX2(
     //pw_thre_motionのコピー
     copy_pw_thre_motion_to_stack(stack_ptr_pw_thre_motion);
 
-    test(ebp, ebp);
+    test(edx, edx);
     jnz("afs_analyze_loop1_fin_else", T_NEAR); { //if (ih != 0)
         mov(stack_ptr_p0, esi); //保存
         mov(stack_ptr_p1, edi); //保存
         afs_analyze_loop1(stack_ptr_p0, stack_ptr_p1, stack_ptr_pw_thre_motion, step6, stack_ptr_buffer2_offset);
-        inc(ebp);
+        inc(edx);
         jmp("afs_analyze_loop1_fin");
     } L("afs_analyze_loop1_fin_else"); {
-        imul(ecx, ebp, si_pitch);
+        imul(ecx, edx, si_pitch);
         add(stack_ptr_dst, ecx); // dst += si_pitch * h_start;
 
         //少し、解析領域をオーバーラップさせる
         //こうすることで、縦方向分割の縞検出が安定する
-        mov(eax, ebp);
+        mov(eax, edx);
         sub(eax, 2);   //h_start-2
-        cmovg(ebp, eax); //if (h_start>2) h_start = h_start-2
+        cmovg(edx, eax); //if (h_start>2) h_start = h_start-2
 
-        mov(eax, ebp);
+        mov(eax, edx);
         dec(eax);
         imul(eax, eax, step6);
         add(esi, eax);          //p0 += step6 * (h_start - 1);
@@ -185,7 +185,7 @@ AFSAnalyzeXbyakAVX2::AFSAnalyzeXbyakAVX2(
     //必要に応じshift
     //((ih & 1) ^ tb_order) == 0なら、 そのまま(下位がp1 - p0)
     //((ih & 1) ^ tb_order) == 1なら、 shift (上位にp1 - p0)
-    lea(eax, ptr[ebp + tb_order + 1]);
+    lea(eax, ptr[edx + tb_order + 1]);
     and(eax, 1);
     //tb_order=0, (ih & 1)=0 -> 0
     //tb_order=0, (ih & 1)=1 -> 32
@@ -222,9 +222,9 @@ AFSAnalyzeXbyakAVX2::AFSAnalyzeXbyakAVX2(
 
     //カウンタの処理
     //hなどにより、前後を調整する
-    //ここでは ebp = ih = h_fin_l3
+    //ここでは edx = ih = h_fin_l3
     //if (((tb_order + h_fin_loop3) & 1) == 0)なら反転
-    and(ebp, 1); //(h_fin_loop3) & 1
+    and(edx, 1); //(h_fin_loop3) & 1
     mov(eax, (size_t)pb_mshufmask);
     //qword[eax + 0] -> 反転
     //qwordfeax + 4] -> そのまま
@@ -233,7 +233,7 @@ AFSAnalyzeXbyakAVX2::AFSAnalyzeXbyakAVX2(
     //tb_order =0, (ih & 1) = 1 -> +4
     //tb_order =1, (ih & 1) = 0 -> +4
     //tb_order =1, (ih & 1) = 1 -> +8
-    pshufb(mm0, qword[eax + ebp * 4 + ((tb_order) ? 4 : 0)]);
+    pshufb(mm0, qword[eax + edx * 4 + ((tb_order) ? 4 : 0)]);
     mov(eax, stack_ptr_motion_count);
     paddd(mm0, qword[eax]);
     movq(qword[eax], mm0);
@@ -259,13 +259,13 @@ void AFSAnalyzeXbyakAVX2::copy_pw_thre_motion_to_stack(const Xbyak::Address& sta
     vmovdqa(stack_ptr_pw_thre_motion, ymm0);
 }
 
-//eax ... width
+//ebx ... width
 //edi ... dst
-//ebx ... 変更せず
 //esi ... 変更せず
+//edx ... ih
 //
-//ecx ... ptr_mc_clip
-//edx ... tmp
+//ecx ... ptr_mc_clip -> tmp
+//eax ... tmp
 //ymm0-ymm7 ... 使用
 void AFSAnalyzeXbyakAVX2::init_mc_mask(const int stack_ptr_mc_mask_offset) {
     using namespace Xbyak;
@@ -279,16 +279,16 @@ void AFSAnalyzeXbyakAVX2::init_mc_mask(const int stack_ptr_mc_mask_offset) {
     vperm2i128(ymm0, ymm2, ymm1, (2<<4) + 0); //あとでvpacksswbするので [i+ 0, i+16]
     vperm2i128(ymm1, ymm2, ymm1, (3<<4) + 1); //あとでvpacksswbするので [i+ 8, i+24]
 
-    xor(edx, edx);
-    dec(edx);
-    add(edx, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left
-    vpbroadcastw(ymm2, dx); //mc_clip->left - 1
+    xor(eax, eax);
+    dec(eax);
+    add(eax, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left-1
+    vpbroadcastw(ymm2, ax); //mc_clip->left - 1
     mov(ecx, dword[ecx + offsetof(AFS_SCAN_CLIP, right)]); //mc_clip->right
-    mov(edx, eax); //width
-    sub(edx, ecx); //width - mc_clip->right
-    vpbroadcastw(ymm3, dx); //width - mc_clip->right
+    mov(eax, ebx); //width
+    sub(eax, ecx); //width - mc_clip->right
+    vpbroadcastw(ymm3, ax); //width - mc_clip->right
 
-    lea(edx, ptr[esp + stack_ptr_mc_mask_offset]);
+    lea(eax, ptr[esp + stack_ptr_mc_mask_offset]);
     mov(ecx, BLOCK_SIZE_YCP / 32);
     static_assert(BLOCK_SIZE_YCP % 32 == 0, "BLOCK_SIZE_YCP should be mod32.");
     L("init_mc_mask_loop1"); {
@@ -301,17 +301,17 @@ void AFSAnalyzeXbyakAVX2::init_mc_mask(const int stack_ptr_mc_mask_offset) {
         vpand(ymm5, ymm5, ymm6);    // mc_clip->left <= [i+16] < mc_clip->right
 
         vpacksswb(ymm4, ymm4, ymm5);
-        vmovdqa(yword[edx], ymm4);
+        vmovdqa(yword[eax], ymm4);
 
         vpaddw(ymm0, ymm0, ymm7); //[i+ 0] += 32 
         vpaddw(ymm1, ymm1, ymm7); //[i+16] += 32 
-        add(edx, 32);
+        add(eax, 32);
         dec(ecx);
         jnz("init_mc_mask_loop1");
     }
 }
 
-//eax ... width
+//ebx ... width
 //ebp ... ih
 //esi ... p0
 //edi ... p1
@@ -319,13 +319,13 @@ void AFSAnalyzeXbyakAVX2::init_mc_mask(const int stack_ptr_mc_mask_offset) {
 //ymm6 ... pw_thre_shift
 //ymm7 ... pw_mask_12motion_0
 //ecx ... buf2ptr
-//edx ... buf2ptr_fin
+//ebp ... buf2ptr_fin
 void AFSAnalyzeXbyakAVX2::afs_analyze_loop1(
     const Xbyak::Address& stack_ptr_p0, const Xbyak::Address& stack_ptr_p1,
     const Xbyak::Address& stack_ptr_pw_thre_motion,
     int step6, int stack_ptr_buffer2_offset) {
     lea(ecx, ptr[esp + stack_ptr_buffer2_offset]); //buf2ptr
-    lea(edx, ptr[ecx + eax/* width */]); //buf2ptr_fin
+    lea(ebp, ptr[ecx + ebx/* width */]); //buf2ptr_fin
     AVX2L_MEM_BROADCAST(ymm7, pw_mask_12motion_0);
     AVX2L_MEM_BROADCAST(ymm6, pw_thre_shift);
     align();
@@ -337,7 +337,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop1(
         afs_analyze_loop_1_internal(ymm3, ymm2, ymm7, ymm6, step6, true,  64);
         afs_shrink_info(true, ecx, ymm5, ymm4, ymm3);
         add(ecx, 16);
-        cmp(ecx, edx);
+        cmp(ecx, ebp);
         jb("afs_analyze_loop1");
     }
 }
@@ -347,8 +347,8 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop1(
 //edi ... p1
 //eax ... width
 //ecx ... outer loop counter
-//edx ... outer loop range
-//ebp ... ih
+//ebp ... outer loop range
+//edx ... ih
 //
 //ymm0 - ymm1
 void AFSAnalyzeXbyakAVX2::afs_analyze_loop_1_internal(
@@ -383,8 +383,8 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop_1_internal(
 //edi ... p1
 //eax ... width
 //ecx ... buf2ptr
-//edx ... buf2ptr_fin
-//ebp ... ih
+//ebp ... buf2ptr_fin
+//edx ... ih
 //ymm0 - ymm2 ... 一時変数
 // ----------------------------------
 //loop1 = false
@@ -444,17 +444,17 @@ void AFSAnalyzeXbyakAVX2::afs_shrink_info(
 //edi  ... p1
 //ebx  ... bufptr
 //ecx  ... buf2ptr
-//edx  ... buf2ptr_fin
+//ebp  ... buf2ptr_fin
 //ymm5 ... pw_thre_motion
 //ymm6 ... pw_thre_shift
 //ymm7 ... pb_thre_count
 //
 //afs_analyze_loop2_w2 ループ内
-//ebp  ... ih
+//edx  ... ih
 //eax  ... tmp
 //ebx  ... dst
 //ecx  ... buf2ptr
-//edx  ... buf2ptr_fin
+//ebp  ... buf2ptr_fin
 //esi  ... tmp
 //edi  ... mc_mask_ptr
 //ymm4 ... pb_mask_12stripe_01
@@ -478,8 +478,8 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
     align();
     L("afs_analyze_loop2_h"); {
         lea(ecx, ptr[esp + stack_ptr_buffer2_offset]); //buf2ptr
-        mov(edx, ecx);
-        add(edx, stack_ptr_width); //buf2ptr_fin
+        mov(ebp, ecx);
+        add(ebp, stack_ptr_width); //buf2ptr_fin
 
         lea(ebx, ptr[esp + stack_ptr_buffer_offset]); //buf_ptr
         mov(esi, stack_ptr_p0);
@@ -515,18 +515,18 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
             vmovdqa(ymm4, yword[esp + stack_ptr_tmp16pix_offset + 32]);
             afs_shrink_info(false, ecx, ymm5, ymm4, ymm3);
             add(ecx, 16);
-            cmp(ecx, edx);
+            cmp(ecx, ebp);
             jb("afs_analyze_loop2_w1", T_NEAR);
         }
-        cmp(ebp, stack_ptr_h_start_plus4);
+        cmp(edx, stack_ptr_h_start_plus4);
         jl("afs_analyze_loop2_h_fin", T_NEAR); {
             mov(ebx, stack_ptr_dst); //dst
             lea(eax, ptr[ebx + si_pitch]); //next dst
             mov(stack_ptr_dst, eax);
 
             lea(ecx, ptr[esp + stack_ptr_buffer2_offset]);
-            mov(edx, ecx);
-            add(edx, stack_ptr_width);
+            mov(ebp, ecx);
+            add(ebp, stack_ptr_width);
             lea(edi, ptr[esp + stack_ptr_mc_mask_offset]);
             AVX2L_MEM_BROADCAST(ymm4, pb_mask_12stripe_01);
             AVX2L_MEM_BROADCAST(ymm5, pb_mask_1stripe_01);
@@ -536,15 +536,15 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
                 add(ebx, 32);
                 add(edi, 32);
                 add(ecx, 32);
-                cmp(ecx, edx);
+                cmp(ecx, ebp);
                 jb("afs_analyze_loop2_w2");
             }
         }
         L("afs_analyze_loop2_h_fin");
         pshufw(mm0, mm0, _MM_SHUFFLE(1, 0, 3, 2));
         pshufw(mm7, mm7, _MM_SHUFFLE(1, 0, 3, 2));
-        inc(ebp);
-        cmp(ebp, stack_ptr_h_fin_l2);
+        inc(edx);
+        cmp(edx, stack_ptr_h_fin_l2);
         jb("afs_analyze_loop2_h", T_NEAR);
     }
 }
@@ -552,8 +552,8 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
 //eax ... tmp
 //ebx ... bufptr
 //ecx ... buf2ptr
-//edx ... buf2ptr_fin
-//ebp ... ih
+//ebp ... buf2ptr_fin
+//edx ... ih
 //esi ... p0
 //edi ... p1
 //esp ... call内なのでoffsetが必要
@@ -648,13 +648,13 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2_1_internal(int step6, int si_pitch, 
     ret();
 }
 
-//ebp . . ih
+//edx . . ih
 //esi . . tmp
 //edi . . mc_mask_ptr
 //eax . . tmp
 //ebx . . dst
 //ecx . . buf2ptr
-//edx . . buf2ptr_fin
+//ebp . . buf2ptr_fin
 //ymm4 . . pb_mask_12stripe_01
 //ymm5 . . pb_mask_1stripe_01
 //ymm6 . . pw_thre_shift
@@ -663,28 +663,28 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2_2_internal(int stack_ptr_mc_mask_off
     Xbyak::Ymm ymm4_pb_mask_12stripe_01(ymm4);
     Xbyak::Ymm ymm5_pb_mask_1stripe_01(ymm5);
 
-    lea(eax, ptr[ebp+5]); //ebp-3
+    lea(eax, ptr[edx+5]); //edx-3
     and(eax, 7);
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vmovdqa(ymm0, yword[ecx + eax]);
 
-    lea(esi, ptr[ebp+6]); //ebp-2
+    lea(esi, ptr[edx+6]); //edx-2
     and(esi, 7);
     shl(esi, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm0, ymm0, yword[ecx + esi]);
 
-    lea(eax, ptr[ebp+1]); //ebp+1
+    lea(eax, ptr[edx+1]); //edx+1
     and(eax, 7);
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpand(ymm1, ymm5_pb_mask_1stripe_01, yword[ecx + eax]);
 
-    lea(esi, ptr[ebp+7]); //ebp-1
+    lea(esi, ptr[edx+7]); //edx-1
     and(esi, 7);
     shl(esi, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm0, ymm0, yword[ecx + esi]);
     vpand(ymm0, ymm0, ymm4_pb_mask_12stripe_01);
 
-    lea(eax, ptr[ebp+4]); //ebp-4
+    lea(eax, ptr[edx+4]); //edx-4
     and(eax, 7);
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm1, ymm1, yword[ecx + eax]);
@@ -694,13 +694,13 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2_2_internal(int stack_ptr_mc_mask_off
     afs_analyze_count_motion(stack_ptr_mc_mask_offset);
 }
 
-//ebp ... ih
+//edx ... ih
 //eax ... tmp
 //esi ... tmp
 //edi ... mc_mask_ptr
 //ebx ... dst
 //ecx ... buf2ptr
-//edx ... buf2ptr_fin
+//ebp ... buf2ptr_fin
 //ymm0 ... 対象
 //ymm4 ... pb_mask_12stripe_01
 //ymm5 ... pb_mask_1stripe_01
@@ -719,17 +719,17 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_count_motion(int stack_ptr_mc_mask_offset)
     and(esi, eax);
     popcnt(esi, esi);
 
-    mov(eax, ebp);
+    mov(eax, edx);
     sub(eax, top+4); //ih - 4 - top
     cmp(eax, mc_scan_y_limit);
-    mov(eax, 0);
+    mov(eax, 0); //フラグ変化なし
     cmovb(eax, esi); //((DW0RD)(y -top) < (DW0RD)y_limit) ? count(esi) : 0x00;
 
     movd(mm1, eax);
     paddd(mm0, mm1);
 }
 
-//ebp ... ih
+//edx ... ih
 //ymm4 ... pb_mask_12stripe_01
 //ymm5 ... pb_mask_1stripe_01 -> zero
 //ymm6 ... pw_thre_shift
@@ -740,7 +740,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_count_motion(int stack_ptr_mc_mask_offset)
 //eax ... tmp
 //ebx ... dst
 //ecx ... buf2ptr
-//edx ... buf2ptr_fin
+//ebp ... buf2ptr_fin
 void AFSAnalyzeXbyakAVX2::afs_analyze_loop3(int step6, int si_pitch,
     const Xbyak::Address& stack_ptr_dst,
     const Xbyak::Address& stack_ptr_width,
@@ -754,7 +754,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3(int step6, int si_pitch,
 
     align();
     L("afs_analyze_loop3_h"); {
-        cmp(ebp, stack_ptr_h_fin_l3);
+        cmp(edx, stack_ptr_h_fin_l3);
         jge("afs_analyze_loop3_h_fin", T_NEAR);
         //dstの取り出しと更新
         mov(ebx, stack_ptr_dst);
@@ -763,8 +763,8 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3(int step6, int si_pitch,
 
         //buf2_ptr
         lea(ecx, ptr[esp + stack_ptr_buffer2_offset]);
-        mov(edx, ecx);
-        add(edx, stack_ptr_width);
+        mov(ebp, ecx);
+        add(ebp, stack_ptr_width);
         lea(edi, ptr[esp + stack_ptr_mc_mask_offset]);
 
         align();
@@ -773,23 +773,23 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3(int step6, int si_pitch,
             add(ebx, 32);
             add(edi, 32);
             add(ecx, 32);
-            cmp(ecx, edx);
+            cmp(ecx, ebp);
             jb("afs_analyze_loop3_w");
         }
         pshufw(mm0, mm0, _MM_SHUFFLE(1, 0, 3, 2));
-        inc(ebp);
+        inc(edx);
         jmp("afs_analyze_loop3_h", T_NEAR);
     }
     L("afs_analyze_loop3_h_fin");
 }
 
-//ebp ... ih
+//edx ... ih
 //esi ... tmp
 //edi ... mc_mask_ptr
 //eax ... tmp
 //ebx ... dst
 //ecx ... buf2ptr
-//edx ... buf2ptr_fin
+//ebp ... buf2ptr_fin
 //ymm4 ... pb_mask_12stripe_01
 //ymm5 ... zero
 //ymm6 ... pw_thre_shi ft
@@ -798,29 +798,29 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3_internal(int stack_ptr_mc_mask_offse
     Xbyak::Ymm ymm4_pb_mask_12stripe_01(ymm4);
     Xbyak::Ymm ymm5_zero(ymm5);
 
-    lea(eax, ptr[ebp + 5]); //ebp-3
+    lea(eax, ptr[edx + 5]); //edx-3
     and(eax, 7);
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vmovdqa(ymm0, yword[ecx + eax]);
 
-    lea(esi, ptr[ebp + 6]); //ebp-2
+    lea(esi, ptr[edx + 6]); //edx-2
     and(esi, 7);
     shl(esi, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm0, ymm0, yword[ecx + esi]);
 
-    lea(eax, ptr[ebp + 7]); //ebp-1
+    lea(eax, ptr[edx + 7]); //edx-1
     and(eax, 7);
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm0, ymm0, yword[ecx + eax]);
     vpand(ymm0, ymm0, ymm4_pb_mask_12stripe_01);
 
-    lea(eax, ptr[ebp +5]); //ebp-4
+    lea(eax, ptr[edx +5]); //edx-4
     and(eax, 7);
     shl(eax, BLOCK_SIZE_YCP_LOG2);
     vpor(ymm0, ymm0, yword[ecx + eax]);
 
     vmovdqu(yword[ebx], ymm0);
-    mov(esi, ebp); //ebp
+    mov(esi, edx); //edx
     and(esi, 7);
     shl(esi, BLOCK_SIZE_YCP_LOG2);
     vmovdqa(yword[ecx + esi], ymm5_zero);
