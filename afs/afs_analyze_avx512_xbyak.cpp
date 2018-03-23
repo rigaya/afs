@@ -798,21 +798,19 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_count_motion(int stack_ptr_mc_mask_offse
     vpsllw(zmm0, zmm0, 1);
     vpandnd(zmm0, zmm0, zword[edi]);
 
-    mov(esi, ebp);
-    xor(eax, eax);
-    sub(esi, top+4); //ih - 4 - top
-    cmp(esi, mc_scan_y_limit);
-    sbb(eax, 0); //((DW0RD)(y -top) < (DW0RD)y_limit) ? 0xffffffff : 0x00;
-    movd(mm2, eax);
-
     vpmovmskb(esi, ymm0);
     vextracti32x8(ymm0, zmm0, 1);
     vpmovmskb(eax, ymm0);
     popcnt(esi, esi);
     popcnt(eax, eax);
     add(esi, eax);
-    movd(mm1, esi);
-    pand(mm1, mm2);
+
+    mov(eax, ebp);
+    sub(eax, top+4); //ih - 4 - top
+    cmp(eax, mc_scan_y_limit);
+    mov(eax, 0); 
+    cmovb(eax, esi); //((DW0RD)(y -top) < (DW0RD)y_limit) ? count(esi) : 0;
+    movd(mm1, eax);
     paddd(mm0, mm1);
 }
 

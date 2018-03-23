@@ -715,16 +715,17 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_count_motion(int stack_ptr_mc_mask_offset)
     vpsllw(ymm0, ymm0, 1);
     vpandn(ymm0, ymm0, yword[edi]);
 
-    mov(esi, ebp);
-    xor(eax, eax);
-    sub(esi, top+4); //ih - 4 - top
-    cmp(esi, mc_scan_y_limit);
-    sbb(eax, 0); //((DW0RD)(y -top) < (DW0RD)y_limit) ? 0xffffffff : 0x00;
-
     vpmovmskb(esi, ymm0);
     and(esi, eax);
     popcnt(esi, esi);
-    movd(mm1, esi);
+
+    mov(eax, ebp);
+    sub(eax, top+4); //ih - 4 - top
+    cmp(eax, mc_scan_y_limit);
+    mov(eax, 0);
+    cmovb(eax, esi); //((DW0RD)(y -top) < (DW0RD)y_limit) ? count(esi) : 0x00;
+
+    movd(mm1, eax);
     paddd(mm0, mm1);
 }
 
