@@ -557,20 +557,20 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2(int step6, int si_pitch,
 
             add(esi, 64);
             add(edi, 64);
-            add(ebx, 128);
+            sub(ebx, -128);
             vpermq(zmm5, zmm5, _MM_SHUFFLE(2, 1, 3, 2));
             call("afs_analyze_loop2_1_internal");
             vmovdqa32(zword[esp + stack_ptr_tmp16pix_offset + 64], zmm3);
 
             add(esi, 64);
             add(edi, 64);
-            add(ebx, 128);
+            sub(ebx, -128);
             vpermq(zmm5, zmm5, _MM_SHUFFLE(2, 1, 3, 2));
             call("afs_analyze_loop2_1_internal");
 
             add(esi, 64);
             add(edi, 64);
-            add(ebx, 128);
+            sub(ebx, -128);
 
             vmovdqa32(zmm5, zword[esp + stack_ptr_tmp16pix_offset +  0]);
             vmovdqa32(zmm4, zword[esp + stack_ptr_tmp16pix_offset + 64]);
