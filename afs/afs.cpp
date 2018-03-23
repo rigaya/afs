@@ -809,6 +809,7 @@ void thread_func_analyze_frame(const int id) {
     PIXEL_YC *const workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
     if (f_analyze.analyze_main[0] == nullptr) {
         f_analyze.analyze_main[0] = (func_analyze)g_afs.xbyak_analyze12->getCode();
+        f_analyze.analyze_main[1] = f_analyze.analyze_main[0];
     }
     //ブロックサイズの決定
     const int scan_worker_x_limit_lower = std::min(g_afs.scan_worker_n, std::max(1, (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP));
@@ -937,6 +938,7 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
                 delete g_afs.xbyak_analyze12;
                 g_afs.xbyak_analyze12 = nullptr;
                 f_analyze->analyze_main[0] = nullptr;
+                f_analyze->analyze_main[1] = nullptr;
             }
         }
         if (g_afs.xbyak_analyze12 == nullptr) {
