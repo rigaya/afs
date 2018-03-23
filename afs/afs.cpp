@@ -807,10 +807,12 @@ void thread_func_analyze_frame(const int id) {
     SCR_TYPE *const p0 = (SCR_TYPE *)g_afs.scan_arg.p0;
     SCR_TYPE *const p1 = (SCR_TYPE *)g_afs.scan_arg.p1;
     PIXEL_YC *const workp = g_afs.scan_workp + (g_afs.scan_h * max_block_size * id);// workp will be at least (min_analyze_cycle*2) aligned.
+#if AFS_USE_XBYAK
     if (f_analyze.analyze_main[0] == nullptr) {
         f_analyze.analyze_main[0] = (func_analyze)g_afs.xbyak_analyze12->getCode();
         f_analyze.analyze_main[1] = f_analyze.analyze_main[0];
     }
+#endif
     //ブロックサイズの決定
     const int scan_worker_x_limit_lower = std::min(g_afs.scan_worker_n, std::max(1, (g_afs.scan_w + BLOCK_SIZE_YCP - 1) / BLOCK_SIZE_YCP));
     const int scan_worker_x_limit_upper = std::max(1, g_afs.scan_w / 64);
