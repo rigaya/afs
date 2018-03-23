@@ -453,6 +453,7 @@ void AFSAnalyzeXbyakAVX512::afs_shrink_info(
     const Xbyak::Reg32& ecx, /*buf2_out*/
     const Xbyak::Zmm& zmm5, const Xbyak::Zmm& zmm4, const Xbyak::Zmm& zmm3) {
     vmovdqa32(zmm0, zword[PACK_YC48_SHUFFLE_AVX512]);
+    vpsubb(zmm6, zmm6, zmm6); //依存関係を明示的に切る
     vpternlogd(zmm6, zmm6, zmm6, 0xff);
 
     vmovdqa32(zmm1, zmm0);
