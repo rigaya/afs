@@ -116,12 +116,11 @@ static const struct {
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx2,      NULL, { NULL,                           afs_analyze_1_avx2_plus2,       afs_analyze_2_avx2_plus2 } },
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx2, NULL, { afs_analyze_12_nv16_avx2_plus2, afs_analyze_12_nv16_avx2_plus2, NULL                     } }
     } },
-#else
+#endif
     { AVX2|AVX|POPCNT, {
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx2,      NULL, { afs_analyze_12_avx2_plus2,      afs_analyze_1_avx2_plus2,       afs_analyze_2_avx2_plus2 } },
         { 31, 32, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx2, NULL, { afs_analyze_12_nv16_avx2_plus2, afs_analyze_12_nv16_avx2_plus2, NULL                     } }
     } },
-#endif
     { AVX|POPCNT|SSE41|SSSE3|SSE2, {
         { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_avx,      NULL, { afs_analyze_12_avx_plus2,      afs_analyze_1_avx_plus2,       afs_analyze_2_avx_plus2 } },
         { 15, 16, BLOCK_SIZE_YCP, TRUE,  afs_analyze_set_threshold_nv16_avx, NULL, { afs_analyze_12_nv16_avx_plus2, afs_analyze_12_nv16_avx_plus2, NULL                    } },
@@ -250,14 +249,46 @@ static const struct {
     { NONE,            { afs_get_stripe_count,             afs_get_motion_count             } },
 };
 
-void get_afs_func_list(AFS_FUNC *func_list) {
-    const DWORD simd_avail = get_availableSIMD();
+void get_afs_func_list(AFS_FUNC *func_list, char *simd_select) {
+    DWORD simd_mask = 0xffffffff;
+    bool use_xbyak = (AFS_USE_XBYAK) ? true : false;
+    if (strncmp(simd_select, "auto", strlen("auto"))) {
+#if AFS_USE_XBYAK
+        if (strncmp(simd_select, "avx512_xbyak", strlen("avx512_xbyak")) == 0
+            || strncmp(simd_select, "avx512", strlen("avx512")) == 0) {
+            simd_mask = AVX512F|AVX512BW|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
+        } else if (strncmp(simd_select, "avx2_xbyak", strlen("avx2_xbyak")) == 0) {
+            simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
+        } else if (strncmp(simd_select, "avx2_xbyak_slow", strlen("avx2_xbyak_slow")) == 0) {
+            simd_mask = AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
+        } else
+#endif
+        if (strncmp(simd_select, "avx2", strlen("avx2")) == 0) {
+            simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
+            use_xbyak = false;
+        } else if (strncmp(simd_select, "avx", strlen("avx")) == 0) {
+            simd_mask = AVX|POPCNT|SSE41|SSSE3|SSE2;
+            use_xbyak = false;
+        } else if (strncmp(simd_select, "sse4.1", strlen("sse4.1")) == 0) {
+            simd_mask = SSE41|SSSE3|SSE2;
+            use_xbyak = false;
+        } else if (strncmp(simd_select, "ssse3", strlen("ssse3")) == 0) {
+            simd_mask = SSSE3|SSE2;
+            use_xbyak = false;
+        } else {
+            simd_mask = SSE2;
+            use_xbyak = false;
+        }
+    }
+    const DWORD simd_avail = get_availableSIMD() & simd_mask;
     ZeroMemory(func_list, sizeof(func_list[0]));
     func_list->simd_avail = simd_avail;
-    for (int i = 0; i < _countof(FUNC_ANALYZE_LIST); i++) {
+    func_list->use_xbyak = FALSE;
+    for (int i = (AFS_USE_XBYAK && !use_xbyak) ? 2 : 0; i < _countof(FUNC_ANALYZE_LIST); i++) {
         if ((FUNC_ANALYZE_LIST[i].simd & simd_avail) == FUNC_ANALYZE_LIST[i].simd) {
             memcpy(func_list->analyze, FUNC_ANALYZE_LIST[i].analyze, sizeof(func_list->analyze));
             func_list->simd_used = FUNC_ANALYZE_LIST[i].simd;
+            func_list->use_xbyak = func_list->analyze[0].analyze_main[0] == nullptr;
             break;
         }
     }
@@ -317,10 +348,14 @@ void get_afs_func_list(AFS_FUNC *func_list) {
     }
 }
 
-const char *simd_str(DWORD simd) {
-    if (simd & AVX512VBMI) return "avx512vbmi/avx2";
-    if (simd & AVX512BW)   return "avx512bw/avx2";
-    if (simd & AVX512F)    return "avx512f/avx2";
+const char *simd_str(DWORD simd, BOOL use_xbyak) {
+    if (use_xbyak) {
+        if (simd & AVX512VBMI) return "avx512vbmi/avx2(x)";
+        if (simd & AVX512BW)   return "avx512bw/avx2(x)";
+        if (simd & AVX512F)    return "avx512f/avx2(x)";
+        if (simd & AVX2FAST)   return "avx2(x)";
+        if (simd & AVX2)       return "avx2(xs)";
+    }
     if (simd & AVX2)       return "avx2";
     if (simd & AVX)        return "avx";
     if (simd & SSE41)      return "sse4.1";

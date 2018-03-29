@@ -666,6 +666,14 @@ void set_auto_threads() {
     }
 }
 
+void get_simd_stg(FILTER *fp, char *buf, size_t bufsize) {
+    strcpy_s(buf, bufsize, "auto");
+    char auf_filepath[512];
+    GetModuleFileNameA(fp->dll_hinst, auf_filepath, sizeof(auf_filepath));
+    strcat_s(auf_filepath, ".ini");
+    GetPrivateProfileString("AFS", "simd", "auto", buf, bufsize, auf_filepath);
+}
+
 EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTable(void) {
     set_auto_threads();
     g_yuy2_table_called = false;
@@ -680,7 +688,7 @@ EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTableYUY2(void) {
 }
 #endif
 
-BOOL func_init(FILTER*) {
+BOOL func_init(FILTER* fp) {
     memset(&g_afs, 0, sizeof(g_afs));
     g_afs.source_frame_n = -1;
     g_afs.scan_worker_n = -1;
@@ -689,7 +697,9 @@ BOOL func_init(FILTER*) {
 #if ENABLE_SUB_THREADS
     g_afs.sub_thread.thread_sub_n = -1;
 #endif
-    get_afs_func_list(&afs_func);
+    char simd_slect[256];
+    get_simd_stg(fp, simd_slect, sizeof(simd_slect));
+    get_afs_func_list(&afs_func, simd_slect);
     QPC_FREQ;
     afs_check_share();
     return TRUE;
@@ -2954,7 +2964,7 @@ static void init_dialog(HWND hwnd, FILTER *fp) {
     HINSTANCE hinst = fp->dll_hinst;
 
     char buf[256];
-    sprintf_s(buf, "%s (%s)", filter_name, simd_str(afs_func.simd_used));
+    sprintf_s(buf, "%s (%s)", filter_name, simd_str(afs_func.simd_used, afs_func.use_xbyak));
     SendMessage(hwnd, WM_SETTEXT, 0, (LPARAM)buf);
 
     b_font = CreateFont(14, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH | FF_MODERN, "Meiryo UI");
