@@ -282,11 +282,13 @@ void AFSAnalyzeXbyakAVX2::init_mc_mask(const int stack_ptr_mc_mask_offset) {
     xor(eax, eax);
     dec(eax);
     add(eax, dword[ecx + offsetof(AFS_SCAN_CLIP, left)]); //mc_clip->left-1
-    vpbroadcastw(ymm2, ax); //mc_clip->left - 1
+    movd(xmm2, eax);
+    vpbroadcastw(ymm2, xmm2); //mc_clip->left - 1
     mov(ecx, dword[ecx + offsetof(AFS_SCAN_CLIP, right)]); //mc_clip->right
     mov(eax, ebx); //width
     sub(eax, ecx); //width - mc_clip->right
-    vpbroadcastw(ymm3, ax); //width - mc_clip->right
+    movd(xmm3, eax);
+    vpbroadcastw(ymm3, xmm3); //width - mc_clip->right
 
     lea(eax, ptr[esp + stack_ptr_mc_mask_offset]);
     mov(ecx, BLOCK_SIZE_YCP / 32);
