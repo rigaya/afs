@@ -4,6 +4,10 @@
 #include "xbyak/xbyak.h"
 #include "afs.h"
 
+static const uint8_t TL_R0 = 0xf0;
+static const uint8_t TL_R1 = 0xcc;
+static const uint8_t TL_R2 = 0xaa;
+
 struct AFSAnalyzeParam {
     int tb_order;
     int step;

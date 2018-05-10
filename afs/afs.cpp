@@ -30,6 +30,7 @@
 
 #if AFS_USE_XBYAK
 #include "afs_analyze_xbyak.h"
+#include "afs_filter_xbyak.h"
 #endif //#if AFS_USE_XBYAK
 
 #ifndef AFSVF
@@ -831,7 +832,7 @@ void thread_func_analyze_frame(const int id) {
         for (scan_worker_x = scan_worker_x_limit_lower; scan_worker_x <= scan_worker_x_limit_upper; scan_worker_x++) {
             scan_worker_y = scan_worker_active / scan_worker_x;
             if (scan_worker_active - scan_worker_y * scan_worker_x == 0) {
-                goto block_size_set;
+                goto block_size_set; //二重ループを抜ける
             }
         }
     }
@@ -1191,7 +1192,16 @@ void merge_scan(int thread_id) {
     const int min_analyze_cycle = afs_func.analyze[afs_cache_nv16(g_afs.sub_thread.afs_mode)].min_cycle;
     const int x_start = (((si_w *  thread_id   ) / g_afs.sub_thread.thread_sub_n) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
     const int x_fin   = (((si_w * (thread_id+1)) / g_afs.sub_thread.thread_sub_n) + (min_analyze_cycle-1)) & ~(min_analyze_cycle-1);
-    afs_func.merge_scan(sp->map, sp0->map, sp1->map, si_w, g_afs.scan_h, x_start, x_fin);
+    auto func = afs_func.merge_scan;
+#if AFS_USE_XBYAK
+    if (func == nullptr) {
+        func = (func_merge_scan)g_afs.xbyak_merge->getCode();
+    }
+#endif //#if AFS_USE_XBYAK
+    int thread_sp_local[2] = { 0 };
+    func(sp->map, sp0->map, sp1->map, g_afs.scan_w, si_w, g_afs.scan_h, x_start, x_fin, sp0->tb_order, thread_sp_local, &sp0->clip);
+    g_afs.thread_stripe_count[thread_id][0] = thread_sp_local[0];
+    g_afs.thread_stripe_count[thread_id][1] = thread_sp_local[1];
 }
 #endif
 
@@ -1215,6 +1225,7 @@ unsigned char* get_stripe_info(int frame, int mode) {
         error_message_box(__LINE__, "afs_func.merge_scan");
 #endif
 
+    int stripe_count[2] = { 0, 0 };
 #if !ENABLE_OPENCL
     if (FALSE) {
 #else
@@ -1248,6 +1259,19 @@ unsigned char* get_stripe_info(int frame, int mode) {
         g_afs.sub_thread.merge_scan_task.sp1 = sp1;
         g_afs.sub_thread.merge_scan_task.si_w = si_w;
         g_afs.sub_thread.sub_task = TASK_MERGE_SCAN;
+#if AFS_USE_XBYAK
+        if (afs_func.merge_scan == nullptr) {
+            if (g_afs.xbyak_merge != nullptr) {
+                if (g_afs.xbyak_merge->checkprm(si_w, g_afs.scan_h, &sp0->clip)) {
+                    delete g_afs.xbyak_merge;
+                    g_afs.xbyak_merge = nullptr;
+                }
+            }
+            if (g_afs.xbyak_merge == nullptr) {
+                g_afs.xbyak_merge = new AFSMergeScanXbyak(si_w, g_afs.scan_h, &sp0->clip, (afs_func.simd_avail & AVX512BW) != 0);
+            }
+        }
+#endif //#if AFS_USE_XBYAK
 
         //g_afs.sub_thread.thread_sub_nは総スレッド数
         //自分を除いた数を起動
@@ -1270,12 +1294,20 @@ unsigned char* get_stripe_info(int frame, int mode) {
 
     sp->status = 2;
     sp->frame = frame;
-
-    int count[2] = { 0, 0 };
-    const int y_fin = g_afs.scan_h - sp0->clip.bottom - ((g_afs.scan_h - sp0->clip.top - sp0->clip.bottom) & 1);
-    afs_func.get_count.stripe(count, sp0, sp1, sp, si_w, g_afs.scan_w, g_afs.scan_h);
-    sp->count0 = count[0];
-    sp->count1 = count[1];
+    if (afs_func.merge_scan == nullptr) {
+        //xbyak版を使用した場合は、g_afs.thread_stripe_countに値が入っている
+        for (int i = 0; i < g_afs.sub_thread.thread_sub_n; i++) {
+            stripe_count[0] += g_afs.thread_stripe_count[i][0];
+            stripe_count[1] += g_afs.thread_stripe_count[i][1];
+        }
+        sp->count0 = stripe_count[0];
+        sp->count1 = stripe_count[1];
+    } else {
+        const int y_fin = g_afs.scan_h - sp0->clip.bottom - ((g_afs.scan_h - sp0->clip.top - sp0->clip.bottom) & 1);
+        afs_func.get_count.stripe(stripe_count, sp0, sp1, sp, si_w, g_afs.scan_w, g_afs.scan_h);
+    }
+    sp->count0 = stripe_count[0];
+    sp->count1 = stripe_count[1];
 #if SIMD_DEBUG
     memset(count, 0, sizeof(count));
     afs_get_stripe_count(count, sp0, sp1, sp, si_w, g_afs.scan_w, g_afs.scan_h);

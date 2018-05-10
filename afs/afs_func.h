@@ -7,7 +7,7 @@ typedef void (__stdcall *func_analyze_set_threshold)(int thre_shift, int thre_de
 typedef void (__stdcall *func_analyze)(unsigned char *dst, void *p0, void *p1, int tb_order, int width, int step, int si_pitch, int h_start, int h_fin, int height, int h_max, int *motion_count, AFS_SCAN_CLIP *mc_clip);
 typedef void (__stdcall *func_analyze_shrink_info)(unsigned char *dst, PIXEL_YC *src, int h, int width, int si_pitch);
 typedef void (__stdcall *func_analyzemap_filter)(unsigned char* sip, int si_w, int w, int h);
-typedef void (__stdcall *func_merge_scan)(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+typedef void (__stdcall *func_merge_scan)(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
 typedef void (__stdcall *func_yuy2up)(void *pixel, int dst_pitch, int dst_frame_pixels, const void *src, int width, int src_pitch, int y_start, int y_fin);
 typedef void (__stdcall *func_blend)(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 typedef void (__stdcall *func_mie_spot)(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
@@ -61,6 +61,7 @@ void __stdcall afs_blend_sse2(void *dst, void *src1, void *src2, void *src3, BYT
 void __stdcall afs_blend_sse4_1(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_avx(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_avx2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+void __stdcall afs_blend_avx512(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 
 void __stdcall afs_blend_nv16up_sse2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_blend_nv16_sse2(void *dst, void *src1, void *src2, void *src3, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
@@ -78,6 +79,7 @@ void __stdcall afs_blend_nv16_yuy2_sse2(void *dst, void *src1, void *src2, void 
 void __stdcall afs_mie_spot_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_avx(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
+void __stdcall afs_mie_spot_avx512(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 
 void __stdcall afs_mie_spot_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
 void __stdcall afs_mie_spot_nv16_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, void *src_spot, int w, int src_frame_pixels);
@@ -95,6 +97,7 @@ void __stdcall afs_mie_spot_nv16_yuy2_sse2(void *dst, void *src1, void *src2, vo
 void __stdcall afs_mie_inter_sse2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_avx(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
+void __stdcall afs_mie_inter_avx512(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 
 void __stdcall afs_mie_inter_nv16up_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
 void __stdcall afs_mie_inter_nv16_avx2(void *dst, void *src1, void *src2, void *src3, void *src4, int w, int src_frame_pixels);
@@ -113,6 +116,7 @@ void __stdcall afs_deint4_sse2(void *dst, void *src1, void *src3, void *src4, vo
 void __stdcall afs_deint4_sse4_1(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_avx(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_avx2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
+void __stdcall afs_deint4_avx512(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 
 void __stdcall afs_deint4_nv16up_sse2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
 void __stdcall afs_deint4_nv16_sse2(void *dst, void *src1, void *src3, void *src4, void *src5, void *src7, BYTE *sip, unsigned int mask, int w, int src_frame_pixels);
@@ -139,6 +143,7 @@ void __stdcall afs_convert_nv16_yc48up_avx2(void *dst, void *src1, int w, int sr
 void __stdcall afs_convert_nv16_yc48_avx2(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_copy_yc48_line_sse(void *dst, void *src1, int w, int src_frame_pixels);
 void __stdcall afs_copy_yc48_line_avx2(void *dst, void *src1, int w, int src_frame_pixels);
+void __stdcall afs_copy_yc48_line_avx512(void *dst, void *src1, int w, int src_frame_pixels);
 
 void __stdcall afs_get_stripe_count(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
 void __stdcall afs_get_stripe_count_sse2(int *count, AFS_SCAN_DATA* sp0, AFS_SCAN_DATA* sp1, AFS_STRIPE_DATA *sp, int si_w, int scan_w, int scan_h);
@@ -161,12 +166,12 @@ void __stdcall afs_analyzemap_filter_avx_plus(unsigned char* sip, int si_w, int 
 void __stdcall afs_analyzemap_filter_avx2(unsigned char* sip, int si_w, int w, int h);
 void __stdcall afs_analyzemap_filter_avx2_plus(unsigned char* sip, int si_w, int w, int h);
 
-void __stdcall afs_merge_scan_sse2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_sse2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
-void __stdcall afs_merge_scan_avx2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int si_w, int h, int x_start, int x_fin);
+void __stdcall afs_merge_scan_sse2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
+void __stdcall afs_merge_scan_sse2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
+void __stdcall afs_merge_scan_avx(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
+void __stdcall afs_merge_scan_avx_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
+void __stdcall afs_merge_scan_avx2(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
+void __stdcall afs_merge_scan_avx2_plus(unsigned char* dst, unsigned char* src0, unsigned char* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip);
 
 void __stdcall afs_analyze_set_threshold_sse2(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);
 void __stdcall afs_analyze_set_threshold_ssse3(int thre_shift, int thre_deint, int thre_Ymotion, int thre_Cmotion);

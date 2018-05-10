@@ -85,10 +85,6 @@ void __stdcall afs_analyze_set_threshold_avx512(int thre_shift, int thre_deint, 
 // [esp + 48] int *motion_count
 // [esp + 52] AFS_SCAN_CLIP *mc_clip
 
-static const uint8_t TL_R0 = 0xf0;
-static const uint8_t TL_R1 = 0xcc;
-static const uint8_t TL_R2 = 0xaa;
-
 AFSAnalyzeXbyakAVX512::AFSAnalyzeXbyakAVX512(
     int tb_order, int step, int si_pitch, int h, int max_h, int mc_scan_top, int mc_scan_bottom,
     size_t size, void *userPtr) : AFSAnalyzeXbyak(size, userPtr) {
@@ -453,7 +449,7 @@ void AFSAnalyzeXbyakAVX512::afs_shrink_info(
     const Xbyak::Reg32& ecx, /*buf2_out*/
     const Xbyak::Zmm& zmm5, const Xbyak::Zmm& zmm4, const Xbyak::Zmm& zmm3) {
     vmovdqa32(zmm0, zword[PACK_YC48_SHUFFLE_AVX512]);
-    vpsubb(zmm6, zmm6, zmm6); //依存関係を明示的に切る
+    vpxord(zmm6, zmm6, zmm6); //依存関係を明示的に切る
     vpternlogd(zmm6, zmm6, zmm6, 0xff);
 
     vmovdqa32(zmm1, zmm0);

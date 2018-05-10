@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include "filter.h"
 #include "simd_util.h"
+#include "afs.h"
 
 #if _MSC_VER >= 1800 && !defined(__AVX__) && !defined(_DEBUG)
 static_assert(false, "do not forget to set /arch:AVX or /arch:AVX2 for this file.");
@@ -301,7 +302,7 @@ void __stdcall afs_analyzemap_filter_avx2(BYTE* sip, int si_w, int w, int h) {
     _mm256_zeroupper();
 }
 
- void __stdcall afs_merge_scan_avx2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+ void __stdcall afs_merge_scan_avx2(BYTE* dst, BYTE* src0, BYTE* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip) {
     int step = x_start;
     __m256i y0, y1, y2, y3, y4, y5;
     const __m256i xPbMask33 = _mm256_load_si256((__m256i*)(pb_mask_33));
@@ -383,7 +384,7 @@ void __stdcall afs_analyzemap_filter_avx2(BYTE* sip, int si_w, int w, int h) {
     _mm256_zeroupper();
  }
  
- void __stdcall afs_merge_scan_avx2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+ void __stdcall afs_merge_scan_avx2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip) {
     __m256i y0, y1, y2, y3, y4, y5;
     const __m256i xPbMask33 = _mm256_load_si256((__m256i*)(pb_mask_33));
     const __m256i xPbMaskf3 = _mm256_load_si256((__m256i*)(pb_mask_f3));

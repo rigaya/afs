@@ -4,6 +4,8 @@
 
 #define AFS_USE_XBYAK 1
 
+#define AFS_AVX512_INTRINSIC 0
+
 #define AFS_SOURCE_CACHE_NUM 16
 #define AFS_SCAN_CACHE_NUM   16
 #define AFS_SCAN_WORKER_MAX  64
@@ -52,6 +54,7 @@ static inline AFS_SCAN_CLIP scan_clip(int top, int bottom, int left, int right) 
 
 #if AFS_USE_XBYAK
 class AFSAnalyzeXbyak;
+class AFSMergeScanXbyak;
 #endif //#if AFS_USE_XBYAK
 
 typedef struct {
@@ -183,6 +186,7 @@ typedef struct AFS_CONTEXT {
     HANDLE hEvent_worker_sleep[AFS_SCAN_WORKER_MAX];
     int worker_thread_priority[AFS_SCAN_WORKER_MAX];
     int thread_motion_count[AFS_SCAN_WORKER_MAX][2];
+    int thread_stripe_count[AFS_SUB_WORKER_MAX][2];
     AFS_SCAN_ARG scan_arg;
 
     AFS_SCAN_DATA scan_array[AFS_SCAN_CACHE_NUM];
@@ -195,6 +199,7 @@ typedef struct AFS_CONTEXT {
 #endif
 #if AFS_USE_XBYAK
     AFSAnalyzeXbyak *xbyak_analyze12;
+    AFSMergeScanXbyak *xbyak_merge;
 #endif //#if AFS_USE_XBYAK
 
     AFS_EX_DATA ex_data;

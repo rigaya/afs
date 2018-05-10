@@ -41,11 +41,11 @@ void __stdcall afs_copy_yc48_frame_sse2(void *pixel, int dst_pitch, int dst_fram
 
 #include "afs_filter_simd.h"
 
-void __stdcall afs_merge_scan_sse2(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+void __stdcall afs_merge_scan_sse2(BYTE* dst, BYTE* src0, BYTE* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip) {
     afs_merge_scan_simd(dst, src0, src1, si_w, h, x_start, x_fin);
 }
 
-void __stdcall afs_merge_scan_sse2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int si_w, int h, int x_start, int x_fin) {
+void __stdcall afs_merge_scan_sse2_plus(BYTE* dst, BYTE* src0, BYTE* src1, int w, int si_w, int h, int x_start, int x_fin, int tb_order, int *stripe_count, AFS_SCAN_CLIP *mc_clip) {
     afs_merge_scan_simd_plus(dst, src0, src1, si_w, h, x_start, x_fin);
 }
 

@@ -75,11 +75,14 @@
     <ClCompile Include="afs_opencl.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_analyze_avx2_xbyak.hpp">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClCompile Include="afs_analyze_avx512_xbyak.cpp">
+      <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="afs_analyze_xbyak.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClCompile Include="afs_avx512.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="afs_filter_xbyak.cpp">
+      <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -140,8 +143,14 @@
     <ClInclude Include="afs_stg.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="afs_analyze_avx512_xbyak.cpp">
-      <Filter>ソース ファイル</Filter>
+    <ClInclude Include="afs_analyze_avx2_xbyak.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="afs_analyze_xbyak.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="afs_filter_xbyak.h">
+      <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

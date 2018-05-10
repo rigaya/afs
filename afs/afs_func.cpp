@@ -145,12 +145,15 @@ static const struct {
         {  7,  4,  4, FALSE, afs_analyze_set_threshold_mmx, afs_analyze_shrink_info_mmx_plus, { afs_analyze_12_mmx_plus2, afs_analyze_1_mmx_plus2, afs_analyze_2_mmx_plus2 } },
         {  7,  4,  4, FALSE, NULL, NULL, { NULL, NULL, NULL } }
     } },
-};       
+};
 
 static const struct {
     DWORD simd;
     func_blend blend[8];
 } FUNC_BLEND_LIST[] = {
+#if AFS_AVX512_INTRINSIC
+    { AVX512BW|AVX2|AVX,    { afs_blend_avx512, afs_blend_avx512, afs_blend_nv16up_avx2,   afs_blend_nv16_avx2,   afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2 } },
+#endif
     { AVX2|AVX,             { afs_blend_avx2,   afs_blend_avx2,   afs_blend_nv16up_avx2,   afs_blend_nv16_avx2,   afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2 } },
     { AVX|SSE41|SSSE3|SSE2, { afs_blend_avx,    afs_blend_avx,    afs_blend_nv16up_avx,    afs_blend_nv16_avx,    afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2 } },
     { SSE41|SSSE3|SSE2,     { afs_blend_sse4_1, afs_blend_sse4_1, afs_blend_nv16up_sse4_1, afs_blend_nv16_sse4_1, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2, afs_blend_nv16_yuy2_sse2 } },
@@ -162,47 +165,58 @@ static const struct {
     DWORD simd;
     func_mie_spot mie_spot[8];
 } FUNC_MIE_SPOT_LIST[] = {
-    { AVX2|AVX,         { afs_mie_spot_avx2,  afs_mie_spot_avx2,  afs_mie_spot_nv16_avx2,    afs_mie_spot_nv16_avx2,   afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
-    { AVX|SSE2,         { afs_mie_spot_avx,   afs_mie_spot_avx,   afs_mie_spot_nv16_avx,     afs_mie_spot_nv16_avx,    afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
-    { SSE41|SSSE3|SSE2, { afs_mie_spot_sse2,  afs_mie_spot_sse2,  afs_mie_spot_nv16_sse4_1,  afs_mie_spot_nv16_sse4_1, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
-    { SSSE3|SSE2,       { afs_mie_spot_sse2,  afs_mie_spot_sse2,  afs_mie_spot_nv16_ssse3,   afs_mie_spot_nv16_ssse3,  afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
-    { SSE2,             { afs_mie_spot_sse2,  afs_mie_spot_sse2,  afs_mie_spot_nv16_sse2,    afs_mie_spot_nv16_sse2,   afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
-    { NONE,             { afs_mie_spot_mmx,   afs_mie_spot_mmx,   afs_mie_spot_nv16_sse2,    afs_mie_spot_nv16_sse2,   afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
+#if AFS_AVX512_INTRINSIC
+    { AVX512BW|AVX2|AVX, { afs_mie_spot_avx512, afs_mie_spot_avx512, afs_mie_spot_nv16_avx2,    afs_mie_spot_nv16_avx2,   afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
+#endif
+    { AVX|SSE2,          { afs_mie_spot_avx,    afs_mie_spot_avx,    afs_mie_spot_nv16_avx,     afs_mie_spot_nv16_avx,    afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
+    { SSE41|SSSE3|SSE2,  { afs_mie_spot_sse2,   afs_mie_spot_sse2,   afs_mie_spot_nv16_sse4_1,  afs_mie_spot_nv16_sse4_1, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
+    { SSSE3|SSE2,        { afs_mie_spot_sse2,   afs_mie_spot_sse2,   afs_mie_spot_nv16_ssse3,   afs_mie_spot_nv16_ssse3,  afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
+    { SSE2,              { afs_mie_spot_sse2,   afs_mie_spot_sse2,   afs_mie_spot_nv16_sse2,    afs_mie_spot_nv16_sse2,   afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
+    { NONE,              { afs_mie_spot_mmx,    afs_mie_spot_mmx,    afs_mie_spot_nv16_sse2,    afs_mie_spot_nv16_sse2,   afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2, afs_mie_spot_nv16_yuy2_sse2 } },
 };
 
 static const struct {
     DWORD simd;
     func_mie_inter mie_inter[8];
 } FUNC_MIE_INTER_LIST[] = {
-    { AVX2|AVX,         { afs_mie_inter_avx2,  afs_mie_inter_avx2,  afs_mie_inter_nv16_avx2,    afs_mie_inter_nv16_avx2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
-    { AVX|SSE2,         { afs_mie_inter_avx,   afs_mie_inter_avx,   afs_mie_inter_nv16_avx,     afs_mie_inter_nv16_avx,    afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
-    { SSE41|SSSE3|SSE2, { afs_mie_inter_sse2,  afs_mie_inter_sse2,  afs_mie_inter_nv16_sse4_1,  afs_mie_inter_nv16_sse4_1, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
-    { SSSE3|SSE2,       { afs_mie_inter_sse2,  afs_mie_inter_sse2,  afs_mie_inter_nv16_ssse3,   afs_mie_inter_nv16_ssse3,  afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
-    { SSE2,             { afs_mie_inter_sse2,  afs_mie_inter_sse2,  afs_mie_inter_nv16_sse2,    afs_mie_inter_nv16_sse2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
-    { NONE,             { afs_mie_inter_mmx,   afs_mie_inter_mmx,   afs_mie_inter_nv16_sse2,    afs_mie_inter_nv16_sse2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+#if AFS_AVX512_INTRINSIC
+    { AVX512BW|AVX2|AVX, { afs_mie_inter_avx512, afs_mie_inter_avx512, afs_mie_inter_nv16_avx2,    afs_mie_inter_nv16_avx2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+#endif
+    { AVX2|AVX,          { afs_mie_inter_avx2,   afs_mie_inter_avx2,   afs_mie_inter_nv16_avx2,    afs_mie_inter_nv16_avx2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+    { AVX|SSE2,          { afs_mie_inter_avx,    afs_mie_inter_avx,    afs_mie_inter_nv16_avx,     afs_mie_inter_nv16_avx,    afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+    { SSE41|SSSE3|SSE2,  { afs_mie_inter_sse2,   afs_mie_inter_sse2,   afs_mie_inter_nv16_sse4_1,  afs_mie_inter_nv16_sse4_1, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+    { SSSE3|SSE2,        { afs_mie_inter_sse2,   afs_mie_inter_sse2,   afs_mie_inter_nv16_ssse3,   afs_mie_inter_nv16_ssse3,  afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+    { SSE2,              { afs_mie_inter_sse2,   afs_mie_inter_sse2,   afs_mie_inter_nv16_sse2,    afs_mie_inter_nv16_sse2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
+    { NONE,              { afs_mie_inter_mmx,    afs_mie_inter_mmx,    afs_mie_inter_nv16_sse2,    afs_mie_inter_nv16_sse2,   afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2, afs_mie_inter_nv16_yuy2_sse2 } },
 };
 
 static const struct {
     DWORD simd;
     func_deint4 deint4[8];
 } FUNC_DEINT4_LIST[] = {
-    { AVX2|AVX,         { afs_deint4_avx2,  afs_deint4_avx2,  afs_deint4_nv16_avx2,    afs_deint4_nv16_avx2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
-    { AVX|SSE2,         { afs_deint4_avx,   afs_deint4_avx,   afs_deint4_nv16_avx,     afs_deint4_nv16_avx,    afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
-    { SSE41|SSSE3|SSE2, { afs_deint4_sse2,  afs_deint4_sse2,  afs_deint4_nv16_sse4_1,  afs_deint4_nv16_sse4_1, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
-    { SSSE3|SSE2,       { afs_deint4_sse2,  afs_deint4_sse2,  afs_deint4_nv16_ssse3,   afs_deint4_nv16_ssse3,  afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
-    { SSE2,             { afs_deint4_sse2,  afs_deint4_sse2,  afs_deint4_nv16_sse2,    afs_deint4_nv16_sse2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
-    { NONE,             { afs_deint4_mmx,   afs_deint4_mmx,   afs_deint4_nv16_sse2,    afs_deint4_nv16_sse2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+#if AFS_AVX512_INTRINSIC
+    { AVX512BW|AVX2|AVX, { afs_deint4_avx512, afs_deint4_avx512, afs_deint4_nv16_avx2,    afs_deint4_nv16_avx2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+#endif
+    { AVX2|AVX,          { afs_deint4_avx2,   afs_deint4_avx2,   afs_deint4_nv16_avx2,    afs_deint4_nv16_avx2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+    { AVX|SSE2,          { afs_deint4_avx,    afs_deint4_avx,    afs_deint4_nv16_avx,     afs_deint4_nv16_avx,    afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+    { SSE41|SSSE3|SSE2,  { afs_deint4_sse2,   afs_deint4_sse2,   afs_deint4_nv16_sse4_1,  afs_deint4_nv16_sse4_1, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+    { SSSE3|SSE2,        { afs_deint4_sse2,   afs_deint4_sse2,   afs_deint4_nv16_ssse3,   afs_deint4_nv16_ssse3,  afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+    { SSE2,              { afs_deint4_sse2,   afs_deint4_sse2,   afs_deint4_nv16_sse2,    afs_deint4_nv16_sse2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
+    { NONE,              { afs_deint4_mmx,    afs_deint4_mmx,    afs_deint4_nv16_sse2,    afs_deint4_nv16_sse2,   afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2, afs_deint4_nv16_yuy2_sse2 } },
 };
 
 static const struct {
     DWORD simd;
     func_copy_line copy_line[8];
 } FUNC_COPY_LINE_LIST[] = {
-    { AVX2|AVX,             { afs_copy_yc48_line_avx2, afs_copy_yc48_line_avx2, afs_convert_nv16_yc48_avx2,   afs_convert_nv16_yc48up_avx2,   afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
-    { AVX|SSE41|SSSE3|SSE2, { afs_copy_yc48_line_sse,  afs_copy_yc48_line_sse,  afs_convert_nv16_yc48_avx,    afs_convert_nv16_yc48up_avx,    afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
-    { SSE41|SSSE3|SSE2,     { afs_copy_yc48_line_sse,  afs_copy_yc48_line_sse,  afs_convert_nv16_yc48_sse4_1, afs_convert_nv16_yc48up_sse4_1, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
-    { SSSE3|SSE2,           { afs_copy_yc48_line_sse,  afs_copy_yc48_line_sse,  afs_convert_nv16_yc48_ssse3,  afs_convert_nv16_yc48up_ssse3,  afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
-    { SSE2,                 { afs_copy_yc48_line_sse,  afs_copy_yc48_line_sse,  afs_convert_nv16_yc48_sse2,   afs_convert_nv16_yc48up_sse2,   afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
+#if AFS_AVX512_INTRINSIC
+    { AVX512BW|AVX2|AVX,    { afs_copy_yc48_line_avx512, afs_copy_yc48_line_avx512, afs_convert_nv16_yc48_avx2,   afs_convert_nv16_yc48up_avx2,   afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
+#endif
+    { AVX2|AVX,             { afs_copy_yc48_line_avx2,   afs_copy_yc48_line_avx2,   afs_convert_nv16_yc48_avx2,   afs_convert_nv16_yc48up_avx2,   afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
+    { AVX|SSE41|SSSE3|SSE2, { afs_copy_yc48_line_sse,    afs_copy_yc48_line_sse,    afs_convert_nv16_yc48_avx,    afs_convert_nv16_yc48up_avx,    afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
+    { SSE41|SSSE3|SSE2,     { afs_copy_yc48_line_sse,    afs_copy_yc48_line_sse,    afs_convert_nv16_yc48_sse4_1, afs_convert_nv16_yc48up_sse4_1, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
+    { SSSE3|SSE2,           { afs_copy_yc48_line_sse,    afs_copy_yc48_line_sse,    afs_convert_nv16_yc48_ssse3,  afs_convert_nv16_yc48up_ssse3,  afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
+    { SSE2,                 { afs_copy_yc48_line_sse,    afs_copy_yc48_line_sse,    afs_convert_nv16_yc48_sse2,   afs_convert_nv16_yc48up_sse2,   afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2, afs_convert_nv16_yuy2_sse2 } },
 };
 
 static const struct {
@@ -220,10 +234,13 @@ static const struct {
     DWORD simd;
     func_merge_scan merge_scan;
 } FUNC_MERGE_SCAN_LIST[] = {
-    { AVX2|AVX, afs_merge_scan_avx2_plus },
-    { AVX|SSE2, afs_merge_scan_avx_plus  },
-    { SSE2,     afs_merge_scan_sse2_plus },
-    { NONE,     afs_merge_scan_mmx       },
+#if AFS_USE_XBYAK
+    { AVX512BW|AVX2|AVX, NULL                     },
+#endif //#if AFS_USE_XBYAK
+    { AVX2|AVX,          afs_merge_scan_avx2_plus },
+    { AVX|SSE2,          afs_merge_scan_avx_plus  },
+    { SSE2,              afs_merge_scan_sse2_plus },
+    { NONE,              afs_merge_scan_mmx       },
 };
 
 static const struct {
@@ -253,7 +270,6 @@ void get_afs_func_list(AFS_FUNC *func_list, char *simd_select) {
     DWORD simd_mask = 0xffffffff;
     bool use_xbyak = (AFS_USE_XBYAK) ? true : false;
     if (strncmp(simd_select, "auto", strlen("auto"))) {
-#if AFS_USE_XBYAK
         if (strncmp(simd_select, "avx512_xbyak", strlen("avx512_xbyak")) == 0
             || strncmp(simd_select, "avx512", strlen("avx512")) == 0) {
             simd_mask = AVX512F|AVX512BW|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
@@ -261,9 +277,7 @@ void get_afs_func_list(AFS_FUNC *func_list, char *simd_select) {
             simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
         } else if (strncmp(simd_select, "avx2_xbyak_slow", strlen("avx2_xbyak_slow")) == 0) {
             simd_mask = AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
-        } else
-#endif
-        if (strncmp(simd_select, "avx2", strlen("avx2")) == 0) {
+        } else if (strncmp(simd_select, "avx2", strlen("avx2")) == 0) {
             simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
             use_xbyak = false;
         } else if (strncmp(simd_select, "avx", strlen("avx")) == 0) {

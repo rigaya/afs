@@ -345,19 +345,23 @@ pb_mask_33            dq    03333333333333333h
 pb_mask_f3            dq    0f3f3f3f3f3f3f3f3h
 pb_mask_44            dq    04444444444444444h
 
-PUBLIC C _afs_merge_scan_mmx@28
+PUBLIC C _afs_merge_scan_mmx@44
 
 ;void __stdcall afs_merge_scan_mmx(
 ;  [esp+04] unsigned       char* dst
 ;  [esp+08] unsigned       char* src0
 ;  [esp+12] unsigned       char* src1
-;  [esp+16] int            si_w
-;  [esp+20] int            h
-;  [esp+24] int            x_start
-;  [esp+28] int            x_fin
+;  [esp+16] int            w
+;  [esp+20] int            si_w
+;  [esp+24] int            h
+;  [esp+28] int            x_start
+;  [esp+32] int            x_fin
+;  [esp+36] int            tb_order
+;  [esp+40] int           *stripe_count
+;  [esp+44] AFS_SCAN_CLIP *mc_clip
 ;)
 
-_afs_merge_scan_mmx@28 PROC
+_afs_merge_scan_mmx@44 PROC
         push        ebp
         push        edi
         push        esi
@@ -368,7 +372,7 @@ _afs_merge_scan_mmx@28 PROC
 ; @+28
 
         xor            eax, eax
-        mov            ebx, [esp+28+16]            ; [si_w]
+        mov            ebx, [esp+28+20]            ; [si_w]
         mov            ecx, ebx
         shr            ecx, 3                        ; ecx = sip_w>>3
         movq        mm6, pb_mask_33
@@ -382,7 +386,7 @@ afs_merge_scan_mmx_loopx:
         lea            edi, [edi+eax]
         lea            esi, [esi+eax]
         lea            ebp, [ebp+eax]
-        mov            edx, [esp+28+20]            ; [h]
+        mov            edx, [esp+28+24]            ; [h]
         movq        mm0, [esi]                    ; mm0 = 0c
         movq        mm1, [esi+ebx]                ; mm1 = 0y+
         movq        mm2, [ebp]                    ; mm2 = 1c
@@ -461,9 +465,9 @@ afs_merge_scan_mmx_loopy:
         pop            edi
         pop            ebp
 
-        ret        28
+        ret        44
 
-_afs_merge_scan_mmx@28 ENDP
+_afs_merge_scan_mmx@44 ENDP
 
 END
 
