@@ -425,13 +425,13 @@ void AFSAnalyzeXbyakAVX2::afs_shrink_info(
     if (loop1) {
         vmovdqa(xword[ecx], xmm0);
     } else {
-        mov(eax, ebp);
+        mov(eax, edx);
         and(eax, 7);
         shl(eax, BLOCK_SIZE_YCP_LOG2);
         add(eax, ecx);
         vmovdqa(xword[eax], xmm0);
 
-        lea(eax, ptr[ebp+1]);
+        lea(eax, ptr[edx+1]);
         and(eax, 7);
         shl(eax, BLOCK_SIZE_YCP_LOG2);
         add(eax, ecx);
