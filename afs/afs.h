@@ -10,7 +10,7 @@
 #define AFS_SCAN_CACHE_NUM   16
 #define AFS_SCAN_WORKER_MAX  64
 #define AFS_STRIPE_CACHE_NUM  8
-#define AFS_SUB_WORKER_MAX    4
+#define AFS_SUB_WORKER_MAX    8
 
 #include "afs_opencl.h"
 
