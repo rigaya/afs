@@ -59,7 +59,7 @@ AFSMergeScanXbyak::AFSMergeScanXbyak(
     const Address& stack_ptr_src0_line     = dword[esp + stack_ptr_src0_line_offset];
     const Address& stack_ptr_src1_line     = dword[esp + stack_ptr_src1_line_offset];
     const Address& stack_ptr_tb_order      = dword[esp + stack_ptr_tb_order_offset];
-    const Address& stack_ptr_x_start       = dword[esp + stack_ptr_tb_order_offset];
+    const Address& stack_ptr_x_start       = dword[esp + stack_ptr_x_start_offset];
     const Address& stack_ptr_stripe_count  = dword[esp + stack_ptr_stripe_count_offset];
     const Address& stack_ptr_stripe_mask   = dword[esp + stack_ptr_stripe_mask_offset];
     const Address& stack_ptr_mc_clip       = dword[esp + stack_ptr_mc_clip_offset];
