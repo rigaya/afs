@@ -330,7 +330,6 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop1(
     lea(ebp, ptr[ecx + ebx/* width */]); //buf2ptr_fin
     AVX2L_MEM_BROADCAST(ymm7, pw_mask_12motion_0);
     AVX2L_MEM_BROADCAST(ymm6, pw_thre_shift);
-    align();
     L("afs_analyze_loop1"); {
         //ymm2のpe_thre_motionは、afs_shrink_infoの呼び出しで破棄されるのでここでロード
         vmovdqa(ymm2, stack_ptr_pw_thre_motion); //broadcast不可
@@ -477,7 +476,6 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
     const int stack_ptr_mc_mask_offset) {
     AVX2L_MEM_BROADCAST(ymm7, pb_thre_count);
     AVX2L_MEM_BROADCAST(ymm6, pw_thre_shift);
-    align();
     L("afs_analyze_loop2_h"); {
         lea(ecx, ptr[esp + stack_ptr_buffer2_offset]); //buf2ptr
         mov(ebp, ecx);
@@ -490,7 +488,6 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
         mov(stack_ptr_p0, eax);
         lea(eax, ptr[edi + step6]);
         mov(stack_ptr_p1, eax);
-        align();
         L("afs_analyze_loop2_w1"); {
             vmovdqa(ymm5, stack_ptr_pw_thre_motion); //broadcast不可
             call("afs_analyze_loop2_1_internal");
@@ -532,7 +529,6 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
             lea(edi, ptr[esp + stack_ptr_mc_mask_offset]);
             AVX2L_MEM_BROADCAST(ymm4, pb_mask_12stripe_01);
             AVX2L_MEM_BROADCAST(ymm5, pb_mask_1stripe_01);
-            align();
             L("afs_analyze_loop2_w2"); {
                 afs_analyze_loop2_2_internal(stack_ptr_mc_mask_offset);
                 add(ebx, 32);
@@ -754,7 +750,6 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3(int step6, int si_pitch,
     vpxor(ymm5, ymm5, ymm5);
     AVX2L_MEM_BROADCAST(ymm4, pb_mask_12stripe_01);
 
-    align();
     L("afs_analyze_loop3_h"); {
         cmp(edx, stack_ptr_h_fin_l3);
         jge("afs_analyze_loop3_h_fin", T_NEAR);
@@ -769,7 +764,6 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop3(int step6, int si_pitch,
         add(ebp, stack_ptr_width);
         lea(edi, ptr[esp + stack_ptr_mc_mask_offset]);
 
-        align();
         L("afs_analyze_loop3_w"); {
             afs_analyze_loop3_internal(stack_ptr_mc_mask_offset);
             add(ebx, 32);
