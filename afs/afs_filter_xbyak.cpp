@@ -256,14 +256,13 @@ void AFSMergeScanXbyak::init_mc_mask_avx2(const int stack_ptr_mc_mask_x_offset, 
     vpcmpeqb(ymm7, ymm7, ymm7);
     movd(xmm3, eax);
     vpbroadcastw(ymm3, xmm3);
+    vpaddw(ymm2, ymm2, ymm3);
     vpsrlw(ymm7, ymm7, 15);
     vpsllw(ymm7, ymm7, 4); //16
     vpaddw(ymm1, ymm2, ymm7); //[i+16, i+24]
     vpsllw(ymm7, ymm7, 1); //32
     vperm2i128(ymm0, ymm2, ymm1, (2<<4) + 0); //あとでvpacksswbするので [i+ 0, i+16]
     vperm2i128(ymm1, ymm2, ymm1, (3<<4) + 1); //あとでvpacksswbするので [i+ 8, i+24]
-    vpaddw(ymm0, ymm0, ymm3);
-    vpaddw(ymm1, ymm1, ymm3);
 
     mov(ebx, stack_ptr_mc_clip);
     xor(eax, eax);
@@ -304,12 +303,11 @@ void AFSMergeScanXbyak::init_mc_mask_avx512(int stack_ptr_mc_mask_x_offset, cons
     vmovdqa32(zmm0, zword[pw_index]); //[i+ 0, i+ 8, i+16, i+24]
     vpternlogd(zmm7, zmm7, zmm7, 0xff);
     vpbroadcastw(zmm3, ax);
+    vpaddw(zmm0, zmm0, zmm3);
     vpsrlw(zmm7, zmm7, 15);
     vpsllw(zmm7, zmm7, 5); //32
     vpaddw(zmm1, zmm0, zmm7); //[i+32, i+40, i+48, i+56]
     vpsllw(zmm7, zmm7, 1); //64
-    vpaddw(zmm0, zmm0, zmm3);
-    vpaddw(zmm1, zmm1, zmm3);
 
     mov(ebx, stack_ptr_mc_clip);
     xor(eax, eax);
