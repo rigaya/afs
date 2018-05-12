@@ -515,7 +515,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
             afs_shrink_info(false, ecx, ymm5, ymm4, ymm3);
             add(ecx, 16);
             cmp(ecx, ebp);
-            jb("afs_analyze_loop2_w1", T_NEAR);
+            jb("afs_analyze_loop2_w1");
         }
         cmp(edx, stack_ptr_h_start_plus4);
         jl("afs_analyze_loop2_h_fin", T_NEAR); {
