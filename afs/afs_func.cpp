@@ -235,7 +235,7 @@ static const struct {
     func_merge_scan merge_scan;
 } FUNC_MERGE_SCAN_LIST[] = {
 #if AFS_USE_XBYAK
-    { AVX512BW|AVX2|AVX, NULL                     },
+    { AVX2|AVX,          NULL                     },
 #endif //#if AFS_USE_XBYAK
     { AVX2|AVX,          afs_merge_scan_avx2_plus },
     { AVX|SSE2,          afs_merge_scan_avx_plus  },
@@ -346,7 +346,7 @@ void get_afs_func_list(AFS_FUNC *func_list, char *simd_select) {
             break;
         }
     }
-    for (int i = 0; i < _countof(FUNC_MERGE_SCAN_LIST); i++) {
+    for (int i = (AFS_USE_XBYAK && !use_xbyak) ? 1 : 0; i < _countof(FUNC_MERGE_SCAN_LIST); i++) {
         if ((FUNC_MERGE_SCAN_LIST[i].simd & simd_avail) == FUNC_MERGE_SCAN_LIST[i].simd) {
             func_list->merge_scan = FUNC_MERGE_SCAN_LIST[i].merge_scan;
             break;
