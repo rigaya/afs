@@ -10,7 +10,7 @@
 static_assert(false, "do not forget to set /arch:AVX or /arch:AVX2 for this file.");
 #endif
 
-#define _mm512_stream_switch_si512(x, zmm) ((aligned_store) ? _mm512_stream_si512((x), (zmm)) : _mm512_store_si512((x), (zmm)))
+#define _mm512_stream_switch_si512(x, zmm) ((aligned_store) ? _mm512_stream_si512((x), (zmm)) : _mm512_storeu_si512((x), (zmm)))
 
 template<bool aligned_store>
 static void __forceinline memcpy_avx512(void *_dst, void *_src, int size) {
@@ -57,7 +57,8 @@ static const _declspec(align(64)) USHORT SIP_BLEND_MASK[] = {
 	0x0a, 0x0b, 0x0b, 0x0b, 0x0c, 0x0c, 0x0c, 0x0d, 0x0d, 0x0d, 0x0e, 0x0e, 0x0e, 0x0f, 0x0f, 0x0f, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x12, 0x12, 0x12, 0x13, 0x13, 0x13, 0x14, 0x14, 0x14, 0x15,
 	0x15, 0x15, 0x16, 0x16, 0x16, 0x17, 0x17, 0x17, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x1a, 0x1a, 0x1a, 0x1b, 0x1b, 0x1b, 0x1c, 0x1c, 0x1c, 0x1d, 0x1d, 0x1d, 0x1e, 0x1e, 0x1e, 0x1f, 0x1f, 0x1f
 };
-#define zSIPMASK(x)  (_mm512_load_si512((__m512i*)SIP_BLEND_MASK[x]))
+
+#define zSIPMASK(x)  (_mm512_load_si512((__m512i*)&SIP_BLEND_MASK[x]))
 
 template <bool aligned_store>
 void __forceinline __stdcall afs_blend_avx512_base(PIXEL_YC *dst, PIXEL_YC *src1, PIXEL_YC *src2, PIXEL_YC *src3, BYTE *sip, unsigned int mask, int w) {
@@ -67,18 +68,24 @@ void __forceinline __stdcall afs_blend_avx512_base(PIXEL_YC *dst, PIXEL_YC *src1
     BYTE *ptr_src3 = (BYTE *)src3;
     BYTE *ptr_esi  = (BYTE *)sip;
     __m512i z0, z1, z2, z3, z4;
-    __mmask32 k1;
+    __mmask32 k1, k2;
     const __m512i zPwRoundFix2 = _mm512_set1_epi16(2);
+    const __m512i zMask = _mm512_set1_epi32(mask);
 
     for (int iw = w - 32; iw >= 0; ptr_dst += 192, ptr_src1 += 192, ptr_src2 += 192, ptr_src3 += 192, ptr_esi += 32, iw -= 32) {
-        z0 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((__m256i*)(ptr_esi)));
+        z0 = _mm512_cvtepu8_epi16(_mm256_loadu_si256((__m256i*)(ptr_esi)));
+        z0 = _mm512_and_si512(z0, zMask);
+        k2 = _mm512_cmpeq_epi16_mask(z0, _mm512_setzero_si512());
+        z0 = _mm512_movm_epi16(k2);
 
         _mm_prefetch((char *)ptr_src1 + 576, _MM_HINT_NTA);
         _mm_prefetch((char *)ptr_src2 + 576, _MM_HINT_NTA);
         _mm_prefetch((char *)ptr_src3 + 576, _MM_HINT_NTA);
         _mm_prefetch((char *)ptr_esi  +  96, _MM_HINT_NTA);
 
-        k1 = _mm512_movepi16_mask(_mm512_permutex2var_epi16(z0, z0, zSIPMASK(0)));
+        z1 = zSIPMASK(0);
+        z1 = _mm512_permutexvar_epi16(z1, z0);
+        k1 = _mm512_movepi16_mask(z1);
         z4 = _mm512_loadu_si512((__m512i*)(ptr_src2));
         z3 = _mm512_loadu_si512((__m512i*)(ptr_src1));
         z2 = z4;
@@ -89,7 +96,9 @@ void __forceinline __stdcall afs_blend_avx512_base(PIXEL_YC *dst, PIXEL_YC *src1
         z1 = _mm512_mask_srai_epi16(z2, k1, z3, 2); //z1 = sip ? z3 >> 2 : z2;
         _mm512_stream_switch_si512((__m512i*)ptr_dst, z1);
 
-        k1 = _mm512_movepi16_mask(_mm512_permutex2var_epi16(z0, z0, zSIPMASK(1)));
+        z1 = zSIPMASK(32);
+        z1 = _mm512_permutexvar_epi16(z1, z0);
+        k1 = _mm512_movepi16_mask(z1);
         z4 = _mm512_loadu_si512((__m512i*)(ptr_src2+64));
         z3 = _mm512_loadu_si512((__m512i*)(ptr_src1+64));
         z2 = z4;
@@ -97,11 +106,12 @@ void __forceinline __stdcall afs_blend_avx512_base(PIXEL_YC *dst, PIXEL_YC *src1
         z4 = _mm512_slli_epi16(z4, 1);
         z3 = _mm512_adds_epi16(z3, z4);
         z3 = _mm512_adds_epi16(z3, zPwRoundFix2);
-        z3 = _mm512_srai_epi16(z3, 2);
         z1 = _mm512_mask_srai_epi16(z2, k1, z3, 2); //z1 = sip ? z3 >> 2 : z2;
         _mm512_stream_switch_si512((__m512i*)(ptr_dst+64), z1);
 
-        k1 = _mm512_movepi16_mask(_mm512_permutex2var_epi16(z0, z0, zSIPMASK(2)));
+        z1 = zSIPMASK(64);
+        z1 = _mm512_permutexvar_epi16(z1, z0);
+        k1 = _mm512_movepi16_mask(z1);
         z4 = _mm512_loadu_si512((__m512i*)(ptr_src2+128));
         z3 = _mm512_loadu_si512((__m512i*)(ptr_src1+128));
         z2 = z4;
@@ -122,7 +132,7 @@ void __stdcall afs_blend_avx512(void *_dst, void *_src1, void *_src2, void *_src
     const int dst_mod64 = (size_t)dst & 0x3f;
     if (dst_mod64) {
         int mod6 = dst_mod64 % 6;
-        int dw = (64 * (((mod6) ? mod6 : 6)>>1)-dst_mod64) / 6;
+        int dw = (64 * (3-(mod6>>1))-dst_mod64) / 6;
         afs_blend_avx512_base<false>(dst, src1, src2, src3, sip, mask, 32);
         dst += dw; src1 += dw; src2 += dw; src3 += dw; sip += dw; w -= dw;
     }
@@ -195,7 +205,7 @@ void __stdcall afs_mie_spot_avx512(void *_dst, void *_src1, void *_src2, void *_
     const int dst_mod64 = (size_t)dst & 0x3f;
     if (dst_mod64) {
         int mod6 = dst_mod64 % 6;
-        int dw = (64 * (((mod6) ? mod6 : 6)>>1)-dst_mod64) / 6;
+        int dw = (64 * (3-(mod6>>1))-dst_mod64) / 6;
         afs_mie_spot_avx512_base<false>(dst, src1, src2, src3, src4, src_spot, 32);
         dst += dw; src1 += dw; src2 += dw; src3 += dw; src4 += dw; src_spot += dw; w -= dw;
     }
@@ -255,11 +265,11 @@ void __stdcall afs_mie_inter_avx512(void *_dst, void *_src1, void *_src2, void *
     const int dst_mod64 = (size_t)dst & 0x3f;
     if (dst_mod64) {
         int mod6 = dst_mod64 % 6;
-        int dw = (64 * (((mod6) ? mod6 : 6)>>1)-dst_mod64) / 6;
+        int dw = (64 * (3-(mod6>>1))-dst_mod64) / 6;
         afs_mie_inter_avx512_base<false>(dst, src1, src2, src3, src4, 32);
         dst += dw; src1 += dw; src2 += dw; src3 += dw; src4 += dw; w -= dw;
     }
-    afs_mie_inter_avx512_base<true>(dst, src1, src2, src3, src4, w & (~0x0f));
+    afs_mie_inter_avx512_base<false>(dst, src1, src2, src3, src4, w & (~0x0f));
     if (w & 0x0f) {
         dst += w-32; src1 += w-32; src2 += w-32; src3 += w-32; src4 += w-32;
         afs_mie_inter_avx512_base<false>(dst, src1, src2, src3, src4, 32);
@@ -276,13 +286,19 @@ void __forceinline __stdcall afs_deint4_avx512_base(PIXEL_YC *dst, PIXEL_YC *src
     BYTE *ptr_src5 = (BYTE *)src5;
     BYTE *ptr_src7 = (BYTE *)src7;
     __m512i z0, z1, z2, z3;
-    __mmask32 k1;
+    __mmask32 k1, k2;
     const __m512i zPwRoundFix1 = _mm512_set1_epi16(1);
+    const __m512i zMask = _mm512_set1_epi32(mask);
 
     for (int iw = w - 32; iw >= 0; ptr_src4 += 192, ptr_dst += 192, ptr_src3 += 192, ptr_src5 += 192, ptr_src1 += 192, ptr_src7 += 192, ptr_sip += 32, iw -= 32) {
         z0 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((__m256i*)(ptr_sip)));
+        z0 = _mm512_and_si512(z0, zMask);
+        k2 = _mm512_cmpeq_epi16_mask(z0, _mm512_setzero_si512());
+        z0 = _mm512_movm_epi16(k2);
 
-        k1 = _mm512_movepi16_mask(_mm512_permutex2var_epi16(z0, z0, zSIPMASK(0)));
+        z1 = zSIPMASK(0);
+        z1 = _mm512_permutexvar_epi16(z1, z0);
+        k1 = _mm512_movepi16_mask(z1);
         z2 = _mm512_loadu_si512((__m512i*)(ptr_src1));
         z3 = _mm512_loadu_si512((__m512i*)(ptr_src3));
         z2 = _mm512_adds_epi16(z2, _mm512_loadu_si512((__m512i*)(ptr_src7)));
@@ -295,7 +311,9 @@ void __forceinline __stdcall afs_deint4_avx512_base(PIXEL_YC *dst, PIXEL_YC *src
         z1 = _mm512_mask_srai_epi16(z2, k1, z3, 1); //z1 = sip ? z3 >> 1 : z2;
         _mm512_stream_switch_si512((__m512i*)(ptr_dst), z1);
 
-        k1 = _mm512_movepi16_mask(_mm512_permutex2var_epi16(z0, z0, zSIPMASK(1)));
+        z1 = zSIPMASK(32);
+        z1 = _mm512_permutexvar_epi16(z1, z0);
+        k1 = _mm512_movepi16_mask(z1);
         z2 = _mm512_loadu_si512((__m512i*)(ptr_src1+64));
         z3 = _mm512_loadu_si512((__m512i*)(ptr_src3+64));
         z2 = _mm512_adds_epi16(z2, _mm512_loadu_si512((__m512i*)(ptr_src7+64)));
@@ -308,7 +326,9 @@ void __forceinline __stdcall afs_deint4_avx512_base(PIXEL_YC *dst, PIXEL_YC *src
         z1 = _mm512_mask_srai_epi16(z2, k1, z3, 1); //z1 = sip ? z3 >> 1 : z2;
         _mm512_stream_switch_si512((__m512i*)(ptr_dst+64), z1);
 
-        k1 = _mm512_movepi16_mask(_mm512_permutex2var_epi16(z0, z0, zSIPMASK(2)));
+        z1 = zSIPMASK(64);
+        z1 = _mm512_permutexvar_epi16(z1, z0);
+        k1 = _mm512_movepi16_mask(z1);
         z2 = _mm512_loadu_si512((__m512i*)(ptr_src1+128));
         z3 = _mm512_loadu_si512((__m512i*)(ptr_src3+128));
         z2 = _mm512_adds_epi16(z2, _mm512_loadu_si512((__m512i*)(ptr_src7+128)));
@@ -333,7 +353,7 @@ void __stdcall afs_deint4_avx512(void *_dst, void *_src1, void *_src3, void *_sr
     const int dst_mod64 = (size_t)dst & 0x3f;
     if (dst_mod64) {
         int mod6 = dst_mod64 % 6;
-        int dw = (64 * (((mod6) ? mod6 : 6)>>1)-dst_mod64) / 6;
+        int dw = (64 * (3-(mod6>>1))-dst_mod64) / 6;
         afs_deint4_avx512_base<false>(dst, src1, src3, src4, src5, src7, sip, mask, 32);
         dst += dw; src1 += dw; src3 += dw; src4 += dw; src5 += dw; src7 += dw; sip += dw; w -= dw;
     }
@@ -345,5 +365,5 @@ void __stdcall afs_deint4_avx512(void *_dst, void *_src1, void *_src3, void *_sr
 }
 
 void __stdcall afs_copy_yc48_line_avx512(void *dst, void *src1, int w, int src_frame_pixels) {
-    memcpy_avx512<true>(dst, src1, w * sizeof(PIXEL_YC));
+    memcpy_avx512<false>(dst, src1, w * sizeof(PIXEL_YC));
 }
