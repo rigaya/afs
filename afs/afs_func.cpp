@@ -273,13 +273,14 @@ void get_afs_func_list(AFS_FUNC *func_list, char *simd_select) {
         if (strncmp(simd_select, "avx512_xbyak", strlen("avx512_xbyak")) == 0
             || strncmp(simd_select, "avx512", strlen("avx512")) == 0) {
             simd_mask = AVX512F|AVX512BW|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
-        } else if (strncmp(simd_select, "avx2_xbyak", strlen("avx2_xbyak")) == 0) {
-            simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
-        } else if (strncmp(simd_select, "avx2_xbyak_slow", strlen("avx2_xbyak_slow")) == 0) {
-            simd_mask = AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
-        } else if (strncmp(simd_select, "avx2", strlen("avx2")) == 0) {
+        } else if (strncmp(simd_select, "avx2_intrinsic", strlen("avx2_intrinsic")) == 0) {
             simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
             use_xbyak = false;
+        } else if (strncmp(simd_select, "avx2_xbyak_slow", strlen("avx2_xbyak_slow")) == 0) {
+            simd_mask = AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
+        } else if (strncmp(simd_select, "avx2_xbyak", strlen("avx2_xbyak")) == 0
+            || strncmp(simd_select, "avx2", strlen("avx2")) == 0) {
+            simd_mask = AVX2FAST|AVX2|AVX|POPCNT|SSE41|SSSE3|SSE2;
         } else if (strncmp(simd_select, "avx", strlen("avx")) == 0) {
             simd_mask = AVX|POPCNT|SSE41|SSSE3|SSE2;
             use_xbyak = false;
@@ -302,6 +303,9 @@ void get_afs_func_list(AFS_FUNC *func_list, char *simd_select) {
         if ((FUNC_ANALYZE_LIST[i].simd & simd_avail) == FUNC_ANALYZE_LIST[i].simd) {
             memcpy(func_list->analyze, FUNC_ANALYZE_LIST[i].analyze, sizeof(func_list->analyze));
             func_list->simd_used = FUNC_ANALYZE_LIST[i].simd;
+            if (func_list->simd_used & AVX2) {
+                func_list->simd_used |= func_list->simd_avail & AVX2FAST;
+            }
             func_list->use_xbyak = func_list->analyze[0].analyze_main[0] == nullptr;
             break;
         }
