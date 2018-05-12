@@ -34,11 +34,12 @@ AFSMergeScanXbyak::AFSMergeScanXbyak(
     const int stack_ptr_src0_line_offset       = 32;
     const int stack_ptr_src1_line_offset       = 36;
     const int stack_ptr_tb_order_offset        = 40;
-    const int stack_ptr_stripe_count_offset    = 44;
-    const int stack_ptr_stripe_mask_offset     = 48; //size = 8
-    const int stack_ptr_mc_clip_offset         = 56;
-    const int stack_ptr_mc_mask_y_offset       = 60; //size = 8
-    const int stack_ptr_mc_mask_x_offset       = 68; //size = BLOCK_SIZE / 8
+    const int stack_ptr_x_start_offset         = 44;
+    const int stack_ptr_stripe_count_offset    = 48;
+    const int stack_ptr_stripe_mask_offset     = 52; //size = 8
+    const int stack_ptr_mc_clip_offset         = 60;
+    const int stack_ptr_mc_mask_y_offset       = 64; //size = 8
+    const int stack_ptr_mc_mask_x_offset       = 72; //size = BLOCK_SIZE / 8
     const int stack_fin = stack_ptr_mc_mask_x_offset + BLOCK_SIZE / 8;
     const int STACK_SIZE = ((stack_fin + (STACK_ALIGN-1) + STACK_PUSH) & ~(STACK_ALIGN-1)) - STACK_PUSH;
     static_assert(STACK_SIZE >= stack_fin, "STACK_SIZE is too small.");
@@ -58,6 +59,7 @@ AFSMergeScanXbyak::AFSMergeScanXbyak(
     const Address& stack_ptr_src0_line     = dword[esp + stack_ptr_src0_line_offset];
     const Address& stack_ptr_src1_line     = dword[esp + stack_ptr_src1_line_offset];
     const Address& stack_ptr_tb_order      = dword[esp + stack_ptr_tb_order_offset];
+    const Address& stack_ptr_x_start       = dword[esp + stack_ptr_tb_order_offset];
     const Address& stack_ptr_stripe_count  = dword[esp + stack_ptr_stripe_count_offset];
     const Address& stack_ptr_stripe_mask   = dword[esp + stack_ptr_stripe_mask_offset];
     const Address& stack_ptr_mc_clip       = dword[esp + stack_ptr_mc_clip_offset];
@@ -87,6 +89,7 @@ AFSMergeScanXbyak::AFSMergeScanXbyak(
     mov(esi, dword[ebp + 4 + 8]);      //void *src0
     mov(edi, dword[ebp + 4 + 12]);     //void *src1
     mov(eax, dword[ebp + 4 + 28]);     //int x_start
+    mov(stack_ptr_x_start, eax);
     add(esi, eax); //src0 += x_start
     add(edi, eax); //src1 += x_start
     add(edx, eax); //dst += x_start
@@ -187,9 +190,12 @@ AFSMergeScanXbyak::AFSMergeScanXbyak(
         mov(esi, stack_ptr_src0);
         mov(edi, stack_ptr_src1);
         mov(edx, stack_ptr_dst);
+        mov(eax, stack_ptr_x_start);
         add(esi, block_x_size);
         add(edi, block_x_size);
         add(edx, block_x_size);
+        add(eax, block_x_size);
+        mov(stack_ptr_x_start, eax);
         cmp(edx, stack_ptr_dst_block_fin);
         jb("block_loop", T_NEAR);
     }
@@ -242,17 +248,22 @@ void AFSMergeScanXbyak::init_mc_mask(const int stack_ptr_mc_mask_x_offset, const
     }
 }
 
+//eax ... x_start
 //ebp ... 使用済み
 void AFSMergeScanXbyak::init_mc_mask_avx2(const int stack_ptr_mc_mask_x_offset, const Xbyak::Address& stack_ptr_w, const Xbyak::Address& stack_ptr_mc_clip) {
     using namespace Xbyak;
     vmovdqa(ymm2, yword[pw_index]); //[i+ 0, i+ 8]
     vpcmpeqb(ymm7, ymm7, ymm7);
+    movd(xmm3, eax);
+    vpbroadcastw(ymm3, xmm3);
     vpsrlw(ymm7, ymm7, 15);
     vpsllw(ymm7, ymm7, 4); //16
     vpaddw(ymm1, ymm2, ymm7); //[i+16, i+24]
     vpsllw(ymm7, ymm7, 1); //32
     vperm2i128(ymm0, ymm2, ymm1, (2<<4) + 0); //あとでvpacksswbするので [i+ 0, i+16]
     vperm2i128(ymm1, ymm2, ymm1, (3<<4) + 1); //あとでvpacksswbするので [i+ 8, i+24]
+    vpaddw(ymm0, ymm0, ymm3);
+    vpaddw(ymm1, ymm1, ymm3);
 
     mov(ebx, stack_ptr_mc_clip);
     xor(eax, eax);
@@ -286,15 +297,19 @@ void AFSMergeScanXbyak::init_mc_mask_avx2(const int stack_ptr_mc_mask_x_offset, 
     }
 }
 
+//eax ... x_start
 //ebp ... 使用済み
 void AFSMergeScanXbyak::init_mc_mask_avx512(int stack_ptr_mc_mask_x_offset, const Xbyak::Address& stack_ptr_w, const Xbyak::Address& stack_ptr_mc_clip) {
     using namespace Xbyak;
     vmovdqa32(zmm0, zword[pw_index]); //[i+ 0, i+ 8, i+16, i+24]
     vpternlogd(zmm7, zmm7, zmm7, 0xff);
+    vpbroadcastw(zmm3, ax);
     vpsrlw(zmm7, zmm7, 15);
     vpsllw(zmm7, zmm7, 5); //32
     vpaddw(zmm1, zmm0, zmm7); //[i+32, i+40, i+48, i+56]
     vpsllw(zmm7, zmm7, 1); //64
+    vpaddw(zmm0, zmm0, zmm3);
+    vpaddw(zmm1, zmm1, zmm3);
 
     mov(ebx, stack_ptr_mc_clip);
     xor(eax, eax);
