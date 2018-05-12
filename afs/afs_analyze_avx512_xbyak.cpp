@@ -385,8 +385,8 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop1(
         //zmm6のpw_thre_shiftは、afs_shrink_infoの呼び出しで破棄されるのでここでロード
         vmovdqa32(zmm6, zword[pw_thre_shift]);
         afs_analyze_loop_1_internal(zmm5, zmm2, zmm7, zmm6, step6, false,  0);
-        afs_analyze_loop_1_internal(zmm4, zmm2, zmm7, zmm6, step6, false, 32);
-        afs_analyze_loop_1_internal(zmm3, zmm2, zmm7, zmm6, step6, true,  64);
+        afs_analyze_loop_1_internal(zmm4, zmm2, zmm7, zmm6, step6, false, 64);
+        afs_analyze_loop_1_internal(zmm3, zmm2, zmm7, zmm6, step6, true, 128);
         afs_shrink_info(true, ecx, zmm5, zmm4, zmm3);
         add(ecx, 32);
         cmp(ecx, ebp);
