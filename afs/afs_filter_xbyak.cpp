@@ -111,6 +111,7 @@ AFSMergeScanXbyak::AFSMergeScanXbyak(
         mov(stack_ptr_src1, edi);
         mov(stack_ptr_dst, edx);
         mov(eax, block_x_size);
+        mov(ebx, stack_ptr_dst_block_fin);
         sub(ebx, edx); //dst_block_fin - dst
         cmp(eax, ebx);
         cmovge(ebx, eax); //step = min(dst_block_fin - dst, block_size);
