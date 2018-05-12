@@ -178,8 +178,6 @@ AFSAnalyzeXbyakAVX512::AFSAnalyzeXbyakAVX512(
     cmp(ebx, eax);
     cmovle(eax, ebx); //min(h_fin+4, h+4)
     mov(stack_ptr_h_fin_l3, eax);
-    lea(edx, ptr[ebp + 4]);
-    mov(stack_ptr_h_start_plus4, edx);
 
     //関数引数の取り出し
     mov(esi, dword[ebp + 4 + 8]); //関数引数: void *_p0
