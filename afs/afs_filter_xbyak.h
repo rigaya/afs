@@ -59,10 +59,10 @@ public:
     virtual ~AFSMergeScanXbyak() {};
 
     int checkprm(int si_w, int h, const AFS_SCAN_CLIP *mc_clip) const {
-        return param.si_w == si_w
-            && param.h == h
-            && param.mc_scan_top == mc_clip->top
-            && param.mc_scan_bottom == mc_clip->bottom;
+        return param.si_w != si_w
+            || param.h != h
+            || param.mc_scan_top != mc_clip->top
+            || param.mc_scan_bottom != mc_clip->bottom;
     }
 };
 
