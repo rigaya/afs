@@ -166,6 +166,8 @@ enum {
 
 typedef struct {
     void *map;
+    void *mem_ptr;
+    bool large_page;
     int status, frame, file_id, video_number, yuy2upsample;
 } AFS_SOURCE_DATA;
 
@@ -173,7 +175,7 @@ typedef struct AFS_CONTEXT {
 #if ENABLE_SUB_THREADS
     AFS_SUB_THREAD sub_thread;
 #endif //ENABLE_SUB_THREADS
-
+    size_t large_page_size;
     int cache_nv16;
     // インタレース解除フィルタ用ソースキャッシュ
     unsigned int afs_mode;
@@ -182,9 +184,9 @@ typedef struct AFS_CONTEXT {
     int source_h;
     AFS_SOURCE_DATA source_array[AFS_SOURCE_CACHE_NUM];
 
-    // 縞、動きスキャン＋合成縞情報キャッシ
-
+    // 縞、動きスキャン＋合成縞情報キャッシュ
     unsigned char* analyze_cachep[AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM];
+    bool analyze_cachep_large_page[AFS_SCAN_CACHE_NUM + AFS_STRIPE_CACHE_NUM];
     PIXEL_YC* scan_workp;
     int scan_worker_n;
     int scan_frame_n, scan_w, scan_h;

@@ -153,6 +153,30 @@ void afs_vtune_set_jit_code(std::vector<std::pair<const void*, size_t>> func, co
 }
 #endif //#if AFS_USE_VTUNE
 
+bool large_page_supported() {
+    HANDLE token = INVALID_HANDLE_VALUE;
+    TOKEN_PRIVILEGES priv = { 0 };
+
+    if (!(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)))
+        return false;
+
+    if (!(LookupPrivilegeValue(nullptr, SE_LOCK_MEMORY_NAME, &priv.Privileges[0].Luid))) {
+        CloseHandle(token);
+        return false;
+    }
+
+    priv.PrivilegeCount = 1;
+    priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!(AdjustTokenPrivileges(token, FALSE, &priv, 0, nullptr, 0))) {
+        CloseHandle(token);
+        return false;
+    }
+
+    CloseHandle(token);
+    return true;
+}
+
 // ログ関連
 
 static int log_start_frame, log_end_frame, log_save_check;
@@ -308,16 +332,24 @@ void free_source_cache(void) {
         afs_opencl_release_buffer(&g_afs);
     }
 #endif
-    if (g_afs.source_array[0].map != NULL) {
+    if (g_afs.source_array[0].mem_ptr != nullptr) {
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
             if (g_afs.source_array[i].map) {
 #if ENABLE_OPENCL
                 if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
-                    clSVMFree(g_afs.opencl.ctx, g_afs.source_array[i].map);
+                    clSVMFree(g_afs.opencl.ctx, g_afs.source_array[i].mem_ptr);
                 else
 #endif //#if ENABLE_OPENCL
-                    _aligned_free(g_afs.source_array[i].map);
-                g_afs.source_array[i].map = NULL;
+                {
+                    if (g_afs.source_array[i].large_page) {
+                        VirtualFree(g_afs.source_array[i].mem_ptr, 0, MEM_RELEASE);
+                    } else {
+                        _aligned_free(g_afs.source_array[i].mem_ptr);
+                    }
+                }
+                g_afs.source_array[i].map = nullptr;
+                g_afs.source_array[i].mem_ptr = nullptr;
+                g_afs.source_array[i].large_page = false;
             }
             g_afs.source_array[i].status = 0;
         }
@@ -328,7 +360,8 @@ void free_source_cache(void) {
 
 BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
     int source_w = std::max(g_afs.source_w, si_pitch(max_w, afs_mode));
-    int baseAddressAlign = 64;
+    const size_t address_align_normal = 64u;
+    const size_t address_align_large = std::max(address_align_normal, g_afs.large_page_size);
 #if ENABLE_OPENCL
     if (g_afs.afs_mode & AFS_MODE_OPENCL) {
         if (afs_opencl_source_buffer_pitch(&g_afs, source_w, max_h, &source_w, &baseAddressAlign)) {
@@ -340,7 +373,7 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
     const int cache_nv16 = (afs_mode & AFS_MODE_CACHE_NV16) != 0;
 
     if (g_afs.source_array[0].map != NULL) {
-        if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w < source_w || g_afs.source_h != max_h || g_afs.cache_nv16 != cache_nv16) {
+        if ((frame_n != 0 && g_afs.source_frame_n != 0 && g_afs.source_frame_n != frame_n) || g_afs.source_w < source_w || g_afs.source_h < max_h || g_afs.cache_nv16 != cache_nv16) {
 #if ENABLE_OPENCL
             (g_afs.afs_mode & AFS_MODE_OPENCL) ? afs_opencl_release_buffer(&g_afs) :
 #endif //#if ENABLE_OPENCL
@@ -348,21 +381,45 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
         }
     }
 
-    if (g_afs.source_array[0].map == NULL) {
+    if (g_afs.source_array[0].map == nullptr) {
         const int size = source_w * max_h;
-        const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + 63) & ~63;
+        const int frame_size_bytes = (size * ((cache_nv16) ? 2 : 6) + (address_align_normal-1)) & (~(address_align_normal-1));
         for (int i = 0; i < AFS_SOURCE_CACHE_NUM; i++) {
+            g_afs.source_array[i].map = nullptr;
 #if ENABLE_OPENCL
             if (g_afs.afs_mode & AFS_MODE_OPENCL_SVMF)
-                g_afs.source_array[i].map = clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_ONLY|CL_MEM_SVM_FINE_GRAIN_BUFFER, frame_size_bytes, 0);
+                g_afs.source_array[i].mem_ptr = clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_ONLY|CL_MEM_SVM_FINE_GRAIN_BUFFER, frame_size_bytes, 0);
             else
 #endif //#if ENABLE_OPENCL
-                g_afs.source_array[i].map = _aligned_malloc(frame_size_bytes, baseAddressAlign);
+            {
+                const int large_page_size_byte = (frame_size_bytes + AFS_SOURCE_CACHE_NUM * 256 + (address_align_large-1)) & (~(address_align_large-1));
+#if 0
+                SetLastError(NO_ERROR);		//エラー情報をクリアする
+#endif
+                g_afs.source_array[i].mem_ptr = VirtualAlloc(nullptr, large_page_size_byte, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+#if 0
+                if (g_afs.source_array[i].mem_ptr == nullptr) {
+                    char buffer[256];
+                    FormatMessage(				//エラー表示文字列作成
+                        FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                        NULL, GetLastError(),
+                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                        (LPTSTR)buffer, 256, NULL);
+                    MessageBox(NULL, buffer, NULL, MB_OK);	//メッセージ表示
+                }
+#endif
+                g_afs.source_array[i].large_page = g_afs.source_array[i].mem_ptr != nullptr;
+                if (g_afs.source_array[i].mem_ptr == nullptr) {
+                    g_afs.source_array[i].mem_ptr = _aligned_malloc(frame_size_bytes, address_align_normal);
+                }
+            }
 
-            if (g_afs.source_array[i].map == nullptr) {
+            if (g_afs.source_array[i].mem_ptr == nullptr) {
                 free_source_cache();
                 return FALSE;
             }
+            g_afs.source_array[i].map = (uint8_t *)g_afs.source_array[i].mem_ptr + ((g_afs.source_array[i].large_page) ? i * 256 : 0);
             ZeroMemory(g_afs.source_array[i].map, frame_size_bytes);
             g_afs.source_array[i].status = 0;
         }
@@ -559,7 +616,15 @@ void free_analyze_cache() {
                     clSVMFree(g_afs.opencl.ctx, g_afs.analyze_cachep[i]);
                 else
 #endif //#if ENABLE_OPENCL
-                    _aligned_free(g_afs.analyze_cachep[i]);
+                {
+                    if (g_afs.analyze_cachep_large_page[i]) {
+                        VirtualFree(g_afs.analyze_cachep[i], 0, MEM_RELEASE);
+                    } else {
+                        _aligned_free(g_afs.analyze_cachep[i]);
+                    }
+                    g_afs.analyze_cachep_large_page[i] = false;
+                    g_afs.analyze_cachep[i] = nullptr;
+                }
             }
         }
         memset(g_afs.analyze_cachep, 0, sizeof(g_afs.analyze_cachep));
@@ -731,6 +796,9 @@ BOOL func_init(FILTER* fp) {
 #if ENABLE_SUB_THREADS
     g_afs.sub_thread.thread_sub_n = -1;
 #endif
+    if (large_page_supported()) {
+        g_afs.large_page_size = GetLargePageMinimum();
+    }
     char simd_slect[256];
     get_simd_stg(fp, simd_slect, sizeof(simd_slect));
     get_afs_func_list(&afs_func, simd_slect);
@@ -1035,6 +1103,8 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
 BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
     const int si_w = si_pitch(w, afs_mode);
     const int size = si_w * (h + 2) + 4096;
+    const size_t address_align_normal = 64u;
+    const size_t address_align_large = std::max(address_align_normal, g_afs.large_page_size);
 
     if (g_afs.analyze_cachep[0] != NULL) {
         if (g_afs.scan_frame_n != frame_n || g_afs.scan_w != w || g_afs.scan_h != h || g_afs.scan_worker_n != worker_n) {
@@ -1044,7 +1114,7 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
 
     if (g_afs.analyze_cachep[0] == NULL) {
         if (afs_func.analyze[afs_cache_nv16(afs_mode)].shrink_info || SIMD_DEBUG) {
-            if (nullptr == (g_afs.scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, 64))) {
+            if (nullptr == (g_afs.scan_workp = (PIXEL_YC*)_aligned_malloc(sizeof(PIXEL_YC) * BLOCK_SIZE_YCP * worker_n * h, address_align_normal))) {
                 return FALSE;
             }
         }
@@ -1055,7 +1125,29 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
                 g_afs.analyze_cachep[i] = (unsigned char*)clSVMAlloc(g_afs.opencl.ctx, CL_MEM_READ_WRITE|CL_MEM_SVM_FINE_GRAIN_BUFFER, sizeof(unsigned char) * size, 0);
             else
 #endif //#if ENABLE_OPENCL
-                g_afs.analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, 64);
+            {
+                const int large_page_size_byte = (size + (address_align_large-1)) & (~(address_align_large-1));
+#if 0
+                SetLastError(NO_ERROR);		//エラー情報をクリアする
+#endif
+                g_afs.analyze_cachep[i] = (unsigned char*)VirtualAlloc(nullptr, large_page_size_byte, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+#if 0
+                if (g_afs.analyze_cachep[i] == nullptr) {
+                    char buffer[256];
+                    FormatMessage(				//エラー表示文字列作成
+                        FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                        NULL, GetLastError(),
+                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                        (LPTSTR)buffer, 256, NULL);
+                    MessageBox(NULL, buffer, NULL, MB_OK);	//メッセージ表示
+                }
+#endif
+                g_afs.analyze_cachep_large_page[i] = g_afs.analyze_cachep[i] != nullptr;
+                if (g_afs.analyze_cachep[i] == nullptr) {
+                    g_afs.analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, address_align_normal);
+                }
+            }
 
             if (g_afs.analyze_cachep[i] == nullptr) {
                 return FALSE;
@@ -1067,13 +1159,13 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
             if (g_afs.afs_mode & AFS_MODE_OPENCL) {
                 g_afs.scan_array[i].map = (unsigned char *)((size_t)(g_afs.analyze_cachep[i] + si_w + 4095) & ~4095);
             } else {
-                g_afs.scan_array[i].map = (unsigned char *)(g_afs.analyze_cachep[i] + si_w);
+                g_afs.scan_array[i].map = (unsigned char *)(g_afs.analyze_cachep[i] + si_w + (i % 16) * 256);
             }
         }
 
         for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++) {
             g_afs.stripe_array[i].status = 0;
-            g_afs.stripe_array[i].map = g_afs.analyze_cachep[AFS_SCAN_CACHE_NUM + i];
+            g_afs.stripe_array[i].map = g_afs.analyze_cachep[AFS_SCAN_CACHE_NUM + i] + (i % 16) * 256;
         }
 
         for (int i = 0; i < worker_n; i++) {
