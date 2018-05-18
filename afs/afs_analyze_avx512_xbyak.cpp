@@ -544,21 +544,21 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2(int step6, int si_pitch,
             //zmm6のpw_thre_shiftは、afs_shrink_infoの呼び出しで破棄されるのでここでロード
             vmovdqa32(zmm6, zword[pw_thre_shift]);
             vmovdqa32(zmm4, zword[pw_thre_deint]);
-            call("afs_analyze_loop2_1_internal");
+            call(label_afs_analyze_loop2_1_internal);
             vmovdqa32(zword[esp + stack_ptr_tmp16pix_offset + 0], zmm3);
 
             add(esi, 64);
             add(edi, 64);
             sub(ebx, -128);
             vpermq(zmm5, zmm5, _MM_SHUFFLE(2, 1, 3, 2));
-            call("afs_analyze_loop2_1_internal");
+            call(label_afs_analyze_loop2_1_internal);
             vmovdqa32(zword[esp + stack_ptr_tmp16pix_offset + 64], zmm3);
 
             add(esi, 64);
             add(edi, 64);
             sub(ebx, -128);
             vpermq(zmm5, zmm5, _MM_SHUFFLE(2, 1, 3, 2));
-            call("afs_analyze_loop2_1_internal");
+            call(label_afs_analyze_loop2_1_internal);
 
             add(esi, 64);
             add(edi, 64);
@@ -624,7 +624,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     Zmm zmm5_pw_thre_motion(zmm5);
     Zmm zmm4_pw_thre_deint(zmm4);
     align();
-    L("afs_analyze_loop2_1_internal");
+    L(label_afs_analyze_loop2_1_internal);
     //analyze motion
     vmovdqa32(zmm0, zword[esi + step6]);
     vmovdqa32(zmm1, zmm0);
@@ -719,6 +719,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     vpsrlw(zmm0, zmm0, 4);
     vpord(zmm3, zmm3, zmm0);
     ret();
+    L(label_afs_analyze_loop2_1_internal_fin);
 }
 
 //edx . . ih

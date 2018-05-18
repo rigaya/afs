@@ -3,6 +3,7 @@
 #include "filter.h"
 
 #define AFS_USE_XBYAK 1
+#define AFS_USE_VTUNE 0
 
 #define AFS_AVX512_INTRINSIC 1
 
@@ -13,6 +14,12 @@
 #define AFS_SUB_WORKER_MAX    8
 
 #include "afs_opencl.h"
+
+#if AFS_USE_VTUNE
+#include "jitprofiling.h"
+#pragma comment(lib, "libittnotify.lib")
+#pragma comment(lib, "jitprofiling.lib")
+#endif //#if AFS_USE_VTUNE
 
 enum {
     AFS_MODE_YUY2UP      = 0x01,
@@ -202,6 +209,9 @@ typedef struct AFS_CONTEXT {
     AFSMergeScanXbyak *xbyak_merge;
 #endif //#if AFS_USE_XBYAK
 
+#if AFS_USE_VTUNE
+    iJIT_IsProfilingActiveFlags agent;
+#endif //#if AFS_USE_VTUNE
     AFS_EX_DATA ex_data;
 } AFS_CONTEXT;
 

@@ -490,21 +490,21 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2(int step6, int si_pitch,
         mov(stack_ptr_p1, eax);
         L("afs_analyze_loop2_w1"); {
             vmovdqa(ymm5, stack_ptr_pw_thre_motion); //broadcast不可
-            call("afs_analyze_loop2_1_internal");
+            call(label_afs_analyze_loop2_1_internal);
             vmovdqa(yword[esp + stack_ptr_tmp16pix_offset + 0], ymm3);
 
             add(esi, 32);
             add(edi, 32);
             add(ebx, 64);
             vpermq(ymm5, ymm5, _MM_SHUFFLE(1, 0, 2, 1));
-            call("afs_analyze_loop2_1_internal");
+            call(label_afs_analyze_loop2_1_internal);
             vmovdqa(yword[esp + stack_ptr_tmp16pix_offset + 32], ymm3);
 
             add(esi, 32);
             add(edi, 32);
             add(ebx, 64);
             vpermq(ymm5, ymm5, _MM_SHUFFLE(1, 0, 2, 1));
-            call("afs_analyze_loop2_1_internal");
+            call(label_afs_analyze_loop2_1_internal);
 
             add(esi, 32);
             add(edi, 32);
@@ -569,7 +569,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2_1_internal(int step6, int si_pitch, 
     Ymm ymm6_pw_thre_shift(ymm6);
     Ymm ymm5_pw_thre_motion(ymm5);
     align();
-    L("afs_analyze_loop2_1_internal");
+    L(label_afs_analyze_loop2_1_internal);
     //analyze motion
     vmovdqa(ymm0, yword[esi + step6]);
     vmovdqa(ymm1, ymm0);
@@ -644,6 +644,7 @@ void AFSAnalyzeXbyakAVX2::afs_analyze_loop2_1_internal(int step6, int si_pitch, 
     AVX2I_MEM_BROADCAST(vpand, ymm0, ymm0, pw_mask_12stripe_1, ymm4);
     vpor(ymm3, ymm3, ymm0);
     ret();
+    L(label_afs_analyze_loop2_1_internal_fin);
 }
 
 //edx . . ih

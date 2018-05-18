@@ -21,6 +21,8 @@ struct AFSAnalyzeParam {
 class AFSAnalyzeXbyak : public Xbyak::CodeGenerator {
 protected:
     AFSAnalyzeParam param;
+    Xbyak::Label label_afs_analyze_loop2_1_internal;
+    Xbyak::Label label_afs_analyze_loop2_1_internal_fin;
 private:
     void operator=(const AFSAnalyzeXbyak&) {};
     AFSAnalyzeXbyak(const AFSAnalyzeXbyak& src) {};
@@ -30,6 +32,12 @@ public:
 
     virtual ~AFSAnalyzeXbyak() { };
     virtual int checkprm(int tb_order, int step, int si_pitch, int h, int max_h, int mc_scan_top, int mc_scan_bottom) const;
+
+    virtual std::pair<const void*, size_t> getInternalCallInfo() const {
+        auto ptr = label_afs_analyze_loop2_1_internal.getAddress();
+        size_t size = label_afs_analyze_loop2_1_internal_fin.getAddress() - ptr;
+        return std::make_pair(ptr, size);
+    }
 };
 
 class AFSAnalyzeXbyakAVX2 : public AFSAnalyzeXbyak {

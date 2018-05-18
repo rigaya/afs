@@ -120,6 +120,39 @@ static __declspec(noinline) void error_modal(FILTER *fp, void *editp, LPTSTR m) 
     return;
 }
 
+#if AFS_USE_VTUNE
+void afs_vtune_set_jit_code(std::vector<std::pair<const void*, size_t>> func, const char *name) {
+    iJIT_Method_Load jmethod = { 0 };
+    jmethod.method_id = iJIT_GetNewMethodID();
+    jmethod.class_file_name = "";
+    jmethod.source_file_name = __FILE__;
+
+    jmethod.method_load_address = func[0].first;
+    jmethod.method_size = func[0].second;
+    jmethod.line_number_size = 0;
+
+    jmethod.method_name = const_cast<char*>(name);
+    int ret = iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, (void*)&jmethod);
+
+    for (uint32_t i = 1; i < func.size(); i++) {
+        std::string name_inline = name;
+        name_inline += "_";
+        name_inline += std::to_string(i);
+        iJIT_Method_Inline_Load inlineMethod = { 0 };
+        inlineMethod.method_id = iJIT_GetNewMethodID();
+        inlineMethod.parent_method_id = jmethod.method_id;
+        inlineMethod.class_file_name = "";
+        inlineMethod.source_file_name = __FILE__;
+        inlineMethod.method_name = const_cast<char*>(name_inline.c_str());
+
+        inlineMethod.method_load_address = func[i].first;
+        inlineMethod.method_size = func[i].second;
+        inlineMethod.line_number_size = 0;
+        iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_INLINE_LOAD_FINISHED, (void*)&inlineMethod);
+    }
+}
+#endif //#if AFS_USE_VTUNE
+
 // ログ関連
 
 static int log_start_frame, log_end_frame, log_save_check;
@@ -703,6 +736,9 @@ BOOL func_init(FILTER* fp) {
     get_afs_func_list(&afs_func, simd_slect);
     QPC_FREQ;
     afs_check_share();
+#if AFS_USE_VTUNE
+    g_afs.agent = iJIT_IsProfilingActive();
+#endif //#if AFS_USE_VTUNE
     return TRUE;
 }
 
@@ -713,6 +749,9 @@ BOOL func_exit(FILTER*) {
 #endif
     free_analyze_cache();
     afs_release_share();
+#if AFS_USE_VTUNE
+    iJIT_NotifyEvent(iJVM_EVENT_TYPE_SHUTDOWN, NULL);;
+#endif //#if AFS_USE_VTUNE
     return TRUE;
 }
 
@@ -962,6 +1001,12 @@ void analyze_stripe(int type, AFS_SCAN_DATA* sp, void* p1, void* p0, int source_
                 g_afs.xbyak_analyze12 = new AFSAnalyzeXbyakAVX2((afs_func.simd_avail & AVX2FAST) == 0,
                     g_afs.scan_arg.tb_order, g_afs.scan_arg.source_w, g_afs.scan_arg.si_pitch, g_afs.scan_h, g_afs.source_h, mc_clip->top, mc_clip->bottom);
             }
+#if AFS_USE_VTUNE
+            std::vector<std::pair<const void*, size_t>> jit_code;
+            jit_code.push_back(std::make_pair(g_afs.xbyak_analyze12->getCode(), g_afs.xbyak_analyze12->getSize()));
+            jit_code.push_back(g_afs.xbyak_analyze12->getInternalCallInfo());
+            afs_vtune_set_jit_code(jit_code, "afs_analyze_xbyak");
+#endif //#if AFS_USE_VTUNE
         }
     }
 #endif //#if AFS_USE_XBYAK
@@ -1270,6 +1315,11 @@ unsigned char* get_stripe_info(int frame, int mode) {
             if (g_afs.xbyak_merge == nullptr) {
                 g_afs.xbyak_merge = new AFSMergeScanXbyak(si_w, g_afs.scan_h, &sp0->clip, (afs_func.simd_avail & AVX512BW) != 0);
             }
+#if AFS_USE_VTUNE
+            std::vector<std::pair<const void*, size_t>> jit_code;
+            jit_code.push_back(std::make_pair(g_afs.xbyak_merge->getCode(), g_afs.xbyak_merge->getSize()));
+            afs_vtune_set_jit_code(jit_code, "afs_merge_scan_xbyak");
+#endif //#if AFS_USE_VTUNE
         }
 #endif //#if AFS_USE_XBYAK
 
