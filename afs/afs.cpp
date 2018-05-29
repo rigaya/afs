@@ -392,23 +392,25 @@ BOOL set_source_cache_size(int frame_n, int max_w, int max_h, int afs_mode) {
             else
 #endif //#if ENABLE_OPENCL
             {
-                const int large_page_size_byte = (frame_size_bytes + AFS_SOURCE_CACHE_NUM * 256 + (address_align_large-1)) & (~(address_align_large-1));
+                if (g_afs.large_page_size > 0) {
+                    const int large_page_size_byte = (frame_size_bytes + AFS_SOURCE_CACHE_NUM * 256 + (address_align_large-1)) & (~(address_align_large-1));
 #if 0
-                SetLastError(NO_ERROR);		//エラー情報をクリアする
+                    SetLastError(NO_ERROR);		//エラー情報をクリアする
 #endif
-                g_afs.source_array[i].mem_ptr = VirtualAlloc(nullptr, large_page_size_byte, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+                    g_afs.source_array[i].mem_ptr = VirtualAlloc(nullptr, large_page_size_byte, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
 #if 0
-                if (g_afs.source_array[i].mem_ptr == nullptr) {
-                    char buffer[256];
-                    FormatMessage(				//エラー表示文字列作成
-                        FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS,
-                        NULL, GetLastError(),
-                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                        (LPTSTR)buffer, 256, NULL);
-                    MessageBox(NULL, buffer, NULL, MB_OK);	//メッセージ表示
+                    if (g_afs.source_array[i].mem_ptr == nullptr) {
+                        char buffer[256];
+                        FormatMessage(				//エラー表示文字列作成
+                            FORMAT_MESSAGE_FROM_SYSTEM |
+                            FORMAT_MESSAGE_IGNORE_INSERTS,
+                            NULL, GetLastError(),
+                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                            (LPTSTR)buffer, 256, NULL);
+                        MessageBox(NULL, buffer, NULL, MB_OK);	//メッセージ表示
+                    }
+#endif
                 }
-#endif
                 g_afs.source_array[i].large_page = g_afs.source_array[i].mem_ptr != nullptr;
                 if (g_afs.source_array[i].mem_ptr == nullptr) {
                     g_afs.source_array[i].mem_ptr = _aligned_malloc(frame_size_bytes, address_align_normal);
@@ -773,6 +775,13 @@ void get_simd_stg(FILTER *fp, char *buf, size_t bufsize) {
     GetPrivateProfileString("AFS", "simd", "auto", buf, bufsize, auf_filepath);
 }
 
+int get_large_page_stg(FILTER *fp) {
+    char auf_filepath[512];
+    GetModuleFileNameA(fp->dll_hinst, auf_filepath, sizeof(auf_filepath));
+    strcat_s(auf_filepath, ".ini");
+    return GetPrivateProfileInt("AFS", "large_page", 0, auf_filepath);
+}
+
 EXTERN_C FILTER_DLL __declspec(dllexport) * __stdcall GetFilterTable(void) {
     set_auto_threads();
     g_yuy2_table_called = false;
@@ -796,7 +805,7 @@ BOOL func_init(FILTER* fp) {
 #if ENABLE_SUB_THREADS
     g_afs.sub_thread.thread_sub_n = -1;
 #endif
-    if (large_page_supported()) {
+    if (large_page_supported() && get_large_page_stg(fp)) {
         g_afs.large_page_size = GetLargePageMinimum();
     }
     char simd_slect[256];
@@ -1126,23 +1135,25 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
             else
 #endif //#if ENABLE_OPENCL
             {
-                const int large_page_size_byte = (size + (address_align_large-1)) & (~(address_align_large-1));
+                if (g_afs.large_page_size > 0) {
+                    const int large_page_size_byte = (size + (address_align_large-1)) & (~(address_align_large-1));
 #if 0
-                SetLastError(NO_ERROR);		//エラー情報をクリアする
+                    SetLastError(NO_ERROR);		//エラー情報をクリアする
 #endif
-                g_afs.analyze_cachep[i] = (unsigned char*)VirtualAlloc(nullptr, large_page_size_byte, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+                    g_afs.analyze_cachep[i] = (unsigned char*)VirtualAlloc(nullptr, large_page_size_byte, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
 #if 0
-                if (g_afs.analyze_cachep[i] == nullptr) {
-                    char buffer[256];
-                    FormatMessage(				//エラー表示文字列作成
-                        FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS,
-                        NULL, GetLastError(),
-                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                        (LPTSTR)buffer, 256, NULL);
-                    MessageBox(NULL, buffer, NULL, MB_OK);	//メッセージ表示
+                    if (g_afs.analyze_cachep[i] == nullptr) {
+                        char buffer[256];
+                        FormatMessage(				//エラー表示文字列作成
+                            FORMAT_MESSAGE_FROM_SYSTEM |
+                            FORMAT_MESSAGE_IGNORE_INSERTS,
+                            NULL, GetLastError(),
+                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                            (LPTSTR)buffer, 256, NULL);
+                        MessageBox(NULL, buffer, NULL, MB_OK);	//メッセージ表示
+                    }
+#endif
                 }
-#endif
                 g_afs.analyze_cachep_large_page[i] = g_afs.analyze_cachep[i] != nullptr;
                 if (g_afs.analyze_cachep[i] == nullptr) {
                     g_afs.analyze_cachep[i] = (unsigned char*)_aligned_malloc(sizeof(unsigned char) * size, address_align_normal);
