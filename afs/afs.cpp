@@ -127,7 +127,7 @@ void afs_vtune_set_jit_code(std::vector<std::pair<const void*, size_t>> func, co
     jmethod.class_file_name = "";
     jmethod.source_file_name = __FILE__;
 
-    jmethod.method_load_address = func[0].first;
+    jmethod.method_load_address = const_cast<void*>(func[0].first);
     jmethod.method_size = func[0].second;
     jmethod.line_number_size = 0;
 
@@ -145,7 +145,7 @@ void afs_vtune_set_jit_code(std::vector<std::pair<const void*, size_t>> func, co
         inlineMethod.source_file_name = __FILE__;
         inlineMethod.method_name = const_cast<char*>(name_inline.c_str());
 
-        inlineMethod.method_load_address = func[i].first;
+        inlineMethod.method_load_address = const_cast<void*>(func[i].first);
         inlineMethod.method_size = func[i].second;
         inlineMethod.line_number_size = 0;
         iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_INLINE_LOAD_FINISHED, (void*)&inlineMethod);
@@ -1165,7 +1165,7 @@ BOOL check_scan_cache(int afs_mode, int frame_n, int w, int h, int worker_n) {
 
         for (int i = 0; i < AFS_STRIPE_CACHE_NUM; i++) {
             g_afs.stripe_array[i].status = 0;
-            g_afs.stripe_array[i].map = g_afs.analyze_cachep[AFS_SCAN_CACHE_NUM + i] + (i % 16) * 256;
+            g_afs.stripe_array[i].map = g_afs.analyze_cachep[AFS_SCAN_CACHE_NUM + i] + ((i+2) % 16) * 256;
         }
 
         for (int i = 0; i < worker_n; i++) {
@@ -1406,12 +1406,12 @@ unsigned char* get_stripe_info(int frame, int mode) {
             }
             if (g_afs.xbyak_merge == nullptr) {
                 g_afs.xbyak_merge = new AFSMergeScanXbyak(si_w, g_afs.scan_h, &sp0->clip, (afs_func.simd_avail & AVX512BW) != 0);
-            }
 #if AFS_USE_VTUNE
-            std::vector<std::pair<const void*, size_t>> jit_code;
-            jit_code.push_back(std::make_pair(g_afs.xbyak_merge->getCode(), g_afs.xbyak_merge->getSize()));
-            afs_vtune_set_jit_code(jit_code, "afs_merge_scan_xbyak");
+                std::vector<std::pair<const void*, size_t>> jit_code;
+                jit_code.push_back(std::make_pair(g_afs.xbyak_merge->getCode(), g_afs.xbyak_merge->getSize()));
+                afs_vtune_set_jit_code(jit_code, "afs_merge_scan_xbyak");
 #endif //#if AFS_USE_VTUNE
+            }
         }
 #endif //#if AFS_USE_XBYAK
 
