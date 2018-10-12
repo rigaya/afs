@@ -626,7 +626,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     align();
     L(label_afs_analyze_loop2_1_internal);
     //analyze motion
-    vmovdqa32(zmm0, zword[esi + step6]);
+    vmovdqu8(zmm0, zword[esi + step6]);
     vmovdqa32(zmm1, zmm0);
     vpsubw(zmm0, zmm0, zword[edi + step6]);
     vpabsw(zmm0, zmm0);
@@ -641,7 +641,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
     prefetcht0(ptr[edi + step6 * 2]);
 
     //analyze non-shift
-    vmovdqa32(zmm2, zword[esi]);
+    vmovdqu8(zmm2, zword[esi]);
     vpsubw(zmm2, zmm2, zmm1);
     vpabsw(zmm0, zmm2);
     vpcmpeqw(k2, zmm2, zmm0);
@@ -680,7 +680,7 @@ void AFSAnalyzeXbyakAVX512::afs_analyze_loop2_1_internal(int step6, int si_pitch
 
     //analyze shift
     movd(eax, mm7); //p1-p0 or 0
-    vmovdqa32(zmm2, zword[esi + eax]); //p0 あるいは p1
+    vmovdqu8(zmm2, zword[esi + eax]); //p0 あるいは p1
     pshufw(mm6, mm7, _MM_SHUFFLE(1, 0, 3, 2));
     movd(eax, mm6); //さきほどの逆
     vpsubw(zmm2, zmm2, zword[esi + eax + step6]);
