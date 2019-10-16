@@ -60,7 +60,7 @@ void __stdcall afs_analyze_set_threshold_avx512(int thre_shift, int thre_deint, 
     z1 = _mm512_set1_epi16((short)thre_deint);
     _mm512_store_si512((__m512i *)pw_thre_deint, z1);
 
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 32; i++) {
         pw_thre_motion[i] = (USHORT)((i % 3 == 0) ? thre_Ymotion : thre_Cmotion);
     }
 }
