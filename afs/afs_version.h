@@ -10,8 +10,8 @@
 #define VER_PRIVATE 0
 #endif
 
-#define VER_FILEVERSION              7,5,21,0
-#define VER_STR_FILEVERSION          "7.5a+21"
+#define VER_FILEVERSION              7,5,22,0
+#define VER_STR_FILEVERSION          "7.5a+22"
 
 #define AFS_FILENAME "自動フィールドシフト 高速化版"
 
