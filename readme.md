@@ -14,9 +14,9 @@ AVX512 / AVX2 / AVX / SSE4.1 / SSSE3 / SSE2
 ## ダウンロード & 更新履歴
 [rigayaの日記兼メモ帳＞＞](http://rigaya34589.blog135.fc2.com/blog-category-14.html)
 
-## 基本動作環境
-Windows Vista, 7, 8, 8.1, 10 (x86/x64)  
-Aviutl 0.99g4 以降
+## 想定動作環境
+Windows 10 (x86/x64)  
+Aviutl 1.00 以降
 
 ## 注意事項
 無保証です。自己責任で使用してください。  
