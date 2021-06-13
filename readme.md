@@ -1,9 +1,9 @@
 
 # 自動フィールドシフト 高速化版
   by rigaya  
-  original by [aji様](http://www.geocities.jp/aji_0/)
+  original by [aji様](https://aji0.web.fc2.com/)
 
-自動フィールドシフト 高速化版は[aji様](http://www.geocities.jp/aji_0/)の
+自動フィールドシフト 高速化版は[aji様](https://aji0.web.fc2.com/)の
 自動フィールドシフトを勝手に高速化したものです。
 
 もともとMMX命令で高速化されているものを、
@@ -58,7 +58,7 @@ large_page=0
 注3: 一部のバージョンのWin10は、Large Pageにバグがあり、正常に動作しないようです。  
 
 ## 謝辞
-素晴らしいプラグインを公開してくださっている、[aji様](http://www.geocities.jp/aji_0/)に深く感謝いたします。
+素晴らしいプラグインを公開してくださっている、[aji様](https://aji0.web.fc2.com/)に深く感謝いたします。
 
 また、本プラグインは[xbyak](https://github.com/herumi/xbyak)を使用したAVX512/AVX2コード生成を行っています。素敵なJITアセンブラを開発してくださり、感謝申し上げます。
 
